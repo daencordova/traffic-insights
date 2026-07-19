@@ -1,0 +1,1102 @@
+"""
+Tracker avanzado con re-identificación robusta.
+
+Este módulo implementa el tracker principal del sistema de seguimiento de tráfico,
+coordinando todos los subsistemas de tracking avanzado.
+"""
+
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+
+from core.constants import (
+    MAX_ACTIVE_TRACKS,
+    MIN_HITS_TO_CONFIRM,
+    MAX_FRAMES_MISSED,
+    MEMORY_CHECK_INTERVAL,
+    CLEANUP_INTERVAL,
+    MIN_DETECTION_CONFIDENCE,
+    MAX_DETECTION_CONFIDENCE,
+    MIN_BOX_SIZE,
+    MAX_BOX_SIZE
+)
+from core.interfaces import ITracker
+from core.tracker.matcher import HierarchicalMatcher
+from core.tracker.validator import TrackValidator
+from core.tracker.reidentifier import ReIdentificationSystem
+from core.tracker.mht_integration import MHTIntegration
+from core.tracker.online_learner import OnlineFeatureLearner
+from core.tracker.sensor_fusion import SensorFusionTracker, SensorObservation, SensorType
+from core.tracker.path_predictor import PathPredictor
+from core.tracker.managers.track_manager import TrackManager
+from core.tracker.state.state_machine import TrackStateMachine
+from core.tracker.state.track_updater import TrackUpdater
+from core.tracker.managers.feature_manager import FeatureManager
+from models.enums import TrackStatus
+from models.feature_extractor import FeatureExtractor
+from utils.logger import LoggerMixin
+from utils.helpers import get_memory_usage, force_garbage_collection
+from core.validators import validate_bbox, validate_centroid, validate_detection
+
+Detection = Dict[str, Any]
+TrackDict = Dict[int, Dict[str, Any]]
+MatchTuple = Tuple[List[Tuple[int, int]], List[int], List[int]]
+
+
+class AdvancedTracker(ITracker, LoggerMixin):
+    """
+    Tracker avanzado con re-identificación robusta.
+
+    Coordina todos los subsistemas:
+    - Gestión de tracks (TrackManager)
+    - Máquina de estados (TrackStateMachine)
+    - Actualización de tracks (TrackUpdater)
+    - Matcher jerárquico (HierarchicalMatcher)
+    - Sistema de re-identificación (ReIdentificationSystem)
+    - Sistema MHT (MHTIntegration)
+    - Aprendizaje en línea (OnlineFeatureLearner)
+    - Fusión de sensores (SensorFusionTracker)
+    - Predicción de trayectoria (PathPredictor)
+    - Validador (TrackValidator)
+    """
+
+    MIN_CONFIDENCE: float = MIN_DETECTION_CONFIDENCE
+    MAX_CONFIDENCE: float = MAX_DETECTION_CONFIDENCE
+    MIN_BOX_SIZE: int = MIN_BOX_SIZE
+    MAX_BOX_SIZE: int = MAX_BOX_SIZE
+    MAX_DETECTIONS_PER_FRAME: int = 50
+    CLEANUP_INTERVAL: float = CLEANUP_INTERVAL
+    MEMORY_CHECK_INTERVAL: float = MEMORY_CHECK_INTERVAL
+
+    def __init__(self) -> None:
+        """
+        Inicializa el tracker avanzado con todos sus componentes.
+        """
+        from config.manager import config_manager
+        self.config = config_manager.config.tracker
+        self.global_config = config_manager.config
+
+        self.logger.info("Inicializando AdvancedTracker")
+
+        self._init_managers()
+        self._init_matchers()
+        self._init_advanced_features()
+        self._init_validators()
+
+        self._frame_counter: int = 0
+        self._last_memory_check: float = time.time()
+        self._last_cleanup_time: float = time.time()
+        self._tracking_time_ms: float = 0.0
+
+        self.stats = self._init_stats()
+
+        self.logger.info(
+            "Tracker inicializado",
+            features_enabled=self.feature_manager.is_available,
+            reid_enabled=self.reid_system is not None,
+            mht_enabled=self.mht_integration.enabled,
+            kalman_optimized=getattr(
+                self.global_config.optimization,
+                "use_optimized_kalman",
+                True
+            )
+        )
+
+    def _init_managers(self) -> None:
+        """Inicializa los gestores principales."""
+        self.track_manager = TrackManager(
+            max_active_tracks=self.config.max_active_tracks or MAX_ACTIVE_TRACKS
+        )
+
+        self.state_machine = TrackStateMachine(
+            min_hits_to_confirm=self.config.min_hits_to_confirm or MIN_HITS_TO_CONFIRM,
+            max_frames_missed=self.config.max_frames_missed or MAX_FRAMES_MISSED
+        )
+
+        use_optimized_kalman = getattr(
+            self.global_config.optimization,
+            "use_optimized_kalman",
+            True
+        )
+
+        self.track_updater = TrackUpdater(
+            use_kalman=self.config.use_kalman,
+            use_optimized_kalman=use_optimized_kalman,
+            max_speed_change=50.0
+        )
+
+        self.feature_manager = self._init_feature_manager()
+
+    def _init_matchers(self) -> None:
+        """Inicializa los sistemas de matching."""
+        self.matcher = self._init_matcher()
+        self.reid_system = self._init_reid_system()
+
+    def _init_advanced_features(self) -> None:
+        """Inicializa las características avanzadas."""
+        self.mht_integration = self._init_mht()
+        self.online_learner = self._init_online_learner()
+        self.sensor_fusion = self._init_sensor_fusion()
+        self.path_predictor = self._init_path_predictor()
+
+    def _init_validators(self) -> None:
+        """Inicializa los validadores."""
+        self.validator = TrackValidator(
+            min_confidence=self.global_config.model.confidence_threshold,
+            max_speed_change=50.0
+        )
+
+    def _init_feature_manager(self) -> FeatureManager:
+        """Inicializa el gestor de features."""
+        use_features = self._should_use_features()
+        feature_extractor = None
+
+        if use_features:
+            try:
+                feature_extractor = FeatureExtractor(
+                    model_path=self.config.feature_model_path,
+                    use_gpu=True,
+                    backend="histogram"
+                )
+                self.logger.info("Feature extractor activado")
+            except Exception as e:
+                self.logger.warning("Feature extractor desactivado", error=str(e))
+
+        return FeatureManager(
+            feature_extractor=feature_extractor,
+            max_cache_size=self.config.reid_cache_size,
+            max_age_seconds=self.config.reid_max_age_seconds,
+            similarity_threshold=self.config.reid_similarity_threshold,
+            spatial_threshold=self.config.reid_spatial_threshold
+        )
+
+    def _init_matcher(self) -> Optional[HierarchicalMatcher]:
+        """Inicializa el matcher jerárquico."""
+        if not self.config.enable_hierarchical_matching:
+            return None
+
+        try:
+            matcher = HierarchicalMatcher(
+                iou_threshold=self.config.iou_threshold,
+                feature_threshold=self.config.feature_threshold,
+                motion_threshold=self.config.motion_threshold,
+                shape_threshold=self.config.shape_threshold,
+                spatial_threshold=self.config.max_distance,
+                enable_adaptive_thresholds=self.config.enable_adaptive_thresholds
+            )
+            self.logger.info("Matcher jerárquico activado")
+            return matcher
+        except Exception as e:
+            self.logger.warning("Usando matcher simple", error=str(e))
+            return None
+
+    def _init_reid_system(self) -> Optional[ReIdentificationSystem]:
+        """Inicializa el sistema de re-identificación."""
+        if not self.config.enable_reidentification or not self.feature_manager.is_available:
+            return None
+
+        try:
+            reid = ReIdentificationSystem(
+                feature_extractor=self.feature_manager.feature_extractor,
+                max_cache_size=self.config.reid_cache_size,
+                max_age_seconds=self.config.reid_max_age_seconds,
+                similarity_threshold=self.config.reid_similarity_threshold,
+                spatial_threshold=self.config.reid_spatial_threshold,
+                min_features_for_reid=self.config.reid_min_features
+            )
+            self.logger.info("Sistema de re-identificación activado")
+            return reid
+        except Exception as e:
+            self.logger.warning("Re-identificación desactivada", error=str(e))
+            return None
+
+    def _init_mht(self) -> MHTIntegration:
+        """Inicializa el sistema MHT."""
+        return MHTIntegration(
+            max_depth=getattr(self.config, "mht_max_depth", 10),
+            pruning_threshold=getattr(self.config, "mht_pruning_threshold", 0.01),
+            max_hypotheses_per_track=getattr(self.config, "mht_max_hypotheses", 5),
+            enable_mht=getattr(self.config, "enable_mht", False)
+        )
+
+    def _init_online_learner(self) -> Optional[OnlineFeatureLearner]:
+        """Inicializa el sistema de aprendizaje en línea."""
+        if not self.feature_manager.is_available or not self.config.enable_reidentification:
+            return None
+
+        try:
+            learner = OnlineFeatureLearner(
+                feature_dim=2048,
+                learning_rate=getattr(self.config, "online_learning_rate", 0.05),
+                min_samples=getattr(self.config, "online_learning_min_samples", 5),
+                drift_threshold=getattr(self.config, "online_learning_drift_threshold", 0.35),
+                max_history=getattr(self.config, "online_learning_max_history", 50),
+                strategy=getattr(self.config, "online_learning_strategy", "adaptive")
+            )
+            self.logger.info("Sistema de aprendizaje en línea activado")
+            return learner
+        except Exception as e:
+            self.logger.warning("Aprendizaje en línea desactivado", error=str(e))
+            return None
+
+    def _init_sensor_fusion(self) -> Optional[SensorFusionTracker]:
+        """Inicializa el sistema de fusión de sensores."""
+        if not getattr(self.config, "enable_sensor_fusion", False):
+            return None
+
+        try:
+            fusion = SensorFusionTracker(
+                sensor_weights={
+                    SensorType.VISUAL: getattr(self.config, "fusion_visual_weight", 0.7),
+                    SensorType.DEPTH: getattr(self.config, "fusion_depth_weight", 0.5),
+                    SensorType.THERMAL: getattr(self.config, "fusion_thermal_weight", 0.4),
+                    SensorType.MOTION: getattr(self.config, "fusion_motion_weight", 0.3),
+                },
+                fusion_method=getattr(self.config, "fusion_method", "weighted_average"),
+                min_observations=getattr(self.config, "fusion_min_observations", 2),
+                max_history=getattr(self.config, "fusion_max_history", 50),
+                particle_count=getattr(self.config, "fusion_particle_count", 500)
+            )
+            self.logger.info("Sistema de fusión de sensores activado")
+            return fusion
+        except Exception as e:
+            self.logger.warning("Fusión de sensores desactivada", error=str(e))
+            return None
+
+    def _init_path_predictor(self) -> Optional[PathPredictor]:
+        """Inicializa el sistema de predicción de trayectoria."""
+        if not getattr(self.config, "enable_path_prediction", True):
+            return None
+
+        try:
+            predictor = PathPredictor(
+                history_length=getattr(self.config, "prediction_history_length", 30),
+                prediction_horizon=getattr(self.config, "prediction_horizon", 2.0),
+                prediction_steps=getattr(self.config, "prediction_steps", 20),
+                min_samples=getattr(self.config, "prediction_min_samples", 5),
+                motion_model=getattr(self.config, "prediction_motion_model", "adaptive"),
+                uncertainty_threshold=getattr(self.config, "prediction_uncertainty_threshold", 0.7)
+            )
+            self.logger.info("Sistema de predicción de trayectoria activado")
+            return predictor
+        except Exception as e:
+            self.logger.warning("Predicción de trayectoria desactivada", error=str(e))
+            return None
+
+    def _init_stats(self) -> Dict[str, Any]:
+        """Inicializa las estadísticas del tracker."""
+        return {
+            "total_tracks": 0,
+            "confirmed_tracks": 0,
+            "lost_tracks": 0,
+            "reidentified_tracks": 0,
+            "tracking_time_ms": 0,
+            "features_used": self.feature_manager.is_available,
+            "reid": {},
+            "matcher": {},
+            "validator": {},
+            "mht": {},
+            "online_learning": {},
+            "sensor_fusion": {},
+            "path_predictor": {},
+        }
+
+
+    def update(self, detections: List[Detection], frame: np.ndarray) -> TrackDict:
+        """
+        Actualiza el tracker con nuevas detecciones.
+
+        Args:
+            detections: Lista de detecciones del frame actual.
+            frame: Imagen del frame actual.
+
+        Returns:
+            Dict[int, Dict[str, Any]]: Información de tracking actualizada.
+        """
+        if frame is None or frame.size == 0:
+            return {}
+
+        start_time = time.perf_counter()
+        self._frame_counter += 1
+        self._check_memory()
+
+        valid_detections = self._validate_detections(detections)
+
+        if valid_detections and self.feature_manager.is_available:
+            self._extract_features(valid_detections, frame)
+
+        self._predict_positions()
+
+        matches, unmatched_dets, unmatched_trks = self._perform_matching(
+            valid_detections
+        )
+
+        self._update_tracks(valid_detections, matches)
+        self._update_advanced_systems(valid_detections, matches)
+        self._handle_unmatched(matches, unmatched_trks)
+
+        if self.reid_system and unmatched_dets:
+            self._perform_reidentification(valid_detections, unmatched_dets, frame)
+
+        self._create_new_tracks(valid_detections, unmatched_dets)
+
+        self._perform_cleanup()
+        self._update_stats()
+
+        self._tracking_time_ms = (time.perf_counter() - start_time) * 1000
+        self.stats["tracking_time_ms"] = self._tracking_time_ms
+
+        return self.get_tracking_info()
+
+
+    def _validate_detections(self, detections: List[Detection]) -> List[Detection]:
+        """
+        Valida y filtra detecciones.
+
+        Args:
+            detections: Lista de detecciones a validar
+
+        Returns:
+            List[Detection]: Lista de detecciones válidas
+        """
+        if not detections:
+            return []
+
+        valid = []
+        for det in detections:
+            if self._validate_detection(det):
+                valid.append(det)
+
+                if len(valid) >= self.MAX_DETECTIONS_PER_FRAME:
+                    self.logger.debug(
+                        f"Límite de detecciones alcanzado: {self.MAX_DETECTIONS_PER_FRAME}"
+                    )
+                    break
+
+        if len(valid) != len(detections):
+            self.logger.debug(
+                "Detecciones filtradas",
+                total=len(detections),
+                valid=len(valid),
+                invalid=len(detections) - len(valid)
+            )
+
+        return valid
+
+    def _validate_detection(self, detection: Detection) -> bool:
+        result = validate_detection(detection, require_all_fields=True)
+        return result.is_valid
+
+    def _validate_box(self, box: Any) -> bool:
+        return validate_bbox(box)
+
+    def _validate_centroid(self, centroid: Any) -> bool:
+        return validate_centroid(centroid)
+
+    def _validate_confidence(self, confidence: Any) -> bool:
+        """Valida un valor de confianza."""
+        return (isinstance(confidence, (int, float)) and
+                self.MIN_CONFIDENCE <= confidence <= self.MAX_CONFIDENCE)
+
+
+    def _extract_features(self, detections: List[Detection], frame: np.ndarray) -> None:
+        """
+        Extrae features para todas las detecciones.
+
+        Args:
+            detections: Lista de detecciones
+            frame: Frame actual
+        """
+        for det in detections:
+            if "box" in det:
+                features = self.feature_manager.extract_features(
+                    frame, det["box"], det.get("confidence", 0.5)
+                )
+                if features is not None:
+                    det["features"] = features
+
+
+    def _predict_positions(self) -> None:
+        """Predice posiciones de todos los tracks."""
+        for track in self.track_manager.get_all_tracks().values():
+            self.track_updater.predict_position(track)
+
+
+    def _perform_matching(self, detections: List[Detection]) -> MatchTuple:
+        """
+        Realiza matching entre detecciones y tracks.
+
+        Args:
+            detections: Lista de detecciones
+
+        Returns:
+            MatchTuple: (matches, unmatched_dets, unmatched_tracks)
+        """
+        tracks = list(self.track_manager.get_all_tracks().values())
+
+        if not detections or not tracks:
+            return [], list(range(len(detections))), list(range(len(tracks)))
+
+        if self.matcher:
+            result = self.matcher.match(detections, tracks)
+            return result.matches, result.unmatched_detections, result.unmatched_tracks
+
+        return self._iou_matching(detections, tracks)
+
+    def _iou_matching(self, detections: List[Detection], tracks: List[Any]) -> MatchTuple:
+        """
+        Matching simple basado en IoU (fallback).
+
+        Args:
+            detections: Lista de detecciones
+            tracks: Lista de tracks
+
+        Returns:
+            MatchTuple: (matches, unmatched_dets, unmatched_tracks)
+        """
+        try:
+            from scipy.optimize import linear_sum_assignment
+            import numpy as np
+
+            n_dets = len(detections)
+            n_trks = len(tracks)
+
+            if n_dets == 0 or n_trks == 0:
+                return [], list(range(n_dets)), list(range(n_trks))
+
+            iou_matrix = np.zeros((n_dets, n_trks))
+            for i, det in enumerate(detections):
+                det_box = det.get("box", (0, 0, 0, 0))
+                for j, trk in enumerate(tracks):
+                    iou_matrix[i, j] = self._calculate_iou(det_box, trk.bbox)
+
+            iou_matrix[iou_matrix < 0.3] = 0
+
+            row_indices, col_indices = linear_sum_assignment(-iou_matrix)
+
+            matches = []
+            unmatched_dets = list(range(n_dets))
+            unmatched_trks = list(range(n_trks))
+
+            for row, col in zip(row_indices, col_indices):
+                if iou_matrix[row, col] > 0:
+                    matches.append((row, col))
+                    if row in unmatched_dets:
+                        unmatched_dets.remove(row)
+                    if col in unmatched_trks:
+                        unmatched_trks.remove(col)
+
+            return matches, unmatched_dets, unmatched_trks
+
+        except Exception as e:
+            self.logger.debug("Error en IoU matching", error=str(e))
+            return [], list(range(len(detections))), list(range(len(tracks)))
+
+    def _calculate_iou(self, box1: tuple, box2: tuple) -> float:
+        """
+        Calcula IoU entre dos bounding boxes.
+
+        Args:
+            box1: Primer bounding box (x1, y1, x2, y2)
+            box2: Segundo bounding box (x1, y1, x2, y2)
+
+        Returns:
+            float: IoU entre 0 y 1
+        """
+        x1_1, y1_1, x2_1, y2_1 = box1
+        x1_2, y1_2, x2_2, y2_2 = box2
+
+        xi1 = max(x1_1, x1_2)
+        yi1 = max(y1_1, y1_2)
+        xi2 = min(x2_1, x2_2)
+        yi2 = min(y2_1, y2_2)
+
+        if xi2 <= xi1 or yi2 <= yi1:
+            return 0.0
+
+        intersection = (xi2 - xi1) * (yi2 - yi1)
+        area1 = (x2_1 - x1_1) * (y2_1 - y1_1)
+        area2 = (x2_2 - x1_2) * (y2_2 - y1_2)
+        union = area1 + area2 - intersection
+
+        return intersection / union if union > 0 else 0.0
+
+
+    def _update_tracks(self, detections: List[Detection], matches: List[Tuple[int, int]]) -> None:
+        """
+        Actualiza tracks con nuevas detecciones.
+
+        Args:
+            detections: Lista de detecciones
+            matches: Lista de matches (det_idx, track_idx)
+        """
+        tracks = self.track_manager.get_all_tracks()
+        track_ids = list(tracks.keys())
+
+        for det_idx, track_idx in matches:
+            if det_idx >= len(detections) or track_idx >= len(track_ids):
+                continue
+
+            track_id = track_ids[track_idx]
+            detection = detections[det_idx]
+            features = detection.get("features")
+
+            self.track_manager.update_track(track_id, detection, features)
+            track = self.track_manager.get_track(track_id)
+
+            if track:
+                self.track_updater.correct_position(track, detection)
+                self.track_updater.update_motion_metrics(track)
+
+                new_status = self.state_machine.transition(
+                    track.status,
+                    track.hits,
+                    track.no_losses
+                )
+                track.status = new_status
+
+                if features is not None:
+                    self.feature_manager.cache_features(track_id, features, track.confidence)
+
+
+    def _update_advanced_systems(self, detections: List[Detection], matches: List[Tuple[int, int]]) -> None:
+        """
+        Actualiza los sistemas avanzados (online learning, sensor fusion, path prediction).
+
+        Args:
+            detections: Lista de detecciones
+            matches: Lista de matches (det_idx, track_idx)
+        """
+        if self.online_learner:
+            self._update_online_learning(detections, matches)
+
+        if self.sensor_fusion:
+            self._update_sensor_fusion(detections, matches)
+
+        if self.path_predictor:
+            self._update_path_prediction()
+
+    def _update_online_learning(self, detections: List[Detection], matches: List[Tuple[int, int]]) -> None:
+        """
+        Actualiza el aprendizaje en línea.
+
+        Args:
+            detections: Lista de detecciones
+            matches: Lista de matches (det_idx, track_idx)
+        """
+        if self.online_learner is None:
+            return
+
+        tracks = self.track_manager.get_all_tracks()
+        track_ids = list(tracks.keys())
+
+        for det_idx, track_idx in matches:
+            if det_idx >= len(detections) or track_idx >= len(track_ids):
+                continue
+
+            track_id = track_ids[track_idx]
+            detection = detections[det_idx]
+            features = detection.get("features")
+
+            if features is not None:
+                try:
+                    updated_features = self.online_learner.update(
+                        track_id=track_id,
+                        features=features,
+                        confidence=detection.get("confidence", 0.5)
+                    )
+                    if updated_features is not None:
+                        detection["features"] = updated_features
+                        track = self.track_manager.get_track(track_id)
+                        if track:
+                            track.features = updated_features
+                except Exception as e:
+                    self.logger.debug(
+                        "Error en aprendizaje en línea",
+                        track_id=track_id,
+                        error=str(e)
+                    )
+
+    def _update_sensor_fusion(self, detections: List[Detection], matches: List[Tuple[int, int]]) -> None:
+        """
+        Actualiza la fusión de sensores.
+
+        Args:
+            detections: Lista de detecciones
+            matches: Lista de matches (det_idx, track_idx)
+        """
+        if self.sensor_fusion is None:
+            return
+
+        tracks = self.track_manager.get_all_tracks()
+        track_ids = list(tracks.keys())
+
+        for det_idx, track_idx in matches:
+            if det_idx >= len(detections) or track_idx >= len(track_ids):
+                continue
+
+            track_id = track_ids[track_idx]
+            detection = detections[det_idx]
+
+            try:
+                observation = SensorObservation(
+                    sensor_type=SensorType.VISUAL,
+                    bbox=detection.get("box", (0, 0, 0, 0)),
+                    centroid=detection.get("centroid", (0, 0)),
+                    confidence=detection.get("confidence", 0.5),
+                    track_id=track_id,
+                    metadata={
+                        "class_id": detection.get("class_id", -1),
+                        "label": detection.get("label", "unknown"),
+                        "frame": self._frame_counter,
+                    }
+                )
+                self.sensor_fusion.add_observation(track_id, observation)
+
+                fused_state = self.sensor_fusion.get_fused_state(track_id)
+                if fused_state and fused_state.confidence > 0.3:
+                    track = self.track_manager.get_track(track_id)
+                    if track:
+                        track.centroid = tuple(int(c) for c in fused_state.centroid)
+                        track.confidence = fused_state.confidence
+                        track.metadata["fused_confidence"] = fused_state.confidence
+
+            except Exception as e:
+                self.logger.debug(
+                    "Error en fusión de sensores",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+    def _update_path_prediction(self) -> None:
+        """Actualiza la predicción de trayectoria."""
+        if self.path_predictor is None:
+            return
+
+        for track_id, track in self.track_manager.get_all_tracks().items():
+            try:
+                prediction = self.path_predictor.update(
+                    track_id=track_id,
+                    position=track.centroid,
+                    velocity=track.velocity,
+                    confidence=track.confidence
+                )
+
+                if prediction:
+                    track.metadata["path_prediction"] = {
+                        "positions": prediction.positions[:5],
+                        "state": prediction.state.value,
+                        "uncertainty": prediction.uncertainty,
+                        "collision_risk": prediction.collision_risk,
+                    }
+            except Exception as e:
+                self.logger.debug(
+                    "Error en predicción de trayectoria",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+
+    def _handle_unmatched(self, matches: List[Tuple[int, int]], unmatched_tracks: List[int]) -> None:
+        """
+        Maneja tracks que no fueron asociados.
+
+        Args:
+            matches: Lista de matches (det_idx, track_idx)
+            unmatched_tracks: Lista de índices de tracks no asociados
+        """
+        tracks = self.track_manager.get_all_tracks()
+        track_ids = list(tracks.keys())
+
+        for track_idx in unmatched_tracks:
+            if track_idx >= len(track_ids):
+                continue
+
+            track_id = track_ids[track_idx]
+            track = self.track_manager.get_track(track_id)
+
+            if track:
+                track.mark_lost()
+
+                new_status = self.state_machine.transition(
+                    track.status,
+                    track.hits,
+                    track.no_losses
+                )
+                track.status = new_status
+
+                if track.status == TrackStatus.DEAD:
+                    self._handle_dead_track(track_id)
+
+    def _handle_dead_track(self, track_id: int) -> None:
+        """
+        Maneja un track que ha muerto.
+
+        Args:
+            track_id: ID del track muerto
+        """
+        track = self.track_manager.get_track(track_id)
+        if track is None:
+            return
+
+        self.track_manager.mark_as_lost(track_id)
+
+        if self.reid_system and track.features is not None:
+            self.reid_system.add_lost_track(
+                track_id,
+                track.features,
+                track.confidence
+            )
+
+        if self.online_learner:
+            self.online_learner.clear_track(track_id)
+        if self.sensor_fusion:
+            self.sensor_fusion.clear_track(track_id)
+        if self.path_predictor:
+            self.path_predictor.clear_track(track_id)
+
+
+    def _perform_reidentification(
+        self,
+        detections: List[Detection],
+        unmatched_dets: List[int],
+        frame: np.ndarray
+    ) -> int:
+        """
+        Intenta re-identificar detecciones no asociadas.
+
+        Args:
+            detections: Lista de detecciones
+            unmatched_dets: Lista de índices de detecciones no asociadas
+            frame: Frame actual
+
+        Returns:
+            int: Número de tracks re-identificados
+        """
+        if self.reid_system is None:
+            return 0
+
+        reidentified = 0
+
+        for det_idx in unmatched_dets:
+            if det_idx >= len(detections):
+                continue
+
+            detection = detections[det_idx]
+
+            track_id = self.reid_system.attempt_reidentification(
+                detection=detection,
+                frame=frame,
+                current_tracks=self.track_manager.get_all_tracks()
+            )
+
+            if track_id is not None:
+                track = self.track_manager.recover_track(track_id)
+                if track:
+                    track.update(detection, detection.get("features"))
+                    track.status = TrackStatus.CONFIRMED
+                    track.no_losses = 0
+
+                    self.track_updater.init_kalman(track)
+
+                    self.stats["reidentified_tracks"] += 1
+                    reidentified += 1
+
+                    self.logger.info(
+                        "Track re-identificado",
+                        track_id=track_id,
+                        confidence=track.confidence
+                    )
+
+        return reidentified
+
+
+    def _create_new_tracks(self, detections: List[Detection], unmatched_dets: List[int]) -> None:
+        """
+        Crea nuevos tracks a partir de detecciones no asociadas.
+
+        Args:
+            detections: Lista de detecciones
+            unmatched_dets: Lista de índices de detecciones no asociadas
+        """
+        tracks_created = 0
+
+        for det_idx in unmatched_dets:
+            if det_idx >= len(detections):
+                continue
+
+            detection = detections[det_idx]
+
+            confidence = detection.get("confidence", 0.0)
+            if confidence < self.global_config.model.confidence_threshold:
+                continue
+
+            if not detection.get("box") or not detection.get("centroid"):
+                continue
+
+            features = detection.get("features")
+            track = self.track_manager.create_track(
+                detection=detection,
+                features=features
+            )
+
+            if track:
+                self.track_updater.init_kalman(track)
+
+                self._init_advanced_track(track, detection, confidence, features)
+                tracks_created += 1
+
+        if tracks_created > 0:
+            self.logger.debug(
+                "Nuevos tracks creados",
+                count=tracks_created,
+                active=self.track_manager.get_active_count()
+            )
+
+    def _init_advanced_track(
+        self,
+        track: Any,
+        detection: Detection,
+        confidence: float,
+        features: Optional[np.ndarray]
+    ) -> None:
+        """
+        Inicializa sistemas avanzados para un nuevo track.
+
+        Args:
+            track: Track a inicializar
+            detection: Detección asociada
+            confidence: Confianza de la detección
+            features: Features del track
+        """
+        track_id = track.track_id
+
+        if self.online_learner and features is not None:
+            try:
+                self.online_learner.update(
+                    track_id=track_id,
+                    features=features,
+                    confidence=confidence
+                )
+            except Exception as e:
+                self.logger.debug(
+                    "Error inicializando aprendizaje en línea",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+        if self.sensor_fusion:
+            try:
+                observation = SensorObservation(
+                    sensor_type=SensorType.VISUAL,
+                    bbox=track.bbox,
+                    centroid=track.centroid,
+                    confidence=confidence,
+                    track_id=track_id,
+                    metadata={
+                        "class_id": track.class_id,
+                        "label": track.label,
+                        "frame": self._frame_counter,
+                    }
+                )
+                self.sensor_fusion.add_observation(track_id, observation)
+            except Exception as e:
+                self.logger.debug(
+                    "Error inicializando fusión de sensores",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+        if self.path_predictor:
+            try:
+                self.path_predictor.update(
+                    track_id=track_id,
+                    position=track.centroid,
+                    confidence=confidence
+                )
+            except Exception as e:
+                self.logger.debug(
+                    "Error inicializando predicción de trayectoria",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+
+    def _perform_cleanup(self) -> None:
+        """Realiza limpieza periódica de tracks."""
+        current_time = time.time()
+
+        if current_time - self._last_cleanup_time >= self.CLEANUP_INTERVAL:
+            self._last_cleanup_time = current_time
+            removed = self.track_manager.cleanup_dead_tracks()
+
+            if removed > 0:
+                self.logger.debug(
+                    "Limpieza de tracks completada",
+                    removed=removed,
+                    active=self.track_manager.get_active_count(),
+                    lost=self.track_manager.get_lost_count()
+                )
+
+    def _check_memory(self) -> None:
+        """Verifica el uso de memoria y limpia si es necesario."""
+        current_time = time.time()
+        if current_time - self._last_memory_check < self.MEMORY_CHECK_INTERVAL:
+            return
+
+        self._last_memory_check = current_time
+
+        try:
+            mem = get_memory_usage()
+            mem_percent = mem.get("percent", 0)
+
+            if mem_percent > 75:
+                self.logger.warning(
+                    "Memoria alta, limpiando",
+                    memory_percent=f"{mem_percent:.1f}",
+                    active_tracks=self.track_manager.get_active_count()
+                )
+                self.feature_manager.clear_cache()
+                force_garbage_collection()
+        except Exception as e:
+            self.logger.debug("Error verificando memoria", error=str(e))
+
+
+    def _enrich_track_data(self, track_id: int, track_data: Dict[str, Any]) -> None:
+        """
+        Enriquece los datos del track con información de subsistemas.
+
+        Args:
+            track_id: ID del track
+            track_data: Diccionario de datos del track a enriquecer
+        """
+        if self.online_learner:
+            learner_stats = self.online_learner.get_stats(track_id)
+            if learner_stats:
+                track_data["online_learning"] = {
+                    "samples": learner_stats.get("n_samples", 0),
+                    "updates": learner_stats.get("total_updates", 0),
+                    "drift_detected": learner_stats.get("concept_drift_detected", False),
+                }
+
+        if self.sensor_fusion:
+            fused_state = self.sensor_fusion.get_fused_state(track_id)
+            if fused_state:
+                track_data["sensor_fusion"] = {
+                    "fused_confidence": fused_state.confidence,
+                    "uncertainty": fused_state.uncertainty,
+                    "sensor_count": len(fused_state.sensor_contributions),
+                }
+
+        if self.path_predictor:
+            prediction = self.path_predictor.get_prediction(track_id)
+            if prediction:
+                track_data["path_prediction"] = {
+                    "state": prediction.state.value,
+                    "uncertainty": prediction.uncertainty,
+                    "collision_risk": prediction.collision_risk,
+                }
+
+        if self.mht_integration and self.mht_integration.enabled:
+            track_data["mht_confidence"] = self.mht_integration.get_hypothesis_confidence(track_id)
+
+    def _update_stats(self) -> None:
+        """Actualiza estadísticas del tracker."""
+        self.stats["total_tracks"] = self.track_manager.get_active_count()
+        self.stats["confirmed_tracks"] = sum(
+            1 for t in self.track_manager.get_all_tracks().values()
+            if t.status == TrackStatus.CONFIRMED
+        )
+        self.stats["lost_tracks"] = self.track_manager.get_lost_count()
+
+        if self.reid_system:
+            self.stats["reid"] = self.reid_system.get_stats()
+        if self.matcher:
+            self.stats["matcher"] = self.matcher.get_stats()
+        if self.mht_integration:
+            self.stats["mht"] = self.mht_integration.get_stats()
+        if self.online_learner:
+            self.stats["online_learning"] = self.online_learner.get_stats()
+        if self.sensor_fusion:
+            self.stats["sensor_fusion"] = self.sensor_fusion.get_stats()
+        if self.path_predictor:
+            self.stats["path_predictor"] = self.path_predictor.get_stats()
+
+
+    def _should_use_features(self) -> bool:
+        """Determina si se deben usar features."""
+        from models.enums import DeviceType
+        if self.global_config.model.device == DeviceType.CPU:
+            return False
+
+        try:
+            import torch
+            return torch.cuda.is_available()
+        except ImportError:
+            return False
+
+    def get_tracking_info(self) -> TrackDict:
+        """Retorna información de tracking actual."""
+        result = {}
+
+        for track_id, track in self.track_manager.get_all_tracks().items():
+            track_data = {
+                "centroid": track.centroid,
+                "bbox": track.bbox,
+                "status": track.status.value,
+                "age": track.age,
+                "hits": track.hits,
+                "no_losses": track.no_losses,
+                "confidence": track.confidence,
+                "velocity": track.velocity,
+                "label": track.label,
+                "class_id": track.class_id,
+                "history": list(track.history),
+                "predicted_centroid": track.predicted_centroid,
+            }
+
+            self._enrich_track_data(track_id, track_data)
+            result[track_id] = track_data
+
+        return result
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Retorna estadísticas del tracker."""
+        return {
+            **self.stats,
+            "active_tracks": self.track_manager.get_active_count(),
+            "lost_tracks_count": self.track_manager.get_lost_count(),
+            "feature_manager": self.feature_manager.get_stats(),
+            "state_machine": self.state_machine.get_stats(),
+            "track_updater": self.track_updater.get_stats(),
+            "tracking_time_ms": self._tracking_time_ms,
+            "frame_counter": self._frame_counter,
+        }
+
+    def get_track(self, track_id: int) -> Optional[Any]:
+        """Obtiene un track por su ID."""
+        return self.track_manager.get_track(track_id)
+
+    def reset(self) -> None:
+        """Reinicia el tracker completamente."""
+        self.logger.info("Reiniciando tracker")
+
+        self.track_manager.clear_all()
+        self.feature_manager.clear_cache()
+        self._frame_counter = 0
+        self._tracking_time_ms = 0.0
+
+        if self.reid_system:
+            self.reid_system.clear_cache()
+        if self.mht_integration:
+            self.mht_integration.clear()
+        if self.online_learner:
+            self.online_learner.reset()
+        if self.sensor_fusion:
+            self.sensor_fusion.clear_all()
+        if self.path_predictor:
+            self.path_predictor.reset()
+
+        self.stats = self._init_stats()
+        self.logger.info("Tracker reiniciado")

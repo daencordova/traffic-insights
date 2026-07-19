@@ -1,0 +1,145 @@
+model:
+  model_path: "yolov8n.pt"
+  confidence_threshold: 0.35
+  iou_threshold: 0.45
+  vehicle_classes: [2, 3, 5, 7]
+  device: "cpu"
+  use_half_precision: false
+  use_onnx: false
+  imgsz: 320
+  max_det: 10
+
+camera:
+  source: "0"
+  width: 640
+  height: 480
+  fps: 15
+  buffer_size: 15
+  capture_buffer_size: 1
+  reconnect_attempts: 5
+  reconnect_delay: 1.0
+
+tracker:
+  type: "hybrid"
+  max_distance: 50.0
+  max_frames_missed: 15
+  min_hits_to_confirm: 2
+  max_active_tracks: 30
+  use_kalman: true
+  motion_model: "constant_velocity"
+  min_motion_distance: 5.0
+  motion_history_size: 10
+
+  enable_reidentification: false
+  reid_similarity_threshold: 0.6
+  reid_spatial_threshold: 100.0
+  reid_max_age_seconds: 30.0
+  reid_cache_size: 1000
+  reid_min_features: 3
+
+  enable_hierarchical_matching: true
+  iou_threshold: 0.3
+  feature_threshold: 0.6
+  motion_threshold: 0.7
+  shape_threshold: 0.5
+  enable_adaptive_thresholds: true
+
+  enable_mht: true
+  mht_max_depth: 5
+  mht_pruning_threshold: 0.01
+  mht_max_hypotheses: 3
+
+  enable_sensor_fusion: false
+  fusion_method: "weighted_average"
+  fusion_min_observations: 2
+  fusion_max_history: 50
+  fusion_particle_count: 500
+
+  fusion_visual_weight: 0.7
+  fusion_depth_weight: 0.5
+  fusion_thermal_weight: 0.4
+  fusion_motion_weight: 0.3
+
+  enable_path_prediction: true
+  prediction_history_length: 30
+  prediction_horizon: 2.0
+  prediction_steps: 20
+  prediction_min_samples: 5
+  prediction_motion_model: "adaptive"
+  prediction_uncertainty_threshold: 0.7
+
+lanes:
+  enable_detection: false
+  enable_auto_calibration: true
+  calibration_interval: 300
+  min_lane_confidence: 0.6
+  max_lanes: 6
+  lane_width: 40
+  use_bird_eye_view: true
+  min_samples_for_calibration: 50
+  calibration_confidence_threshold: 0.7
+
+analytics:
+  enable_real_time: true
+  analysis_window: 60
+  update_interval: 1.0
+  congestion_low: 0.3
+  congestion_medium: 0.6
+  congestion_high: 0.8
+  enable_predictions: true
+  prediction_horizon: 300
+  prediction_samples: 100
+
+visualization:
+  show_detections: true
+  show_tracks: true
+  show_trails: true
+  show_velocity_vectors: false
+  show_occupancy: true
+  show_heatmap: false
+  show_system_info: true
+  show_dashboard: true
+  show_controls_help: true
+  show_track_ids: false
+  dashboard_position: "top-left"
+  trail_length: 15
+  font_scale: 0.4
+  line_thickness: 1
+  show_track_arrows: false
+  show_track_speed: false
+  show_track_confidence: false
+  track_circle_style: "solid"
+
+optimization:
+  enable_batch_processing: true
+  batch_size: 4
+  max_batch_size: 8
+  min_batch_size: 2
+  batch_timeout: 0.01
+  enable_parallel_processing: true
+  max_workers: 4
+  enable_async_processing: true
+  memory_limit_mb: 2048
+  enable_memory_optimization: true
+  memory_gc_threshold: 70.0
+  enable_performance_monitoring: true
+  monitor_interval: 60
+
+  use_optimized_detector: true
+  use_optimized_kalman: true
+  use_optimized_geometry: true
+  enable_frame_pool: true
+  preallocate_memory: true
+
+output:
+  screenshots_dir: "data/screenshots/"
+  export_dir: "data/exports/"
+  logs_dir: "data/logs/"
+  export_stats: true
+  stats_export_format: "json"
+  auto_save_interval: 300
+
+counting_lines: []
+
+debug: true
+log_level: "INFO"
