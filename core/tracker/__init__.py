@@ -32,6 +32,18 @@ from .prediction import (
     CollisionDetector,
 )
 
+from .learning import (
+    FeatureStatistics,
+    LearningStrategy,
+    IncrementalStrategy,
+    AdaptiveStrategy,
+    BatchStrategy,
+    HybridStrategy,
+    LearningStrategyFactory,
+    ConceptDriftDetector,
+    FeatureAggregator,
+)
+
 __all__ = [
     "AdvancedTracker",
     "HierarchicalMatcher",
@@ -67,4 +79,13 @@ __all__ = [
     "StateDetector",
     "TrajectoryState",
     "CollisionDetector",
+    "FeatureStatistics",
+    "LearningStrategy",
+    "IncrementalStrategy",
+    "AdaptiveStrategy",
+    "BatchStrategy",
+    "HybridStrategy",
+    "LearningStrategyFactory",
+    "ConceptDriftDetector",
+    "FeatureAggregator",
 ]

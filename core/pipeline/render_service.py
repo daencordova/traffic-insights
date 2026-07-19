@@ -208,7 +208,7 @@ class RenderService(LoggerMixin):
 
                 cv2.putText(
                     pause_frame,
-                    "⏸️ PAUSADO",
+                    "PAUSADO",
                     (w//2 - 80, h//2 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1.2,
