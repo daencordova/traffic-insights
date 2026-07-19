@@ -16,6 +16,22 @@ from .state.state_machine import TrackStateMachine
 from .state.track_updater import TrackUpdater
 from .managers.feature_manager import FeatureManager
 
+from .prediction import (
+    TrajectoryHistory,
+    TrajectorySample,
+    MotionModel,
+    LinearModel,
+    CurvedModel,
+    CyclicModel,
+    PolynomialModel,
+    AdaptiveModel,
+    MotionModelFactory,
+    ModelSelector,
+    StateDetector,
+    TrajectoryState,
+    CollisionDetector,
+)
+
 __all__ = [
     "AdvancedTracker",
     "HierarchicalMatcher",
@@ -38,4 +54,17 @@ __all__ = [
     "TrackStateMachine",
     "TrackUpdater",
     "FeatureManager",
+    "TrajectoryHistory",
+    "TrajectorySample",
+    "MotionModel",
+    "LinearModel",
+    "CurvedModel",
+    "CyclicModel",
+    "PolynomialModel",
+    "AdaptiveModel",
+    "MotionModelFactory",
+    "ModelSelector",
+    "StateDetector",
+    "TrajectoryState",
+    "CollisionDetector",
 ]
