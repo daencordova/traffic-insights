@@ -16,6 +16,14 @@ from .tracker import (
     FeatureCacheManager,
 )
 
+from .counter import (
+    LineManager,
+    CountingLine,
+    CrossingDetector,
+    StatisticsCollector,
+    VehicleEvent,
+)
+
 __all__ = [
     "YOLODetector",
     "OptimizedYOLODetector",
@@ -32,4 +40,9 @@ __all__ = [
     "ReIdentificationSystem",
     "TrackValidator",
     "FeatureCacheManager",
+    "LineManager",
+    "CountingLine",
+    "CrossingDetector",
+    "StatisticsCollector",
+    "VehicleEvent",
 ]
