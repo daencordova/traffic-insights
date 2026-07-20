@@ -1,47 +1,39 @@
 """
-Servicio de renderizado de frames.
+Servicio de renderizado y visualización.
 
-Maneja el renderizado de overlays y la visualización en pantalla.
+Responsable de:
+- Renderizar overlays en los frames
+- Mostrar frames en ventana
+- Manejar eventos de teclado
+- Gestionar la cola de renderizado
 """
 
 import time
 import threading
-from typing import Optional, List
+from typing import Optional, Callable, List
 
 import cv2
 import numpy as np
 
 from core.pipeline.renderer import FrameRenderer
 from core.pipeline.controls import ControlHandler
-from core.pipeline.processing_service import ProcessingResult
+from core.pipeline.services.processing_service import ProcessingResult
 from utils.logger import LoggerMixin
 from core.constants import WINDOW_NAME
 
 
 class RenderService(LoggerMixin):
     """
-    Servicio de renderizado de frames.
-
-    Responsabilidades:
-    - Renderizar overlays en los frames
-    - Mostrar frames en ventana
-    - Manejar eventos de teclado
-    - Gestionar la cola de renderizado
-
-    Attributes:
-        renderer: Renderizador de frames
-        controls: Manejador de controles
-        max_queue_size: Tamaño máximo de la cola de renderizado
-        on_key_pressed: Callback opcional para eventos de teclado
+    Servicio especializado en renderizado y visualización.
     """
 
     def __init__(
         self,
-        config=None,
+        config,
         renderer: Optional[FrameRenderer] = None,
         controls: Optional[ControlHandler] = None,
         max_queue_size: int = 3,
-        on_key_pressed: Optional[callable] = None,
+        on_key_pressed: Optional[Callable] = None,
     ):
         self.config = config
         self.renderer = renderer or FrameRenderer(config)
@@ -53,14 +45,12 @@ class RenderService(LoggerMixin):
         self._queue_lock = threading.Lock()
         self._last_valid_frame: Optional[np.ndarray] = None
         self._running = False
+        self._paused = False
 
         self._thread: Optional[threading.Thread] = None
-
-        self._stats = {
-            "frames_rendered": 0,
-            "frames_dropped": 0,
-            "errors": 0,
-        }
+        self._frames_rendered = 0
+        self._frames_dropped = 0
+        self._errors = 0
 
         self.logger.info(
             "RenderService inicializado",
@@ -68,7 +58,7 @@ class RenderService(LoggerMixin):
         )
 
     def start(self) -> None:
-        """Inicia el hilo de renderizado."""
+        """Inicia el servicio de renderizado."""
         if self._running:
             return
 
@@ -79,10 +69,17 @@ class RenderService(LoggerMixin):
             daemon=True
         )
         self._thread.start()
-        self.logger.info("Hilo de renderizado iniciado")
+
+        try:
+            cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(WINDOW_NAME, self.config.camera.width, self.config.camera.height)
+        except Exception as e:
+            self.logger.warning(f"Error creando ventana: {e}")
+
+        self.logger.info("Servicio de renderizado iniciado")
 
     def stop(self) -> None:
-        """Detiene el hilo de renderizado."""
+        """Detiene el servicio de renderizado."""
         self._running = False
 
         if self._thread and self._thread.is_alive():
@@ -93,21 +90,34 @@ class RenderService(LoggerMixin):
         except Exception:
             pass
 
-        self.logger.info("Hilo de renderizado detenido")
+        self.logger.info("Servicio de renderizado detenido")
 
-    def queue_frame(self, result: ProcessingResult) -> None:
+    def pause(self) -> None:
+        """Pausa el renderizado."""
+        self._paused = True
+        self.logger.debug("Renderizado pausado")
+
+    def resume(self) -> None:
+        """Reanuda el renderizado."""
+        self._paused = False
+        self.logger.debug("Renderizado reanudado")
+
+    def enqueue_frame(self, result: ProcessingResult) -> None:
         """
-        Añade un frame a la cola de renderizado.
+        Encola un frame para renderizado.
 
         Args:
             result: Resultado del procesamiento
         """
+        if not self._running or self._paused:
+            return
+
         with self._queue_lock:
             self._render_queue.append(result)
 
             while len(self._render_queue) > self.max_queue_size:
                 dropped = self._render_queue.pop(0)
-                self._stats["frames_dropped"] += 1
+                self._frames_dropped += 1
                 self.logger.debug(
                     f"Frame {dropped.frame_number} descartado de cola de renderizado"
                 )
@@ -116,15 +126,9 @@ class RenderService(LoggerMixin):
         """Bucle principal de renderizado."""
         self.logger.info("Bucle de renderizado iniciado")
 
-        try:
-            cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(WINDOW_NAME, self.config.camera.width, self.config.camera.height)
-        except Exception as e:
-            self.logger.warning(f"Error creando ventana: {e}")
-
         while self._running and self.controls.is_running:
             try:
-                if self.controls.is_paused:
+                if self._paused:
                     self._render_pause_frame()
                     time.sleep(0.01)
                     continue
@@ -137,8 +141,8 @@ class RenderService(LoggerMixin):
                 self._display_frame(result)
 
             except Exception as e:
-                self._stats["errors"] += 1
-                self.logger.error(f"Error en renderizado: {e}")
+                self._errors += 1
+                self.logger.error(f"Error en renderizado: {e}", exc_info=True)
                 time.sleep(0.01)
 
         try:
@@ -177,7 +181,7 @@ class RenderService(LoggerMixin):
 
             cv2.imshow(WINDOW_NAME, rendered_frame)
             self._last_valid_frame = rendered_frame
-            self._stats["frames_rendered"] += 1
+            self._frames_rendered += 1
 
             key = cv2.waitKey(1) & 0xFF
             if key:
@@ -186,7 +190,7 @@ class RenderService(LoggerMixin):
                     self.on_key_pressed(key)
 
         except Exception as e:
-            self._stats["errors"] += 1
+            self._errors += 1
             self.logger.error(f"Error mostrando frame: {e}")
 
     def _render_pause_frame(self) -> None:
@@ -230,6 +234,8 @@ class RenderService(LoggerMixin):
                 key = cv2.waitKey(50) & 0xFF
                 if key:
                     self.controls.process_key(key)
+                    if self.on_key_pressed:
+                        self.on_key_pressed(key)
 
             except Exception as e:
                 self.logger.debug(f"Error mostrando pausa: {e}")
@@ -237,9 +243,19 @@ class RenderService(LoggerMixin):
     def get_stats(self) -> dict:
         """Obtiene estadísticas del servicio."""
         return {
-            **self._stats,
-            "queue_size": len(self._render_queue),
-            "max_queue_size": self.max_queue_size,
-            "is_paused": self.controls.is_paused,
-            "is_running": self.controls.is_running,
+            'frames_rendered': self._frames_rendered,
+            'frames_dropped': self._frames_dropped,
+            'errors': self._errors,
+            'queue_size': len(self._render_queue),
+            'max_queue_size': self.max_queue_size,
+            'is_running': self._running,
+            'is_paused': self._paused,
         }
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    @property
+    def is_paused(self) -> bool:
+        return self._paused
