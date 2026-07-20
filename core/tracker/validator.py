@@ -3,13 +3,16 @@ Sistema de validación de tracks para asegurar calidad
 """
 
 import numpy as np
-from typing import List, Dict, Any, Optional, Callable, Tuple
+from typing import List, Dict, Any, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import deque
 
 from utils.logger import LoggerMixin
 from utils.geometry import euclidean_distance
+from core.constants import (
+    TRACK_VALIDATION_MIN_CONFIDENCE,
+    TRACK_VALIDATION_MAX_SPEED_CHANGE,
+)
 
 
 class ValidationSeverity(Enum):
@@ -69,7 +72,11 @@ class TrackValidator(LoggerMixin):
     5. Filtro de confianza
     """
 
-    def __init__(self, min_confidence: float = 0.3, max_speed_change: float = 50.0):
+    def __init__(
+            self,
+            min_confidence: float = TRACK_VALIDATION_MIN_CONFIDENCE,
+            max_speed_change: float = TRACK_VALIDATION_MAX_SPEED_CHANGE
+    ):
         self.min_confidence = min_confidence
         self.max_speed_change = max_speed_change
 

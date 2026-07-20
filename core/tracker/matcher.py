@@ -2,15 +2,23 @@
 Sistema de matching jerárquico para re-identificación robusta.
 """
 
-import numpy as np
 from typing import List, Tuple, Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 import time
 
+import numpy as np
+
 from scipy.optimize import linear_sum_assignment
 from utils.geometry import calculate_iou, euclidean_distance
 from utils.logger import LoggerMixin
+from core.constants import (
+    TRACK_VALIDATION_IOU_THRESHOLD,
+    TRACK_VALIDATION_FEATURE_THRESHOLD,
+    TRACK_VALIDATION_MOTION_THRESHOLD,
+    TRACK_VALIDATION_SHAPE_THRESHOLD,
+    MAX_MATCH_DISTANCE,
+)
 
 
 class MatchLevel(Enum):
@@ -40,11 +48,11 @@ class HierarchicalMatcher(LoggerMixin):
 
     def __init__(
         self,
-        iou_threshold: float = 0.3,
-        feature_threshold: float = 0.6,
-        motion_threshold: float = 0.7,
-        shape_threshold: float = 0.5,
-        spatial_threshold: float = 50.0,
+        iou_threshold: float = TRACK_VALIDATION_IOU_THRESHOLD,
+        feature_threshold: float = TRACK_VALIDATION_FEATURE_THRESHOLD,
+        motion_threshold: float = TRACK_VALIDATION_MOTION_THRESHOLD,
+        shape_threshold: float = TRACK_VALIDATION_SHAPE_THRESHOLD,
+        spatial_threshold: float = MAX_MATCH_DISTANCE,
         enable_adaptive_thresholds: bool = True,
     ):
         self.iou_threshold = iou_threshold

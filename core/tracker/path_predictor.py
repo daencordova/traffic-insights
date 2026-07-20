@@ -16,7 +16,13 @@ from core.tracker.prediction.history import TrajectoryHistory
 from core.tracker.prediction.model_selector import ModelSelector
 from core.tracker.prediction.state_detector import StateDetector, TrajectoryState
 from core.tracker.prediction.collision_detector import CollisionDetector
-
+from core.constants import (
+    PATH_PREDICTION_HISTORY_LENGTH,
+    PATH_PREDICTION_HORIZON,
+    PATH_PREDICTION_STEPS,
+    PATH_PREDICTION_MIN_SAMPLES,
+    PATH_PREDICTION_UNCERTAINTY_THRESHOLD,
+)
 
 @dataclass
 class TrajectoryPrediction:
@@ -71,14 +77,13 @@ class PathPredictor(LoggerMixin):
 
     def __init__(
         self,
-        history_length: int = 30,
-        prediction_horizon: float = 2.0,
-        prediction_steps: int = 20,
-        min_samples: int = 5,
+        history_length: int = PATH_PREDICTION_HISTORY_LENGTH,
+        prediction_horizon: float = PATH_PREDICTION_HORIZON,
+        prediction_steps: int = PATH_PREDICTION_STEPS,
+        min_samples: int = PATH_PREDICTION_MIN_SAMPLES,
         motion_model: str = "adaptive",
-        uncertainty_threshold: float = 0.7,
-        collision_threshold: float = 30.0,
-    ) -> None:
+        uncertainty_threshold: float = PATH_PREDICTION_UNCERTAINTY_THRESHOLD,
+    ):
         """
         Inicializa el sistema de predicción de trayectoria.
 

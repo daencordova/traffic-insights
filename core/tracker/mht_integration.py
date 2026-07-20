@@ -5,18 +5,24 @@ Este módulo proporciona la integración del sistema de hipótesis múltiples
 con el tracker existente, añadiendo capacidades avanzadas de seguimiento.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Any, Dict, List, Optional, Tuple
 import time
-import numpy as np
 import threading
 
+import numpy as np
+
+from utils.logger import LoggerMixin
+from models.track_state import TrackState
 from core.tracker.hypothesis import (
     TrackHypothesis,
     HypothesisTree,
     HypothesisStatus
 )
-from utils.logger import LoggerMixin
-from models.track_state import TrackState
+from core.constants import (
+    MHT_MAX_DEPTH,
+    MHT_PRUNING_THRESHOLD,
+    MHT_MAX_HYPOTHESES,
+)
 
 
 class MHTIntegration(LoggerMixin):
@@ -26,11 +32,11 @@ class MHTIntegration(LoggerMixin):
 
     def __init__(
         self,
-        max_depth: int = 10,
-        pruning_threshold: float = 0.05,
-        max_hypotheses_per_track: int = 5,
+        max_depth: int = MHT_MAX_DEPTH,
+        pruning_threshold: float = MHT_PRUNING_THRESHOLD,
+        max_hypotheses_per_track: int = MHT_MAX_HYPOTHESES,
         enable_mht: bool = True
-    ) -> None:
+    ):
         """
         Inicializa la integración MHT.
         """

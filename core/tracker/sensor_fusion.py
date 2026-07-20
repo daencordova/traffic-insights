@@ -7,14 +7,23 @@ de profundidad, térmicas y de movimiento.
 """
 
 import time
-import numpy as np
 from typing import Dict, List, Optional, Tuple, Any, Set
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import Enum
 from collections import deque
 
+import numpy as np
+
 from utils.logger import LoggerMixin
-from utils.geometry import euclidean_distance
+from core.constants import (
+    SENSOR_FUSION_VISUAL_WEIGHT,
+    SENSOR_FUSION_DEPTH_WEIGHT,
+    SENSOR_FUSION_THERMAL_WEIGHT,
+    SENSOR_FUSION_MOTION_WEIGHT,
+    SENSOR_FUSION_MIN_OBSERVATIONS,
+    SENSOR_FUSION_MAX_HISTORY,
+    SENSOR_FUSION_PARTICLE_COUNT,
+)
 
 
 class SensorType(Enum):
@@ -314,10 +323,10 @@ class SensorFusionTracker(LoggerMixin):
         self,
         sensor_weights: Optional[Dict[SensorType, float]] = None,
         fusion_method: str = "weighted_average",
-        min_observations: int = 2,
-        max_history: int = 50,
-        particle_count: int = 500,
-    ) -> None:
+        min_observations: int = SENSOR_FUSION_MIN_OBSERVATIONS,
+        max_history: int = SENSOR_FUSION_MAX_HISTORY,
+        particle_count: int = SENSOR_FUSION_PARTICLE_COUNT,
+    ):
         """
         Inicializa el sistema de fusión de sensores.
 
@@ -328,15 +337,13 @@ class SensorFusionTracker(LoggerMixin):
             max_history: Tamaño máximo del historial.
             particle_count: Número de partículas (para particle_filter).
         """
-        self.sensor_weights = sensor_weights or {
-            SensorType.VISUAL: 0.7,
-            SensorType.DEPTH: 0.5,
-            SensorType.THERMAL: 0.4,
-            SensorType.MOTION: 0.3,
-            SensorType.RADAR: 0.6,
-            SensorType.LIDAR: 0.6,
-            SensorType.GPS: 0.3,
-        }
+        if sensor_weights is None:
+            sensor_weights = {
+                SensorType.VISUAL: SENSOR_FUSION_VISUAL_WEIGHT,
+                SensorType.DEPTH: SENSOR_FUSION_DEPTH_WEIGHT,
+                SensorType.THERMAL: SENSOR_FUSION_THERMAL_WEIGHT,
+                SensorType.MOTION: SENSOR_FUSION_MOTION_WEIGHT,
+            }
 
         self.fusion_method = SensorFusionMethod(fusion_method)
         self.min_observations = min_observations

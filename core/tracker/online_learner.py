@@ -16,6 +16,12 @@ from core.tracker.learning.statistics import FeatureStatistics
 from core.tracker.learning.strategies import LearningStrategyFactory
 from core.tracker.learning.drift_detector import ConceptDriftDetector
 from core.tracker.learning.aggregator import FeatureAggregator
+from core.constants import (
+    ONLINE_LEARNING_DEFAULT_LR,
+    ONLINE_LEARNING_MIN_SAMPLES,
+    ONLINE_LEARNING_DRIFT_THRESHOLD,
+    ONLINE_LEARNING_MAX_HISTORY,
+)
 
 
 class OnlineFeatureLearner(LoggerMixin):
@@ -37,12 +43,12 @@ class OnlineFeatureLearner(LoggerMixin):
     def __init__(
         self,
         feature_dim: int = 2048,
-        learning_rate: float = 0.05,
-        min_samples: int = 5,
-        drift_threshold: float = 0.35,
-        max_history: int = 50,
+        learning_rate: float = ONLINE_LEARNING_DEFAULT_LR,
+        min_samples: int = ONLINE_LEARNING_MIN_SAMPLES,
+        drift_threshold: float = ONLINE_LEARNING_DRIFT_THRESHOLD,
+        max_history: int = ONLINE_LEARNING_MAX_HISTORY,
         strategy: str = "adaptive"
-    ) -> None:
+    ):
         """
         Inicializa el sistema de aprendizaje en línea.
 

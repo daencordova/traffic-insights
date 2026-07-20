@@ -3,15 +3,21 @@ Sistema de re-identificación robusto con persistencia de features
 """
 
 import time
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
-from collections import deque
-from dataclasses import dataclass, field
 
 from utils.logger import LoggerMixin
 from models.feature_extractor import FeatureExtractor
 from core.tracker.feature_cache import FeatureCacheManager
-
+from core.constants import (
+    REID_SIMILARITY_THRESHOLD,
+    REID_SPATIAL_THRESHOLD,
+    REID_MAX_AGE_SECONDS,
+    REID_CACHE_SIZE,
+    REID_MIN_FEATURES,
+)
 
 @dataclass
 class ReIdentificationCandidate:
@@ -39,11 +45,11 @@ class ReIdentificationSystem(LoggerMixin):
     def __init__(
         self,
         feature_extractor: Optional[FeatureExtractor] = None,
-        max_cache_size: int = 1000,
-        max_age_seconds: float = 30.0,
-        similarity_threshold: float = 0.6,
-        spatial_threshold: float = 100.0,
-        min_features_for_reid: int = 3,
+        max_cache_size: int = REID_CACHE_SIZE,
+        max_age_seconds: float = REID_MAX_AGE_SECONDS,
+        similarity_threshold: float = REID_SIMILARITY_THRESHOLD,
+        spatial_threshold: float = REID_SPATIAL_THRESHOLD,
+        min_features_for_reid: int = REID_MIN_FEATURES,
     ):
         self.feature_extractor = feature_extractor
         self.similarity_threshold = similarity_threshold

@@ -9,8 +9,11 @@ import numpy as np
 
 from models.enums import TrackStatus
 from core.constants import (
-    MIN_HITS_TO_CONFIRM, MAX_FRAMES_MISSED,
-    MIN_BOX_SIZE, MAX_BOX_SIZE, MAX_TRACK_HISTORY
+    MIN_HITS_TO_CONFIRM,
+    MAX_FRAMES_MISSED as MAX_LOST_FRAMES,
+    MIN_BOX_SIZE,
+    MAX_BOX_SIZE,
+    MAX_TRACK_HISTORY as MAX_HISTORY_LENGTH,
 )
 from models.kalman import EnhancedKalmanFilter
 from core.validators import validate_bbox, validate_centroid
@@ -33,10 +36,10 @@ class TrackState:
     )
 
     MIN_HITS_TO_CONFIRM: int = MIN_HITS_TO_CONFIRM
-    MAX_LOST_FRAMES: int = MAX_FRAMES_MISSED
+    MAX_LOST_FRAMES: int = MAX_LOST_FRAMES
     MIN_BOX_SIZE: int = MIN_BOX_SIZE
     MAX_BOX_SIZE: int = MAX_BOX_SIZE
-    MAX_HISTORY_LENGTH: int = MAX_TRACK_HISTORY
+    MAX_HISTORY_LENGTH: int = MAX_HISTORY_LENGTH
 
     def __init__(
         self,
