@@ -1,10 +1,11 @@
 """
-Servicio de captura de video.
+Servicio de captura con circuit breaker y manejo robusto de errores.
 """
 
 import time
 import threading
 from typing import Optional, Callable
+import logging
 
 import cv2
 import numpy as np
@@ -12,6 +13,9 @@ import numpy as np
 from core.capture.reconnector import Reconnector
 from core.frame_buffer import CircularFrameBuffer, FrameMetadata
 from core.validators import validate_frame
+from core.circuit_breaker import CircuitBreaker, circuit_breaker_registry
+from core.exceptions import CameraError
+from utils.decorators import retry_on_failure
 from utils.logger import LoggerMixin
 
 
@@ -38,6 +42,14 @@ class CaptureService(LoggerMixin):
         self.on_frame_captured = on_frame_captured
         self.on_frame_dropped = on_frame_dropped
 
+        self._circuit_breaker = CircuitBreaker(
+            name="capture_connection",
+            failure_threshold=3,
+            timeout_seconds=5.0,
+            on_state_change=self._on_breaker_state_change
+        )
+        circuit_breaker_registry.register(self._circuit_breaker)
+
         self._reconnector = Reconnector(
             max_attempts=config.camera.reconnect_attempts,
             delay=config.camera.reconnect_delay
@@ -54,11 +66,13 @@ class CaptureService(LoggerMixin):
             'errors': 0,
             'fps': 0.0,
             'buffer_usage': 0.0,
+            'breaker_state': 'closed',
         }
 
         self.logger.info(
-            "CaptureService inicializado",
-            source=config.camera.source
+            "CaptureService inicializado con circuit breaker",
+            source=config.camera.source,
+            breaker_name=self._circuit_breaker.name
         )
 
     def _create_buffer(self) -> CircularFrameBuffer:
@@ -123,8 +137,11 @@ class CaptureService(LoggerMixin):
         return self._connect()
 
     def _capture_loop(self) -> None:
-        """Bucle principal de captura."""
-        self.logger.info(f"Capturando desde: {self._source}")
+        """Bucle principal de captura con control de estado."""
+        self.logger.info(f"Iniciando bucle de captura desde: {self._source}")
+
+        consecutive_errors = 0
+        max_consecutive_errors = 5
 
         while self._running:
             try:
@@ -132,13 +149,28 @@ class CaptureService(LoggerMixin):
                     time.sleep(0.01)
                     continue
 
-                if not self._ensure_connected():
+                if not self._circuit_breaker.can_execute():
                     time.sleep(0.5)
                     continue
 
-                ret, frame = self._cap.read()
+                if not self._ensure_connected():
+                    consecutive_errors += 1
+                    if consecutive_errors > max_consecutive_errors:
+                        self._circuit_breaker.record_failure(
+                            CameraError("Demasiados errores consecutivos")
+                        )
+                        consecutive_errors = 0
+                    continue
+
+                ret, frame = self._read_frame()
                 if not ret or frame is None:
+                    consecutive_errors += 1
                     self._handle_read_error()
+                    if consecutive_errors > max_consecutive_errors:
+                        self._circuit_breaker.record_failure(
+                            CameraError("Demasiados errores de lectura")
+                        )
+                        consecutive_errors = 0
                     continue
 
                 if not self._validate_frame(frame):
@@ -146,10 +178,12 @@ class CaptureService(LoggerMixin):
                     continue
 
                 self._process_frame(frame)
+                consecutive_errors = 0
+                self._circuit_breaker.record_success()
 
             except Exception as e:
                 self._stats['errors'] += 1
-                self.logger.error(f"Error en captura: {e}", exc_info=True)
+                self.logger.error(f"Error en bucle de captura: {e}", exc_info=True)
                 time.sleep(0.1)
 
         self.logger.info("Bucle de captura terminado")
@@ -161,8 +195,15 @@ class CaptureService(LoggerMixin):
 
         return self._connect()
 
+    @retry_on_failure(
+        exceptions=(CameraError, ConnectionError, TimeoutError),
+        max_attempts=3,
+        delay=0.5,
+        backoff=2.0,
+        on_retry=lambda attempt, e: logging.warning(f"Reintentando conexión {attempt}: {e}")
+    )
     def _connect(self) -> bool:
-        """Conecta a la fuente de video."""
+        """Conecta a la fuente de video con reintentos."""
         try:
             self._cap = self._reconnector.connect(
                 self._source,
@@ -172,16 +213,30 @@ class CaptureService(LoggerMixin):
             if self._cap and self._cap.isOpened():
                 self._stats['reconnections'] += 1
                 self._stats['errors'] = 0
+                self._circuit_breaker.record_success()
+                self.logger.info("Conexión exitosa a la fuente")
                 return True
 
-            return False
+            raise CameraError(f"No se pudo conectar a la fuente: {self._source}")
 
         except Exception as e:
+            self._circuit_breaker.record_failure(e)
             self.logger.error(f"Error conectando: {e}")
-            return False
+            raise CameraError(f"Fallo en conexión: {e}") from e
+
+    def _read_frame(self) -> tuple:
+        """Lee un frame con manejo de errores."""
+        try:
+            return self._cap.read()
+        except cv2.error as e:
+            self.logger.error(f"Error de OpenCV: {e}")
+            return False, None
+        except Exception as e:
+            self.logger.error(f"Error leyendo frame: {e}")
+            return False, None
 
     def _handle_read_error(self) -> None:
-        """Maneja errores de lectura."""
+        """Maneja errores de lectura con recuperación."""
         self.logger.warning("Error leyendo frame, intentando recuperar...")
         self._stats['errors'] += 1
 
@@ -189,6 +244,16 @@ class CaptureService(LoggerMixin):
             self.logger.warning("Demasiados errores, reconectando...")
             self._cap = None
             self._stats['errors'] = 0
+
+    def _on_breaker_state_change(self, name: str, new_state: str) -> None:
+        """Callback cuando cambia el estado del circuit breaker."""
+        self._stats['breaker_state'] = new_state
+        self.logger.warning(
+            f"Circuit breaker '{name}' cambió a estado: {new_state}"
+        )
+
+        if new_state == "open":
+            self.logger.error("Conexión bloqueada por circuit breaker. Intentando recuperación...")
 
     def _validate_frame(self, frame: np.ndarray) -> bool:
         """Valida la integridad del frame."""

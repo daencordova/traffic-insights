@@ -31,6 +31,28 @@ class ConfigManager:
             cls._instance = cls()
         return cls._instance
 
+    def load_default(self) -> Config:
+        """
+        Carga la configuración por defecto.
+
+        Returns:
+            Config: Configuración por defecto.
+        """
+        logger.info("📄 Cargando configuración por defecto")
+        self._config = Config()
+
+        logger.info("=" * 60)
+        logger.info("📊 PARÁMETROS DE CONFIGURACIÓN POR DEFECTO")
+        logger.info("=" * 60)
+        logger.info(f"   Modelo: {self._config.model.model_path}")
+        logger.info(f"   Device: {self._config.model.device}")
+        logger.info(f"   🎯 Confianza: {self._config.model.confidence_threshold}")
+        logger.info(f"   📊 IOU: {self._config.model.iou_threshold}")
+        logger.info(f"   📐 IMG Size: {self._config.model.imgsz}")
+        logger.info("=" * 60)
+
+        return self._config
+
     def load_from_file(self, path: str) -> Config:
         """
         Carga configuración desde archivo YAML con logging detallado.

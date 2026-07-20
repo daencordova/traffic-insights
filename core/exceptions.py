@@ -1,20 +1,21 @@
 """
-Excepciones personalizadas para el sistema de seguimiento de trafico.
+Excepciones personalizadas para el sistema de seguimiento de tráfico.
 
-Esta jerarquía de excepciones permite un manejo más granular de errores
-y facilita la depuración del sistema.
+Esta jerarquía permite un manejo granular de errores y facilita
+la recuperación automática en diferentes escenarios.
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 class VehicleCountingError(Exception):
     """
-    Excepción base para todo el sistema de seguimiento de trafico.
+    Excepción base para todo el sistema de seguimiento de tráfico.
 
-    Todas las excepciones personalizadas heredan de esta clase.
+    Todas las excepciones personalizadas heredan de esta clase,
+    permitiendo capturar cualquier error del dominio.
     """
-    def __init__(self, message: str, details: Optional[dict] = None):
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         self.message = message
         self.details = details or {}
         super().__init__(self.message)
@@ -30,38 +31,38 @@ class ConfigurationError(VehicleCountingError):
     pass
 
 
+class ValidationError(VehicleCountingError):
+    """Error en la validación de datos o parámetros."""
+    pass
+
+
 class ModelLoadError(VehicleCountingError):
     """Error al cargar un modelo de machine learning."""
     pass
 
 
-class FrameProcessingError(VehicleCountingError):
-    """Error al procesar un frame de video."""
+class DetectionError(VehicleCountingError):
+    """Error en el sistema de detección de objetos."""
+    pass
+
+
+class InferenceError(DetectionError):
+    """Error durante la inferencia del modelo."""
     pass
 
 
 class TrackingError(VehicleCountingError):
-    """Error en el sistema de tracking."""
+    """Error en el sistema de seguimiento (tracking)."""
     pass
 
 
-class DetectionError(VehicleCountingError):
-    """Error en el sistema de detección."""
+class MatchingError(TrackingError):
+    """Error en el proceso de matching entre detecciones y tracks."""
     pass
 
 
-class CountingError(VehicleCountingError):
-    """Error en el sistema de conteo."""
-    pass
-
-
-class CameraError(VehicleCountingError):
-    """Error relacionado con la cámara o fuente de video."""
-    pass
-
-
-class ResourceError(VehicleCountingError):
-    """Error al gestionar recursos (memoria, archivos, etc.)."""
+class ReIdentificationError(TrackingError):
+    """Error en el sistema de re-identificación."""
     pass
 
 
@@ -70,26 +71,54 @@ class PipelineError(VehicleCountingError):
     pass
 
 
-class CacheError(VehicleCountingError):
+class FrameProcessingError(PipelineError):
+    """Error al procesar un frame de video."""
+    pass
+
+
+class CaptureError(PipelineError):
+    """Error en la captura de video."""
+    pass
+
+
+class ResourceError(VehicleCountingError):
+    """Error al gestionar recursos (memoria, archivos, etc.)."""
+    pass
+
+
+class CacheError(ResourceError):
     """Error en el sistema de caché."""
     pass
 
 
-class FeatureExtractionError(VehicleCountingError):
-    """Error al extraer features de una imagen."""
+class MemoryError(ResourceError):
+    """Error relacionado con memoria insuficiente."""
     pass
 
 
-class MatchingError(VehicleCountingError):
-    """Error en el proceso de matching entre detecciones y tracks."""
+class IOError(VehicleCountingError):
+    """Error de entrada/salida general."""
     pass
 
 
-class ReIdentificationError(VehicleCountingError):
-    """Error en el sistema de re-identificación."""
+class FileNotFoundError(IOError):
+    """Archivo no encontrado."""
     pass
 
 
-class ValidationError(VehicleCountingError):
-    """Error en la validación de datos o parámetros."""
+class CameraError(IOError):
+    """Error relacionado con la cámara o fuente de video."""
+    pass
+
+
+class CountingError(VehicleCountingError):
+    """Error en el sistema de conteo."""
+    pass
+
+
+class ConnectionError(VehicleCountingError):
+    pass
+
+
+class TimeoutError(VehicleCountingError):
     pass
