@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.manager import config_manager
 from core.detector import YOLODetector
-from core.detector import OptimizedYOLODetector
+from core.detector.optimized import OptimizedYOLODetector
 
 
 def benchmark_detector(detector_class, name: str, frames: list) -> dict:

@@ -5,7 +5,7 @@ Proporciona funciones reutilizables para validar frames, detecciones,
 bounding boxes y centroides en todo el sistema.
 """
 
-from .frame_validator import (
+from core.validators.frame_validator import (
     validate_frame,
     validate_frame_shape,
     ensure_valid_frame,
@@ -14,7 +14,7 @@ from .frame_validator import (
     is_color,
     create_default_frame,
 )
-from .bbox_validator import (
+from core.validators.bbox_validator import (
     validate_bbox,
     validate_centroid,
     normalize_bbox,
@@ -24,7 +24,7 @@ from .bbox_validator import (
     numpy_to_bbox,
     get_bbox_area,
 )
-from .detection_validator import (
+from core.validators.detection_validator import (
     validate_detection,
     validate_detection_list,
     validate_detection_required_fields,

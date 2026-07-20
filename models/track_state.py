@@ -12,7 +12,7 @@ from core.constants import (
     MIN_HITS_TO_CONFIRM, MAX_FRAMES_MISSED,
     MIN_BOX_SIZE, MAX_BOX_SIZE, MAX_TRACK_HISTORY
 )
-from .kalman import EnhancedKalmanFilter
+from models.kalman import EnhancedKalmanFilter
 from core.validators import validate_bbox, validate_centroid
 
 Point = Tuple[int, int]

@@ -9,7 +9,7 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from .base import FeatureBackend
+from models.feature_extractor.backends.base import FeatureBackend
 from utils.logger import LoggerMixin
 
 

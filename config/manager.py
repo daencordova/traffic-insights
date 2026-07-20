@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, Any
 import yaml
 
-from .settings import Config
+from config.settings import Config
 from core.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)

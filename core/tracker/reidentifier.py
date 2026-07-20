@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from utils.logger import LoggerMixin
 from models.feature_extractor import FeatureExtractor
-from .feature_cache import FeatureCacheManager
+from core.tracker.feature_cache import FeatureCacheManager
 
 
 @dataclass

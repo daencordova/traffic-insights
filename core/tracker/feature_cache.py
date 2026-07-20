@@ -159,7 +159,7 @@ class FeatureCacheManager(LoggerMixin):
         Returns:
             Lista de ReIdentificationCandidate ordenados por score
         """
-        from .reidentifier import ReIdentificationCandidate
+        from core.tracker.reidentifier import ReIdentificationCandidate
 
         if query_features is None or len(query_features) == 0:
             return []

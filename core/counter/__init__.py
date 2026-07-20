@@ -10,10 +10,10 @@ Componentes principales:
 - StatisticsCollector: Recolección de estadísticas
 """
 
-from .base import VehicleCounter
-from .line_manager import LineManager, CountingLine
-from .crossing_detector import CrossingDetector
-from .statistics_collector import StatisticsCollector, VehicleEvent
+from core.counter.base import VehicleCounter
+from core.counter.line_manager import LineManager, CountingLine
+from core.counter.crossing_detector import CrossingDetector
+from core.counter.statistics_collector import StatisticsCollector, VehicleEvent
 
 __all__ = [
     "VehicleCounter",

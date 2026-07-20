@@ -4,8 +4,8 @@ Fábrica para crear extractores de features.
 Proporciona una interfaz unificada para crear extractores
 con diferentes backends.
 """
-from .base import FeatureExtractor
-from .backends import (
+from models.feature_extractor.base import FeatureExtractor
+from models.feature_extractor.backends import (
     FeatureBackend,
     ResNetBackend,
     HistogramBackend,

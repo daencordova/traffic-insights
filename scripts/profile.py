@@ -14,8 +14,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.manager import config_manager
-from core.detector import OptimizedYOLODetector
-from core.tracker import AdvancedTracker
+from core.detector.optimized import OptimizedYOLODetector
+from core.tracker.base import AdvancedTracker
 
 
 def run_profile():

@@ -8,8 +8,8 @@ Proporciona componentes para el aprendizaje en línea de features:
 - Agregación de features
 """
 
-from .statistics import FeatureStatistics
-from .strategies import (
+from core.tracker.learning.statistics import FeatureStatistics
+from core.tracker.learning.strategies import (
     LearningStrategy,
     IncrementalStrategy,
     AdaptiveStrategy,
@@ -17,8 +17,8 @@ from .strategies import (
     HybridStrategy,
     LearningStrategyFactory,
 )
-from .drift_detector import ConceptDriftDetector
-from .aggregator import FeatureAggregator
+from core.tracker.learning.drift_detector import ConceptDriftDetector
+from core.tracker.learning.aggregator import FeatureAggregator
 
 __all__ = [
     "FeatureStatistics",

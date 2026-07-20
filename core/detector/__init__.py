@@ -2,21 +2,21 @@
 Módulo de detección de objetos.
 """
 
-from .base import YOLODetector
-from .optimized import OptimizedYOLODetector
-from .factory import DetectorFactory
-from .cache import DetectionCache
-from .preprocessor import ImagePreprocessor
-from .config import DetectorConfig
-from .model_manager import ModelManager
-from .model_exporter import ModelExporter
-from .inference_engine import (
+from core.detector.base import YOLODetector
+from core.detector.optimized import OptimizedYOLODetector
+from core.detector.factory import DetectorFactory
+from core.detector.cache import DetectionCache
+from core.detector.preprocessor import ImagePreprocessor
+from core.detector.config import DetectorConfig
+from core.detector.model_manager import ModelManager
+from core.detector.model_exporter import ModelExporter
+from core.detector.inference_engine import (
     InferenceEngine,
     PyTorchInferenceEngine,
     ONNXInferenceEngine,
     InferenceEngineFactory,
 )
-from .post_processor import PostProcessor
+from core.detector.post_processor import PostProcessor
 
 __all__ = [
     "YOLODetector",

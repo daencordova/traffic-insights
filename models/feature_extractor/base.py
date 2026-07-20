@@ -11,9 +11,9 @@ from collections import deque
 
 import numpy as np
 
-from .cache import FeatureCache
-from .validator import FeatureValidator
-from .backends import FeatureBackend
+from models.feature_extractor.cache import FeatureCache
+from models.feature_extractor.validator import FeatureValidator
+from models.feature_extractor.backends.base import FeatureBackend
 from utils.logger import LoggerMixin
 
 

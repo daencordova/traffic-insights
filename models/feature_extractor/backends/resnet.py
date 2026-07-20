@@ -15,7 +15,7 @@ except ImportError:
     TORCH_AVAILABLE = False
     torch = None
 
-from .base import FeatureBackend
+from models.feature_extractor.backends.base import FeatureBackend
 from utils.logger import LoggerMixin
 
 

@@ -2,7 +2,7 @@
 Módulo de configuración
 """
 
-from .settings import Config
-from .manager import config_manager, config
+from config.settings import Config
+from config.manager import config_manager, config
 
 __all__ = ["Config", "config_manager", "config"]

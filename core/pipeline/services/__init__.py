@@ -9,11 +9,11 @@ Cada servicio tiene una responsabilidad única y bien definida:
 - MonitoringService: Métricas y salud del sistema
 """
 
-from .capture_service import CaptureService
-from .processing_service import ProcessingService
-from .render_service import RenderService
-from .control_service import ControlService
-from .monitoring_service import MonitoringService
+from core.pipeline.services.capture_service import CaptureService
+from core.pipeline.services.processing_service import ProcessingService
+from core.pipeline.services.render_service import RenderService
+from core.pipeline.services.control_service import ControlService
+from core.pipeline.services.monitoring_service import MonitoringService
 
 __all__ = [
     "CaptureService",
