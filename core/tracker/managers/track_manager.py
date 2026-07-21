@@ -1,11 +1,20 @@
 """
 Gestor de ciclo de vida de tracks.
 
-Maneja la creación, actualización, limpieza y recuperación de tracks.
+Este módulo maneja la creación, actualización, limpieza y recuperación
+de tracks en el sistema de tracking.
+
+El TrackManager es responsable de:
+- Creación de nuevos tracks desde detecciones
+- Actualización de tracks existentes
+- Marcado de tracks como perdidos
+- Recuperación de tracks perdidos
+- Limpieza de tracks muertos
+- Mantenimiento de límites de memoria
 """
 
-from typing import Dict, Optional, Any
 import time
+from typing import Dict, Optional, Any
 
 import numpy as np
 
@@ -19,22 +28,39 @@ class TrackManager(LoggerMixin):
     """
     Gestor de ciclo de vida completo de tracks.
 
-    Responsabilidades:
-    - Creación de nuevos tracks desde detecciones
-    - Actualización de tracks existentes
-    - Marcado de tracks como perdidos
-    - Recuperación de tracks perdidos
-    - Limpieza de tracks muertos
-    - Mantenimiento de límites de memoria
+    Esta clase maneja todos los aspectos del ciclo de vida de los tracks,
+    desde la creación hasta la eliminación, pasando por actualizaciones,
+    pérdidas y recuperaciones.
+
+    Características:
+        - Límite de tracks activos configurable
+        - Almacenamiento separado para tracks activos y perdidos
+        - Recuperación de tracks perdidos
+        - Limpieza automática de tracks muertos
+        - Estadísticas de gestión
 
     Attributes:
-        active_tracks: Diccionario de tracks activos
-        lost_tracks: Diccionario de tracks perdidos
-        next_id: Siguiente ID disponible
+        active_tracks: Diccionario de tracks activos (ID -> TrackState)
+        lost_tracks: Diccionario de tracks perdidos (ID -> TrackState)
+        next_id: Siguiente ID disponible para nuevos tracks
         max_active_tracks: Límite máximo de tracks activos
+
+    Example:
+        >>> manager = TrackManager(max_active_tracks=50)
+        >>> track = manager.create_track(detection)
+        >>> manager.update_track(track.track_id, new_detection)
+        >>> manager.mark_as_lost(track.track_id)
+        >>> recovered = manager.recover_track(track.track_id)
     """
 
     def __init__(self, max_active_tracks: int = MAX_ACTIVE_TRACKS):
+        """
+        Inicializa el gestor de tracks.
+
+        Args:
+            max_active_tracks: Número máximo de tracks activos permitidos.
+                Si se excede, no se pueden crear nuevos tracks.
+        """
         self.active_tracks: Dict[int, TrackState] = {}
         self.lost_tracks: Dict[int, TrackState] = {}
         self.next_id: int = 0
@@ -70,12 +96,22 @@ class TrackManager(LoggerMixin):
         Crea un nuevo track a partir de una detección.
 
         Args:
-            detection: Diccionario de detección
-            features: Features visuales (opcional)
-            kalman_filter: Filtro de Kalman (opcional)
+            detection: Diccionario de detección con 'box' y 'centroid'.
+            features: Features visuales para re-identificación (opcional).
+            kalman_filter: Filtro de Kalman preconfigurado (opcional).
 
         Returns:
-            Optional[TrackState]: Track creado o None
+            Optional[TrackState]: Track creado o None si no se puede crear.
+
+        Note:
+            No se crea un track si se ha alcanzado el límite de tracks activos.
+            El nuevo track se inicia en estado TENTATIVE.
+
+        Example:
+            >>> detection = {'box': (10, 20, 50, 60), 'centroid': (30, 40)}
+            >>> track = manager.create_track(detection, features=feature_vector)
+            >>> if track:
+            ...     print(f"Track {track.track_id} creado")
         """
         if len(self.active_tracks) >= self.max_active_tracks:
             self.logger.debug(
@@ -125,15 +161,19 @@ class TrackManager(LoggerMixin):
         features: Optional[np.ndarray] = None
     ) -> bool:
         """
-        Actualiza un track existente.
+        Actualiza un track existente con nueva detección.
 
         Args:
-            track_id: ID del track
-            detection: Nueva detección
-            features: Nuevos features (opcional)
+            track_id: ID del track a actualizar.
+            detection: Nueva detección para actualizar.
+            features: Nuevos features visuales (opcional).
 
         Returns:
-            bool: True si se actualizó correctamente
+            bool: True si se actualizó correctamente.
+
+        Example:
+            >>> manager.update_track(5, new_detection, new_features)
+            >>> # El track 5 se actualiza con la nueva información
         """
         track = self.active_tracks.get(track_id)
         if track is None:
@@ -152,10 +192,15 @@ class TrackManager(LoggerMixin):
         Marca un track como perdido.
 
         Args:
-            track_id: ID del track
+            track_id: ID del track a marcar como perdido.
 
         Returns:
-            bool: True si se marcó correctamente
+            bool: True si se marcó correctamente.
+
+        Note:
+            Si el track tiene historial insuficiente, se elimina directamente.
+            Los tracks perdidos se almacenan en lost_tracks para posible
+            re-identificación.
         """
         if track_id not in self.active_tracks:
             return False
@@ -185,10 +230,19 @@ class TrackManager(LoggerMixin):
         Recupera un track perdido.
 
         Args:
-            track_id: ID del track a recuperar
+            track_id: ID del track a recuperar.
 
         Returns:
-            Optional[TrackState]: Track recuperado o None
+            Optional[TrackState]: Track recuperado o None si no se puede.
+
+        Note:
+            La recuperación solo es posible si hay espacio para tracks activos.
+            El track recuperado vuelve al estado CONFIRMED.
+
+        Example:
+            >>> track = manager.recover_track(5)
+            >>> if track:
+            ...     print(f"Track {track.track_id} recuperado")
         """
         if track_id not in self.lost_tracks:
             return None
@@ -217,11 +271,11 @@ class TrackManager(LoggerMixin):
         Elimina un track.
 
         Args:
-            track_id: ID del track
-            permanent: Si es True, elimina también de lost_tracks
+            track_id: ID del track a eliminar.
+            permanent: Si es True, elimina también de lost_tracks.
 
         Returns:
-            bool: True si se eliminó correctamente
+            bool: True si se eliminó correctamente.
         """
         removed = False
 
@@ -248,7 +302,11 @@ class TrackManager(LoggerMixin):
         Elimina tracks muertos y gestiona el límite de lost_tracks.
 
         Returns:
-            int: Número de tracks eliminados
+            int: Número de tracks eliminados.
+
+        Note:
+            - Los tracks en estado DEAD se mueven a lost_tracks
+            - Si lost_tracks supera el límite, se eliminan los más antiguos
         """
         removed = 0
 
@@ -283,31 +341,67 @@ class TrackManager(LoggerMixin):
         return removed
 
     def get_track(self, track_id: int) -> Optional[TrackState]:
-        """Obtiene un track activo por su ID."""
+        """
+        Obtiene un track activo por su ID.
+
+        Args:
+            track_id: ID del track.
+
+        Returns:
+            Optional[TrackState]: Track o None si no existe.
+        """
         return self.active_tracks.get(track_id)
 
     def get_lost_track(self, track_id: int) -> Optional[TrackState]:
-        """Obtiene un track perdido por su ID."""
+        """
+        Obtiene un track perdido por su ID.
+
+        Args:
+            track_id: ID del track.
+
+        Returns:
+            Optional[TrackState]: Track perdido o None si no existe.
+        """
         return self.lost_tracks.get(track_id)
 
     def get_all_tracks(self) -> Dict[int, TrackState]:
-        """Obtiene todos los tracks activos."""
+        """
+        Obtiene todos los tracks activos.
+
+        Returns:
+            Dict[int, TrackState]: Diccionario de tracks activos.
+        """
         return self.active_tracks
 
     def get_all_lost_tracks(self) -> Dict[int, TrackState]:
-        """Obtiene todos los tracks perdidos."""
+        """
+        Obtiene todos los tracks perdidos.
+
+        Returns:
+            Dict[int, TrackState]: Diccionario de tracks perdidos.
+        """
         return self.lost_tracks
 
     def get_active_count(self) -> int:
-        """Obtiene el número de tracks activos."""
+        """
+        Obtiene el número de tracks activos.
+
+        Returns:
+            int: Número de tracks activos.
+        """
         return len(self.active_tracks)
 
     def get_lost_count(self) -> int:
-        """Obtiene el número de tracks perdidos."""
+        """
+        Obtiene el número de tracks perdidos.
+
+        Returns:
+            int: Número de tracks perdidos.
+        """
         return len(self.lost_tracks)
 
     def clear_all(self) -> None:
-        """Elimina todos los tracks."""
+        """Elimina todos los tracks (activos y perdidos)."""
         self.active_tracks.clear()
         self.lost_tracks.clear()
         self._creation_timestamps.clear()
@@ -316,7 +410,23 @@ class TrackManager(LoggerMixin):
         self.logger.info("Todos los tracks eliminados")
 
     def get_stats(self) -> Dict[str, Any]:
-        """Obtiene estadísticas del gestor."""
+        """
+        Obtiene estadísticas del gestor.
+
+        Returns:
+            Dict[str, Any]: Estadísticas incluyendo:
+                - total_created: Total de tracks creados
+                - total_deleted: Total de tracks eliminados
+                - total_recovered: Total de tracks recuperados
+                - total_lost: Total de tracks perdidos
+                - creation_rate: Tasa de creación (tracks/segundo)
+                - recovery_rate: Tasa de recuperación
+                - active_tracks: Tracks activos actuales
+                - lost_tracks: Tracks perdidos actuales
+                - max_active_tracks: Límite máximo
+                - next_id: Próximo ID disponible
+                - avg_track_age: Edad promedio de tracks
+        """
         current_time = time.time()
 
         if current_time - self._last_stats_update > 0:
@@ -340,7 +450,12 @@ class TrackManager(LoggerMixin):
         }
 
     def _calculate_avg_age(self) -> float:
-        """Calcula la edad promedio de los tracks activos."""
+        """
+        Calcula la edad promedio de los tracks activos.
+
+        Returns:
+            float: Edad promedio en frames.
+        """
         if not self.active_tracks:
             return 0.0
 
@@ -351,4 +466,5 @@ class TrackManager(LoggerMixin):
         return total_age / len(self.active_tracks)
 
     def __len__(self) -> int:
+        """Retorna el número de tracks activos."""
         return len(self.active_tracks)

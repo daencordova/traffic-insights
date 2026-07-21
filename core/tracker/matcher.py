@@ -1,17 +1,28 @@
 """
 Sistema de matching jerárquico para re-identificación robusta.
+
+Este módulo implementa un sistema de matching jerárquico que combina
+múltiples estrategias para asociar detecciones con tracks existentes.
+
+El matching jerárquico utiliza:
+1. IoU (Intersection over Union) - Prioridad alta
+2. Features visuales - Para re-identificación
+3. Movimiento - Predicción de posición
+4. Forma - Aspect ratio y área
+5. Distancia espacial - Fallback
 """
 
+import time
+from enum import Enum
 from typing import List, Tuple, Dict, Any, Optional
 from dataclasses import dataclass
-from enum import Enum
-import time
 
 import numpy as np
-
 from scipy.optimize import linear_sum_assignment
-from utils.geometry import calculate_iou, euclidean_distance
+
+from utils.geometry import calculate_iou
 from utils.logger import LoggerMixin
+from utils.geometry import euclidean_distance
 from core.constants import (
     TRACK_VALIDATION_IOU_THRESHOLD,
     TRACK_VALIDATION_FEATURE_THRESHOLD,
@@ -22,7 +33,16 @@ from core.constants import (
 
 
 class MatchLevel(Enum):
-    """Niveles de matching en orden de prioridad"""
+    """
+    Niveles de matching en orden de prioridad.
+
+    Attributes:
+        IOU: Matching por IoU (más preciso)
+        FEATURE: Matching por features visuales
+        MOTION: Matching por predicción de movimiento
+        SHAPE: Matching por forma (aspect ratio)
+        SPATIAL: Matching por distancia espacial (fallback)
+    """
     IOU = "iou"
     FEATURE = "feature"
     MOTION = "motion"
@@ -32,7 +52,17 @@ class MatchLevel(Enum):
 
 @dataclass
 class MatchResult:
-    """Resultado de una operación de matching"""
+    """
+    Resultado de una operación de matching.
+
+    Attributes:
+        matches: Lista de tuplas (detection_idx, track_idx) asociadas.
+        unmatched_detections: Índices de detecciones no asociadas.
+        unmatched_tracks: Índices de tracks no asociados.
+        match_scores: Diccionario de puntuaciones por par.
+        level_used: Nivel de matching utilizado.
+        time_ms: Tiempo de ejecución en milisegundos.
+    """
     matches: List[Tuple[int, int]]
     unmatched_detections: List[int]
     unmatched_tracks: List[int]
@@ -44,6 +74,35 @@ class MatchResult:
 class HierarchicalMatcher(LoggerMixin):
     """
     Matcher jerárquico que combina múltiples estrategias de matching.
+
+    Este matcher intenta asociar detecciones con tracks usando
+    diferentes criterios en orden de prioridad. Si un criterio no
+    puede asociar todas las detecciones, se pasa al siguiente nivel.
+
+    Características:
+        - Matching en cascada por niveles de prioridad
+        - Thresholds adaptativos según contexto
+        - Soporte para features visuales
+        - Manejo robusto de errores
+        - Estadísticas por nivel de matching
+
+    Attributes:
+        iou_threshold: Umbral de IoU para matching.
+        feature_threshold: Umbral de similitud de features.
+        motion_threshold: Umbral de predicción de movimiento.
+        shape_threshold: Umbral de similitud de forma.
+        spatial_threshold: Umbral de distancia espacial.
+        enable_adaptive_thresholds: Ajuste automático de umbrales.
+
+    Example:
+        >>> matcher = HierarchicalMatcher(
+        ...     iou_threshold=0.3,
+        ...     feature_threshold=0.6,
+        ...     enable_adaptive_thresholds=True
+        ... )
+        >>> result = matcher.match(detections, tracks)
+        >>> for det_idx, trk_idx in result.matches:
+        ...     print(f"Det {det_idx} -> Track {trk_idx}")
     """
 
     def __init__(
@@ -55,6 +114,17 @@ class HierarchicalMatcher(LoggerMixin):
         spatial_threshold: float = MAX_MATCH_DISTANCE,
         enable_adaptive_thresholds: bool = True,
     ):
+        """
+        Inicializa el matcher jerárquico.
+
+        Args:
+            iou_threshold: Umbral de IoU (0-1).
+            feature_threshold: Umbral de similitud de features (0-1).
+            motion_threshold: Umbral de predicción de movimiento (0-1).
+            shape_threshold: Umbral de similitud de forma (0-1).
+            spatial_threshold: Umbral de distancia espacial (píxeles).
+            enable_adaptive_thresholds: Ajustar umbrales automáticamente.
+        """
         self.iou_threshold = iou_threshold
         self.feature_threshold = feature_threshold
         self.motion_threshold = motion_threshold
@@ -74,7 +144,6 @@ class HierarchicalMatcher(LoggerMixin):
             "HierarchicalMatcher inicializado",
             iou_threshold=iou_threshold,
             feature_threshold=feature_threshold,
-            motion_threshold=motion_threshold,
             adaptive_thresholds=enable_adaptive_thresholds
         )
 
@@ -84,7 +153,25 @@ class HierarchicalMatcher(LoggerMixin):
         tracks: List[Any],
         frame_info: Optional[Dict[str, Any]] = None,
     ) -> MatchResult:
-        """Realiza matching jerárquico entre detecciones y tracks."""
+        """
+        Realiza matching jerárquico entre detecciones y tracks.
+
+        Args:
+            detections: Lista de detecciones.
+            tracks: Lista de tracks.
+            frame_info: Información del frame (opcional).
+
+        Returns:
+            MatchResult: Resultado del matching.
+
+        Note:
+            El matching se realiza en cascada:
+            1. IoU (más preciso)
+            2. Features visuales
+            3. Movimiento (predicción)
+            4. Forma (aspect ratio)
+            5. Distancia espacial (fallback)
+        """
         start_time = time.perf_counter()
 
         if not detections or not tracks:
@@ -307,7 +394,18 @@ class HierarchicalMatcher(LoggerMixin):
         thresholds: Dict[str, float],
         frame_info: Optional[Dict] = None,
     ) -> Tuple[List[Tuple[int, int]], Dict[Tuple[int, int], float]]:
-        """Matching basado en IoU con manejo seguro de errores."""
+        """
+        Matching basado en IoU con manejo seguro de errores.
+
+        Args:
+            detections: Lista de detecciones.
+            tracks: Lista de tracks.
+            thresholds: Umbrales adaptativos.
+            frame_info: Información del frame.
+
+        Returns:
+            Tuple: (matches, scores)
+        """
         if not detections or not tracks:
             return [], {}
 
@@ -668,7 +766,23 @@ class HierarchicalMatcher(LoggerMixin):
         detections: List[Dict],
         tracks: List[Any],
     ) -> Dict[str, float]:
-        """Obtiene thresholds adaptativos según el contexto."""
+        """
+        Obtiene thresholds adaptativos según el contexto.
+
+        Args:
+            level: Nivel de matching.
+            detections: Lista de detecciones.
+            tracks: Lista de tracks.
+
+        Returns:
+            Dict[str, float]: Umbrales ajustados.
+
+        Note:
+            Los umbrales se ajustan basándose en:
+            - Confianza promedio de las detecciones
+            - Calidad de los features disponibles
+            - Velocidad promedio de los tracks
+        """
         if not self.enable_adaptive_thresholds:
             return {}
 
@@ -692,7 +806,16 @@ class HierarchicalMatcher(LoggerMixin):
         return thresholds
 
     def _estimate_feature_quality(self, detections: List[Dict], tracks: List[Any]) -> float:
-        """Estima la calidad promedio de los features."""
+        """
+        Estima la calidad promedio de los features disponibles.
+
+        Args:
+            detections: Lista de detecciones.
+            tracks: Lista de tracks.
+
+        Returns:
+            float: Calidad de features (0-1).
+        """
         qualities = []
 
         for det in detections:
@@ -710,7 +833,15 @@ class HierarchicalMatcher(LoggerMixin):
         return float(np.mean(qualities)) if qualities else 0.0
 
     def _estimate_avg_speed(self, tracks: List[Any]) -> float:
-        """Estima la velocidad promedio de los tracks."""
+        """
+        Estima la velocidad promedio de los tracks.
+
+        Args:
+            tracks: Lista de tracks.
+
+        Returns:
+            float: Velocidad promedio en píxeles/frame.
+        """
         speeds = []
 
         for track in tracks:
@@ -722,7 +853,12 @@ class HierarchicalMatcher(LoggerMixin):
         return float(np.mean(speeds)) if speeds else 0.0
 
     def get_stats(self) -> Dict[str, Any]:
-        """Obtiene estadísticas del matcher."""
+        """
+        Obtiene estadísticas del matcher.
+
+        Returns:
+            Dict[str, Any]: Estadísticas por nivel de matching.
+        """
         return {
             level.value: {
                 "success_rate": stats["success"] / max(1, stats["total"]),
