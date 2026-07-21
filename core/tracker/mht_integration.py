@@ -1,13 +1,26 @@
 """
-Integración del sistema MHT con el tracker principal.
+Integración del sistema MHT (Multi-Hypothesis Tracking) con el tracker principal.
 
 Este módulo proporciona la integración del sistema de hipótesis múltiples
 con el tracker existente, añadiendo capacidades avanzadas de seguimiento.
+
+El sistema MHT permite:
+- Mantener múltiples hipótesis de trayectoria por objeto
+- Manejar eficazmente occlusiones y ambigüedades
+- Recuperar objetos perdidos mediante re-identificación
+- Mejorar la robustez en escenarios complejos
+- Reducir falsos positivos mediante poda de hipótesis
+
+El sistema MHT es especialmente útil en:
+- Escenas con múltiples objetos similares
+- Occlusiones frecuentes
+- Movimientos erráticos o impredecibles
+- Condiciones de iluminación variables
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 import time
 import threading
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -24,10 +37,38 @@ from core.constants import (
     MHT_MAX_HYPOTHESES,
 )
 
-
 class MHTIntegration(LoggerMixin):
     """
     Integración del sistema MHT con el tracker principal.
+
+    Esta clase orquesta el sistema de hipótesis múltiples y lo integra
+    con el flujo principal de tracking, proporcionando capacidades
+    avanzadas de seguimiento.
+
+    Características:
+        - Mantenimiento de árbol de hipótesis por track
+        - Poda automática de hipótesis de baja probabilidad
+        - Recuperación de tracks perdidos
+        - Predicción de posiciones usando MHT
+        - Estadísticas de rendimiento
+
+    Attributes:
+        hypothesis_tree: Árbol de hipótesis para MHT.
+        enable_mht: Si el sistema MHT está habilitado.
+        _track_hypothesis_map: Mapeo de tracks a sus hipótesis.
+        _confirmed_hypotheses: Hipótesis confirmadas por track.
+        _recently_recovered: Tracks recuperados recientemente.
+        _recovery_cooldown: Cooldown para recuperación.
+
+    Example:
+        >>> mht = MHTIntegration(
+        ...     max_depth=10,
+        ...     pruning_threshold=0.01,
+        ...     max_hypotheses_per_track=5
+        ... )
+        >>> mht.update_with_observations(tracks, detections, matches, unmatched)
+        >>> predictions = mht.get_track_predictions(track_id, horizon=10)
+        >>> confidence = mht.get_hypothesis_confidence(track_id)
     """
 
     def __init__(
@@ -36,9 +77,19 @@ class MHTIntegration(LoggerMixin):
         pruning_threshold: float = MHT_PRUNING_THRESHOLD,
         max_hypotheses_per_track: int = MHT_MAX_HYPOTHESES,
         enable_mht: bool = True
-    ):
+    ) -> None:
         """
         Inicializa la integración MHT.
+
+        Args:
+            max_depth: Profundidad máxima del árbol de hipótesis.
+            pruning_threshold: Umbral de probabilidad para poda.
+            max_hypotheses_per_track: Máximo de hipótesis por track.
+            enable_mht: Si el sistema MHT está habilitado.
+
+        Note:
+            Un mayor max_depth permite más hipótesis pero consume más memoria.
+            pruning_threshold controla la agresividad de la poda.
         """
         self.hypothesis_tree = HypothesisTree(
             max_depth=max_depth,
@@ -78,7 +129,20 @@ class MHTIntegration(LoggerMixin):
         observation: Dict[str, Any],
         confidence: float = 0.5
     ) -> TrackHypothesis:
-        """Crea una nueva hipótesis a partir de un track existente."""
+        """
+        Crea una nueva hipótesis a partir de un track existente.
+
+        Args:
+            track: Track existente.
+            observation: Observación actual.
+            confidence: Confianza de la hipótesis.
+
+        Returns:
+            TrackHypothesis: Nueva hipótesis creada.
+
+        Note:
+            La hipótesis hereda el historial y features del track.
+        """
         hypothesis = TrackHypothesis(
             track_id=track.track_id,
             confidence=confidence,
@@ -109,7 +173,20 @@ class MHTIntegration(LoggerMixin):
         track_id: Optional[int] = None,
         confidence: float = 0.5
     ) -> TrackHypothesis:
-        """Crea una nueva hipótesis a partir de una detección."""
+        """
+        Crea una nueva hipótesis a partir de una detección.
+
+        Args:
+            detection: Detección actual.
+            track_id: ID del track (opcional).
+            confidence: Confianza de la hipótesis.
+
+        Returns:
+            TrackHypothesis: Nueva hipótesis creada.
+
+        Note:
+            Útil para crear hipótesis iniciales para nuevas detecciones.
+        """
         if track_id is None:
             track_id = -1
 
@@ -146,10 +223,25 @@ class MHTIntegration(LoggerMixin):
     ) -> Dict[int, Optional[int]]:
         """
         Actualiza el árbol de hipótesis con nuevas observaciones.
+
+        Args:
+            tracks: Diccionario de tracks activos.
+            detections: Lista de detecciones actuales.
+            matches: Lista de matches (detection_idx, track_idx).
+            unmatched_tracks: Índices de tracks no asociados.
+            unmatched_detections: Índices de detecciones no asociadas.
+
+        Returns:
+            Dict[int, Optional[int]]: Hipótesis confirmadas por track.
+
+        Note:
+            Este es el método principal que integra MHT con el tracker.
+            Procesa matches, tracks perdidos y detecciones no asociadas.
         """
         if not self.enable_mht:
             return {}
 
+        import time
         start_time = time.perf_counter()
         confirmed = {}
 
@@ -346,6 +438,18 @@ class MHTIntegration(LoggerMixin):
     def _attempt_recovery(self, detection: Dict[str, Any]) -> Optional[int]:
         """
         Intenta recuperar un track perdido usando el árbol de hipótesis.
+
+        Args:
+            detection: Detección actual.
+
+        Returns:
+            Optional[int]: ID del track recuperado o None.
+
+        Note:
+            La recuperación se basa en:
+            1. Similitud espacial (distancia)
+            2. Similitud de features (si disponibles)
+            3. Probabilidad de la hipótesis
         """
         if not self.enable_mht:
             return None
@@ -431,7 +535,16 @@ class MHTIntegration(LoggerMixin):
         return None
 
     def _should_prune(self) -> bool:
-        """Determina si es necesario podar el árbol de hipótesis."""
+        """
+        Determina si es necesario podar el árbol de hipótesis.
+
+        Returns:
+            bool: True si se debe podar.
+
+        Note:
+            La poda se realiza cuando hay muchas hipótesis
+            o ha pasado mucho tiempo desde la última poda.
+        """
         stats = self.hypothesis_tree.get_stats()
         total_hyps = stats.get('total_hypotheses', 0)
         time_since_prune = time.time() - stats.get('last_prune_time', 0)
@@ -439,7 +552,12 @@ class MHTIntegration(LoggerMixin):
         return total_hyps > 30 or time_since_prune > 15.0
 
     def _update_stats(self, tracks: Dict[int, TrackState]) -> None:
-        """Actualiza las estadísticas de la integración MHT."""
+        """
+        Actualiza las estadísticas de la integración MHT.
+
+        Args:
+            tracks: Diccionario de tracks activos.
+        """
         total_tracks = len(tracks)
         total_hyps = len(self.hypothesis_tree)
 
@@ -458,14 +576,34 @@ class MHTIntegration(LoggerMixin):
         track_id: int,
         horizon: int = 10
     ) -> List[Tuple[int, int]]:
-        """Obtiene predicciones de posición para un track usando MHT."""
+        """
+        Obtiene predicciones de posición para un track usando MHT.
+
+        Args:
+            track_id: ID del track.
+            horizon: Número de pasos a predecir.
+
+        Returns:
+            List[Tuple[int, int]]: Posiciones predichas.
+
+        Note:
+            Las predicciones se basan en la hipótesis más probable.
+        """
         if not self.enable_mht:
             return []
 
         return self.hypothesis_tree.get_most_likely_positions(track_id, horizon)
 
     def get_hypothesis_confidence(self, track_id: int) -> float:
-        """Obtiene la confianza del sistema MHT para un track."""
+        """
+        Obtiene la confianza del sistema MHT para un track.
+
+        Args:
+            track_id: ID del track.
+
+        Returns:
+            float: Confianza de la hipótesis más probable (0-1).
+        """
         best_hyp = self.hypothesis_tree.get_best_hypothesis(track_id)
         if best_hyp is None:
             return 0.0
@@ -473,7 +611,12 @@ class MHTIntegration(LoggerMixin):
         return best_hyp.probability
 
     def get_stats(self) -> Dict[str, Any]:
-        """Obtiene estadísticas completas de la integración MHT."""
+        """
+        Obtiene estadísticas completas de la integración MHT.
+
+        Returns:
+            Dict[str, Any]: Estadísticas del sistema MHT.
+        """
         tree_stats = self.hypothesis_tree.get_stats()
 
         return {
@@ -489,7 +632,12 @@ class MHTIntegration(LoggerMixin):
         }
 
     def _get_all_best_hypotheses(self) -> Dict[int, TrackHypothesis]:
-        """Obtiene la mejor hipótesis para cada track activo."""
+        """
+        Obtiene la mejor hipótesis para cada track activo.
+
+        Returns:
+            Dict[int, TrackHypothesis]: Mejores hipótesis por track.
+        """
         result = {}
         for track_id in list(self.hypothesis_tree._active_hyps):
             best = self.hypothesis_tree.get_best_hypothesis(track_id)

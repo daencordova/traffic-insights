@@ -1,13 +1,21 @@
 """
 Sistema de predicción de trayectoria para tracking avanzado.
 
-Orquesta los componentes de historial, modelos de movimiento,
-selector de modelos, detector de estados y detector de colisiones.
+Este módulo implementa un sistema completo de predicción de trayectoria
+que permite anticipar el movimiento futuro de los objetos en seguimiento.
+
+El sistema combina:
+- Historial de trayectorias
+- Múltiples modelos de movimiento (lineal, curvado, cíclico, polinomial)
+- Selección adaptativa de modelos
+- Detección de estados de movimiento
+- Predicción de colisiones
+- Cuantificación de incertidumbre
 """
 
+import time
 from typing import List, Tuple, Dict, Any, Optional
 from dataclasses import dataclass, field
-import time
 
 import numpy as np
 
@@ -30,19 +38,26 @@ class TrajectoryPrediction:
     Representa una predicción de trayectoria.
 
     Attributes:
-        track_id: ID del track
-        positions: Lista de posiciones predichas (x, y)
-        confidences: Confianza por cada predicción (0-1)
-        timestamps: Timestamps de cada predicción
-        horizon_seconds: Horizonte de predicción en segundos
-        state: Estado de la trayectoria
-        motion_model: Modelo de movimiento utilizado
-        predicted_velocity: Velocidad predicha (vx, vy)
-        predicted_acceleration: Aceleración predicha (ax, ay)
-        uncertainty: Incertidumbre de la predicción (0-1)
-        collision_risk: Riesgo de colisión (0-1)
-        trajectory_type: Tipo de trayectoria
-        metadata: Metadatos adicionales
+        track_id: ID del track.
+        positions: Lista de posiciones predichas (x, y).
+        confidences: Confianza por cada predicción (0-1).
+        timestamps: Timestamps de cada predicción.
+        horizon_seconds: Horizonte de predicción en segundos.
+        state: Estado de la trayectoria (moving, stopped, etc.).
+        motion_model: Modelo de movimiento utilizado.
+        predicted_velocity: Velocidad predicha (vx, vy).
+        predicted_acceleration: Aceleración predicha (ax, ay).
+        uncertainty: Incertidumbre de la predicción (0-1).
+        collision_risk: Riesgo de colisión (0-1).
+        trajectory_type: Tipo de trayectoria.
+        metadata: Metadatos adicionales.
+
+    Example:
+        >>> prediction = predictor.update(track_id, position)
+        >>> if prediction.collision_risk > 0.7:
+        ...     print(f"⚠️ Alto riesgo de colisión para track {track_id}")
+        >>> for pos in prediction.positions[:5]:
+        ...     print(f"Posición predicha: {pos}")
     """
     track_id: int
     positions: List[Tuple[float, float]]
@@ -63,16 +78,41 @@ class PathPredictor(LoggerMixin):
     """
     Sistema avanzado de predicción de trayectoria.
 
-    Orquesta los componentes de historial, modelos de movimiento,
-    selector de modelos, detector de estados y detector de colisiones.
+    Este sistema orquesta todos los componentes de predicción para
+    proporcionar estimaciones precisas del movimiento futuro de los objetos.
 
     Características:
-    - Múltiples modelos de movimiento
-    - Selección adaptativa de modelos
-    - Detección de estados de movimiento
-    - Predicción de colisiones
-    - Incertidumbre cuantitativa
-    - Estadísticas de rendimiento
+        - Múltiples modelos de movimiento (lineal, curvado, cíclico, polinomial)
+        - Selección adaptativa de modelos basada en el historial
+        - Detección de estados de movimiento (detenido, acelerando, girando, etc.)
+        - Predicción de colisiones entre objetos
+        - Cuantificación de incertidumbre
+        - Estadísticas de rendimiento
+
+    Attributes:
+        prediction_horizon: Horizonte de predicción en segundos.
+        prediction_steps: Número de pasos de predicción.
+        min_samples: Mínimo de muestras para predicción.
+        uncertainty_threshold: Umbral de incertidumbre.
+        history: Historial de trayectorias por track.
+        model_selector: Selector de modelos de movimiento.
+        state_detector: Detector de estados de movimiento.
+        collision_detector: Detector de colisiones.
+
+    Example:
+        >>> predictor = PathPredictor(
+        ...     history_length=30,
+        ...     prediction_horizon=2.0,
+        ...     prediction_steps=20
+        ... )
+        >>> for track_id, track in tracks.items():
+        ...     prediction = predictor.update(
+        ...         track_id,
+        ...         track.centroid,
+        ...         track.velocity
+        ...     )
+        ...     if prediction and prediction.collision_risk > 0.5:
+        ...         print(f"⚠️ Colisión potencial para track {track_id}")
     """
 
     def __init__(
@@ -88,13 +128,13 @@ class PathPredictor(LoggerMixin):
         Inicializa el sistema de predicción de trayectoria.
 
         Args:
-            history_length: Longitud del historial de posiciones
-            prediction_horizon: Horizonte de predicción en segundos
-            prediction_steps: Número de pasos de predicción
-            min_samples: Mínimo de muestras para predicción
-            motion_model: Modelo de movimiento por defecto
-            uncertainty_threshold: Umbral de incertidumbre
-            collision_threshold: Umbral de distancia para colisión
+            history_length: Longitud del historial de posiciones.
+            prediction_horizon: Horizonte de predicción en segundos.
+            prediction_steps: Número de pasos de predicción.
+            min_samples: Mínimo de muestras para predicción.
+            motion_model: Modelo de movimiento por defecto.
+            uncertainty_threshold: Umbral de incertidumbre (0-1).
+            collision_threshold: Umbral de distancia para colisión en píxeles.
         """
         self.prediction_horizon = prediction_horizon
         self.prediction_steps = prediction_steps
@@ -138,15 +178,19 @@ class PathPredictor(LoggerMixin):
         Actualiza el historial de un track y genera predicción.
 
         Args:
-            track_id: ID del track
-            position: Posición actual (x, y)
-            velocity: Velocidad actual (vx, vy) (opcional)
-            acceleration: Aceleración actual (ax, ay) (opcional)
-            confidence: Confianza de la observación (0-1)
-            timestamp: Timestamp de la observación
+            track_id: ID del track.
+            position: Posición actual (x, y).
+            velocity: Velocidad actual (vx, vy) (opcional).
+            acceleration: Aceleración actual (ax, ay) (opcional).
+            confidence: Confianza de la observación (0-1).
+            timestamp: Timestamp de la observación.
 
         Returns:
-            Optional[TrajectoryPrediction]: Predicción generada o None
+            Optional[TrajectoryPrediction]: Predicción generada o None.
+
+        Note:
+            Se necesita un mínimo de muestras (min_samples) para
+            generar una predicción confiable.
         """
         self.history.update(
             track_id=track_id,
@@ -162,6 +206,7 @@ class PathPredictor(LoggerMixin):
             self._stats["failed_predictions"] += 1
             return None
 
+        import time
         start_time = time.perf_counter()
 
         prediction = self._predict_trajectory(track_id)
@@ -185,10 +230,18 @@ class PathPredictor(LoggerMixin):
         Predice la trayectoria futura de un track.
 
         Args:
-            track_id: ID del track
+            track_id: ID del track.
 
         Returns:
-            Optional[TrajectoryPrediction]: Predicción generada
+            Optional[TrajectoryPrediction]: Predicción generada.
+
+        Note:
+            El proceso de predicción incluye:
+            1. Obtener historial del track
+            2. Detectar estado de movimiento
+            3. Seleccionar modelo apropiado
+            4. Generar predicciones
+            5. Calcular incertidumbre y riesgo de colisión
         """
         samples = self.history.get_history(track_id)
         if not samples or len(samples) < self.min_samples:
@@ -199,8 +252,13 @@ class PathPredictor(LoggerMixin):
         timestamps = np.array([s.timestamp for s in samples])
         confidences = np.array([s.confidence for s in samples])
 
-        state = self.state_detector.detect_state(track_id, positions, velocities, timestamps)
-        model = self.model_selector.select_model(track_id, positions, velocities)
+        state = self.state_detector.detect_state(
+            track_id, positions, velocities, timestamps
+        )
+
+        model = self.model_selector.select_model(
+            track_id, positions, velocities
+        )
 
         predictions, uncertainties = model.predict(
             positions,
@@ -289,10 +347,11 @@ class PathPredictor(LoggerMixin):
         Clasifica el tipo de trayectoria.
 
         Args:
-            positions: Array de posiciones [N, 2]
+            positions: Array de posiciones [N, 2].
 
         Returns:
-            str: Tipo de trayectoria
+            str: Tipo de trayectoria ('straight', 'slightly_curved',
+                'highly_curved', 'stationary', 'unknown').
         """
         if len(positions) < 3:
             return "unknown"
@@ -325,10 +384,10 @@ class PathPredictor(LoggerMixin):
         Obtiene la última predicción de un track.
 
         Args:
-            track_id: ID del track
+            track_id: ID del track.
 
         Returns:
-            Optional[TrajectoryPrediction]: Última predicción o None
+            Optional[TrajectoryPrediction]: Última predicción o None.
         """
         return self._predictions.get(track_id)
 
@@ -337,10 +396,10 @@ class PathPredictor(LoggerMixin):
         Obtiene el estado de trayectoria de un track.
 
         Args:
-            track_id: ID del track
+            track_id: ID del track.
 
         Returns:
-            TrajectoryState: Estado de la trayectoria
+            TrajectoryState: Estado de la trayectoria.
         """
         return self.state_detector.get_last_state(track_id) or TrajectoryState.UNKNOWN
 
@@ -349,10 +408,10 @@ class PathPredictor(LoggerMixin):
         Obtiene el riesgo de colisión de un track.
 
         Args:
-            track_id: ID del track
+            track_id: ID del track.
 
         Returns:
-            float: Riesgo de colisión (0-1)
+            float: Riesgo de colisión (0-1).
         """
         return self.collision_detector.get_risk(track_id)
 
@@ -361,10 +420,10 @@ class PathPredictor(LoggerMixin):
         Obtiene tracks con alto riesgo de colisión.
 
         Args:
-            threshold: Umbral de riesgo (0-1)
+            threshold: Umbral de riesgo (0-1).
 
         Returns:
-            List[int]: Lista de IDs de tracks con alto riesgo
+            List[int]: Lista de IDs de tracks con alto riesgo.
         """
         return self.collision_detector.get_high_risk_tracks(threshold)
 
@@ -373,7 +432,7 @@ class PathPredictor(LoggerMixin):
         Obtiene estadísticas del sistema.
 
         Returns:
-            Dict[str, Any]: Estadísticas del sistema
+            Dict[str, Any]: Estadísticas del sistema.
         """
         return {
             **self._stats,
