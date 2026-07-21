@@ -4,7 +4,6 @@ Gestor de caché para features de re-identificación
 
 import time
 from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass
 
 import numpy as np
 
@@ -12,18 +11,35 @@ from utils.logger import LoggerMixin
 from utils.geometry import euclidean_distance
 
 
-@dataclass
 class FeatureEntry:
     """Entrada en el caché de features"""
-    __slots__ = ('track_id', 'features', 'confidence', 'last_seen',
-                     'last_position', 'access_count')
 
-    track_id: int
-    features: np.ndarray
-    confidence: float
-    last_seen: float
-    last_position: Tuple[float, float]
-    access_count: int = 0
+    __slots__ = ('track_id', 'features', 'confidence', 'last_seen',
+                 'last_position', 'access_count')
+
+    def __init__(
+        self,
+        track_id: int,
+        features: np.ndarray,
+        confidence: float,
+        last_seen: float,
+        last_position: Tuple[float, float]
+    ):
+        self.track_id = track_id
+        self.features = features.copy() if features is not None else None
+        self.confidence = confidence
+        self.last_seen = last_seen
+        self.last_position = last_position
+        self.access_count = 0
+
+    def touch(self) -> None:
+        """Actualiza el contador de acceso y timestamp."""
+        self.access_count += 1
+        self.last_seen = time.time()
+
+    def is_valid(self, max_age_seconds: float = 30.0) -> bool:
+        """Verifica si la entrada sigue siendo válida."""
+        return (time.time() - self.last_seen) < max_age_seconds
 
 
 class FeatureCacheManager(LoggerMixin):
@@ -66,11 +82,6 @@ class FeatureCacheManager(LoggerMixin):
     def add(self, track_id: int, features: np.ndarray, confidence: float = 0.5):
         """
         Añade un track al caché
-
-        Args:
-            track_id: ID del track
-            features: Vector de features
-            confidence: Confianza del track
         """
         if features is None or len(features) == 0:
             return
@@ -80,11 +91,10 @@ class FeatureCacheManager(LoggerMixin):
 
         entry = FeatureEntry(
             track_id=track_id,
-            features=features.copy(),
+            features=features,
             confidence=confidence,
             last_seen=time.time(),
-            last_position=(0, 0),
-            access_count=0,
+            last_position=(0, 0)
         )
 
         if track_id in self._entries:

@@ -11,7 +11,6 @@ Responsable de:
 import time
 import threading
 from typing import Optional, Callable, List, Tuple
-from dataclasses import dataclass
 
 import numpy as np
 
@@ -22,7 +21,6 @@ from core.frame_buffer import FrameMetadata
 from utils.logger import LoggerMixin
 
 
-@dataclass
 class ProcessingResult:
     """Resultado del procesamiento de un frame."""
     __slots__ = (
@@ -30,14 +28,25 @@ class ProcessingResult:
         'processed_frame', 'processing_time_ms', 'capture_time_ms', 'timestamp'
     )
 
-    frame_number: int
-    detections: List[dict]
-    tracks: dict
-    stats: dict
-    processed_frame: np.ndarray
-    processing_time_ms: float
-    capture_time_ms: float
-    timestamp: float
+    def __init__(
+        self,
+        frame_number: int,
+        detections: List[dict],
+        tracks: dict,
+        stats: dict,
+        processed_frame: np.ndarray,
+        processing_time_ms: float,
+        capture_time_ms: float,
+        timestamp: float
+    ):
+        self.frame_number = frame_number
+        self.detections = detections
+        self.tracks = tracks
+        self.stats = stats
+        self.processed_frame = processed_frame
+        self.processing_time_ms = processing_time_ms
+        self.capture_time_ms = capture_time_ms
+        self.timestamp = timestamp
 
     @property
     def total_time_ms(self) -> float:

@@ -15,7 +15,7 @@ La fusión de sensores permite:
 import time
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any, Set
-from dataclasses import dataclass, field
+from dataclasses import field
 from collections import deque
 
 import numpy as np
@@ -72,7 +72,6 @@ class SensorFusionMethod(Enum):
     DEMPSTER_SHAFER = "dempster_shafer"
 
 
-@dataclass
 class SensorObservation:
     """
     Representa una observación de un sensor.
@@ -93,18 +92,29 @@ class SensorObservation:
         'metadata', 'track_id', 'sensor_id', 'calibration_matrix'
     )
 
-    sensor_type: SensorType
-    bbox: Tuple[int, int, int, int]
-    centroid: Tuple[int, int]
-    confidence: float
-    timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    track_id: Optional[int] = None
-    sensor_id: str = ""
-    calibration_matrix: Optional[np.ndarray] = None
+    def __init__(
+        self,
+        sensor_type: SensorType,
+        bbox: Tuple[int, int, int, int],
+        centroid: Tuple[int, int],
+        confidence: float,
+        timestamp: float = None,
+        metadata: Dict[str, Any] = None,
+        track_id: Optional[int] = None,
+        sensor_id: str = "",
+        calibration_matrix: Optional[np.ndarray] = None
+    ):
+        self.sensor_type = sensor_type
+        self.bbox = bbox
+        self.centroid = centroid
+        self.confidence = confidence
+        self.timestamp = timestamp or time.time()
+        self.metadata = metadata or {}
+        self.track_id = track_id
+        self.sensor_id = sensor_id
+        self.calibration_matrix = calibration_matrix
 
 
-@dataclass
 class FusedState:
     """
     Estado fusionado de un track.
@@ -126,16 +136,29 @@ class FusedState:
         'uncertainty', 'timestamp', 'sensor_contributions', 'history', 'method'
     )
 
-    track_id: int
-    centroid: Tuple[float, float]
-    bbox: Tuple[int, int, int, int]
-    confidence: float
-    velocity: Tuple[float, float] = (0.0, 0.0)
-    uncertainty: float = 0.0
-    timestamp: float = field(default_factory=time.time)
-    sensor_contributions: Dict[SensorType, float] = field(default_factory=dict)
-    history: deque = field(default_factory=lambda: deque(maxlen=50))
-    method: str = "weighted_average"
+    def __init__(
+        self,
+        track_id: int,
+        centroid: Tuple[float, float],
+        bbox: Tuple[int, int, int, int],
+        confidence: float,
+        velocity: Tuple[float, float] = (0.0, 0.0),
+        uncertainty: float = 0.0,
+        timestamp: float = None,
+        sensor_contributions: Dict[SensorType, float] = None,
+        history: deque = None,
+        method: str = "weighted_average"
+    ):
+        self.track_id = track_id
+        self.centroid = centroid
+        self.bbox = bbox
+        self.confidence = confidence
+        self.velocity = velocity
+        self.uncertainty = uncertainty
+        self.timestamp = timestamp or time.time()
+        self.sensor_contributions = sensor_contributions or {}
+        self.history = history or deque(maxlen=50)
+        self.method = method
 
 
 class ParticleFilter(LoggerMixin):

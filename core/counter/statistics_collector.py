@@ -7,26 +7,37 @@ Maneja la recolección y cálculo de estadísticas de vehículos.
 import time
 from typing import Dict, Any, List
 from collections import defaultdict
-from dataclasses import dataclass, field
 
 
-@dataclass
 class VehicleEvent:
     """Evento de conteo de un vehículo."""
     __slots__ = ('timestamp', 'object_id', 'line_id', 'line_name',
                      'label', 'class_id', 'centroid', 'velocity',
                      'confidence', 'metadata')
 
-    timestamp: str
-    object_id: int
-    line_id: str
-    line_name: str
-    label: str
-    class_id: int
-    centroid: tuple
-    velocity: tuple
-    confidence: float = 0.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    def __init__(
+        self,
+        timestamp: str,
+        object_id: int,
+        line_id: str,
+        line_name: str,
+        label: str,
+        class_id: int,
+        centroid: tuple,
+        velocity: tuple,
+        confidence: float = 0.0,
+        metadata: Dict[str, Any] = None
+    ):
+        self.timestamp = timestamp
+        self.object_id = object_id
+        self.line_id = line_id
+        self.line_name = line_name
+        self.label = label
+        self.class_id = class_id
+        self.centroid = centroid
+        self.velocity = velocity
+        self.confidence = confidence
+        self.metadata = metadata or {}
 
 
 class StatisticsCollector:

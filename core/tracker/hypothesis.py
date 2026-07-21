@@ -9,7 +9,6 @@ occlusiones y ambigüedades en la asociación de datos.
 import time
 import threading
 from enum import Enum
-from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Set, Tuple
 
 import numpy as np
@@ -25,7 +24,6 @@ class HypothesisStatus(Enum):
     REJECTED = "rejected"
 
 
-@dataclass
 class TrackHypothesis:
     """
     Representa una hipótesis de trayectoria para un objeto en seguimiento.
@@ -51,20 +49,36 @@ class TrackHypothesis:
         'bbox_history', 'velocity', 'acceleration', '_lock'
     )
 
-    track_id: int
-    positions: List[Tuple[int, int]] = field(default_factory=list)
-    features: List[np.ndarray] = field(default_factory=list)
-    confidence: float = 0.0
-    probability: float = 0.5
-    last_update: float = field(default_factory=time.time)
-    active: bool = True
-    parent_id: Optional[int] = None
-    status: HypothesisStatus = HypothesisStatus.ACTIVE
-    creation_time: float = field(default_factory=time.time)
-    bbox_history: List[Tuple[int, int, int, int]] = field(default_factory=list)
-    velocity: Tuple[float, float] = (0.0, 0.0)
-    acceleration: Tuple[float, float] = (0.0, 0.0)
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    def __init__(
+        self,
+        track_id: int,
+        positions: Optional[List[Tuple[int, int]]] = None,
+        features: Optional[List[np.ndarray]] = None,
+        confidence: float = 0.0,
+        probability: float = 0.5,
+        last_update: Optional[float] = None,
+        active: bool = True,
+        parent_id: Optional[int] = None,
+        status: HypothesisStatus = HypothesisStatus.ACTIVE,
+        creation_time: Optional[float] = None,
+        bbox_history: Optional[List[Tuple[int, int, int, int]]] = None,
+        velocity: Tuple[float, float] = (0.0, 0.0),
+        acceleration: Tuple[float, float] = (0.0, 0.0),
+    ):
+        self.track_id = track_id
+        self.positions = positions or []
+        self.features = features or []
+        self.confidence = confidence
+        self.probability = probability
+        self.last_update = last_update or time.time()
+        self.active = active
+        self.parent_id = parent_id
+        self.status = status
+        self.creation_time = creation_time or time.time()
+        self.bbox_history = bbox_history or []
+        self.velocity = velocity
+        self.acceleration = acceleration
+        self._lock = threading.Lock()
 
     def update_position(self, position: Tuple[int, int], bbox: Optional[Tuple[int, int, int, int]] = None) -> None:
         """

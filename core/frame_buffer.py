@@ -9,7 +9,6 @@ pipelines de visión por computador.
 import time
 import threading
 from enum import Enum, auto
-from dataclasses import dataclass
 from collections import deque
 from typing import Optional, Deque, Tuple
 
@@ -34,7 +33,6 @@ class BufferStatus(Enum):
     DRAINING = auto()
 
 
-@dataclass
 class FrameMetadata:
     """
     Metadatos asociados a un frame almacenado.
@@ -50,17 +48,21 @@ class FrameMetadata:
     __slots__ = ('timestamp', 'frame_number', 'source_fps',
                      'capture_time_ms', 'processing_time_ms', 'dropped')
 
-    timestamp: float
-    frame_number: int
-    source_fps: float
-    capture_time_ms: float
-    processing_time_ms: float = 0.0
-    dropped: bool = False
-
-    def __post_init__(self):
-        """Asigna timestamp actual si no se proporcionó."""
-        if self.timestamp == 0:
-            self.timestamp = time.time()
+    def __init__(
+        self,
+        timestamp: float,
+        frame_number: int,
+        source_fps: float,
+        capture_time_ms: float,
+        processing_time_ms: float = 0.0,
+        dropped: bool = False
+    ):
+        self.timestamp = timestamp or time.time()
+        self.frame_number = frame_number
+        self.source_fps = source_fps
+        self.capture_time_ms = capture_time_ms
+        self.processing_time_ms = processing_time_ms
+        self.dropped = dropped
 
 
 class CircularFrameBuffer:

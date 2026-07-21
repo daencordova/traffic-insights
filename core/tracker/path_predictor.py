@@ -15,7 +15,6 @@ El sistema combina:
 
 import time
 from typing import List, Tuple, Dict, Any, Optional
-from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -32,7 +31,6 @@ from core.constants import (
     PATH_PREDICTION_UNCERTAINTY_THRESHOLD,
 )
 
-@dataclass
 class TrajectoryPrediction:
     """
     Representa una predicción de trayectoria.
@@ -58,19 +56,35 @@ class TrajectoryPrediction:
         'uncertainty', 'collision_risk', 'trajectory_type', 'metadata'
     )
 
-    track_id: int
-    positions: List[Tuple[float, float]]
-    confidences: List[float]
-    timestamps: List[float]
-    horizon_seconds: float
-    state: TrajectoryState
-    motion_model: str
-    predicted_velocity: Tuple[float, float]
-    predicted_acceleration: Tuple[float, float]
-    uncertainty: float
-    collision_risk: float
-    trajectory_type: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    def __init__(
+        self,
+        track_id: int,
+        positions: List[Tuple[float, float]],
+        confidences: List[float],
+        timestamps: List[float],
+        horizon_seconds: float,
+        state: TrajectoryState,
+        motion_model: str,
+        predicted_velocity: Tuple[float, float],
+        predicted_acceleration: Tuple[float, float],
+        uncertainty: float,
+        collision_risk: float,
+        trajectory_type: str,
+        metadata: Dict[str, Any] = None
+    ):
+        self.track_id = track_id
+        self.positions = positions
+        self.confidences = confidences
+        self.timestamps = timestamps
+        self.horizon_seconds = horizon_seconds
+        self.state = state
+        self.motion_model = motion_model
+        self.predicted_velocity = predicted_velocity
+        self.predicted_acceleration = predicted_acceleration
+        self.uncertainty = uncertainty
+        self.collision_risk = collision_risk
+        self.trajectory_type = trajectory_type
+        self.metadata = metadata or {}
 
 
 class PathPredictor(LoggerMixin):

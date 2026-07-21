@@ -8,12 +8,10 @@ para cada track.
 import time
 from typing import Dict, List, Tuple, Optional, Any
 from collections import deque
-from dataclasses import dataclass, field
 
 import numpy as np
 
 
-@dataclass
 class TrajectorySample:
     """
     Muestra de trayectoria para entrenamiento/predicción.
@@ -30,13 +28,23 @@ class TrajectorySample:
     __slots__ = ('position', 'timestamp', 'velocity', 'acceleration',
                      'heading', 'confidence', 'metadata')
 
-    position: Tuple[float, float]
-    timestamp: float
-    velocity: Tuple[float, float] = (0.0, 0.0)
-    acceleration: Tuple[float, float] = (0.0, 0.0)
-    heading: float = 0.0
-    confidence: float = 1.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    def __init__(
+        self,
+        position: Tuple[float, float],
+        timestamp: float,
+        velocity: Tuple[float, float] = (0.0, 0.0),
+        acceleration: Tuple[float, float] = (0.0, 0.0),
+        heading: float = 0.0,
+        confidence: float = 1.0,
+        metadata: Dict[str, Any] = None
+    ):
+        self.position = position
+        self.timestamp = timestamp
+        self.velocity = velocity
+        self.acceleration = acceleration
+        self.heading = heading
+        self.confidence = confidence
+        self.metadata = metadata or {}
 
     def to_dict(self) -> Dict[str, Any]:
         """Convierte a diccionario."""
