@@ -4,6 +4,12 @@ Sistema de fusión de sensores para tracking multi-modal robusto.
 Este módulo implementa un sistema de fusión de múltiples fuentes de información
 para mejorar la robustez del tracking, combinando observaciones visuales,
 de profundidad, térmicas y de movimiento.
+
+La fusión de sensores permite:
+- Mayor robustez en condiciones adversas (poca luz, oclusión)
+- Mejor precisión en la estimación de posición
+- Reducción de falsos positivos
+- Tracking continuo incluso cuando un sensor falla
 """
 
 import time
@@ -29,6 +35,15 @@ from core.constants import (
 class SensorType(Enum):
     """
     Tipos de sensores soportados por el sistema de fusión.
+
+    Attributes:
+        VISUAL: Cámara RGB estándar
+        DEPTH: Sensor de profundidad (ej: Kinect, Intel RealSense)
+        THERMAL: Cámara térmica (infrarroja)
+        MOTION: Sensor de movimiento (ej: radar Doppler)
+        RADAR: Sensor de radar
+        LIDAR: Sensor LIDAR
+        GPS: Sistema de posicionamiento global
     """
     VISUAL = "visual"
     DEPTH = "depth"
@@ -42,6 +57,13 @@ class SensorType(Enum):
 class SensorFusionMethod(Enum):
     """
     Métodos de fusión de sensores disponibles.
+
+    Attributes:
+        WEIGHTED_AVERAGE: Promedio ponderado por confianza
+        KALMAN: Filtro de Kalman extendido
+        PARTICLE_FILTER: Filtro de partículas
+        BAYESIAN: Fusión bayesiana
+        DEMPSTER_SHAFER: Teoría de evidencia de Dempster-Shafer
     """
     WEIGHTED_AVERAGE = "weighted_average"
     KALMAN = "kalman"
@@ -113,6 +135,12 @@ class ParticleFilter(LoggerMixin):
     Implementa un filtro de partículas para estimar el estado de un objeto
     combinando observaciones de múltiples sensores.
 
+    Características:
+        - Estimación no lineal de estado
+        - Manejo de múltiples hipótesis
+        - Robustez a ruido no gaussiano
+        - Resampling adaptativo
+
     Attributes:
         num_particles: Número de partículas en el filtro.
         process_noise: Ruido del proceso (movimiento).
@@ -121,6 +149,13 @@ class ParticleFilter(LoggerMixin):
         particles: Estado de las partículas.
         weights: Pesos de las partículas.
         _initialized: Flag de inicialización.
+
+    Example:
+        >>> pf = ParticleFilter(num_particles=500)
+        >>> pf.init((320, 240))
+        >>> pf.predict(dt=0.1)
+        >>> pf.update([observation1, observation2])
+        >>> state = pf.get_estimate()
     """
 
     def __init__(
@@ -134,10 +169,10 @@ class ParticleFilter(LoggerMixin):
         Inicializa el filtro de partículas.
 
         Args:
-            num_particles: Número de partículas.
-            process_noise: Ruido del proceso.
+            num_particles: Número de partículas (mayor = más preciso pero más lento).
+            process_noise: Ruido del proceso (movimiento).
             measurement_noise: Ruido de la medición.
-            resampling_threshold: Umbral para resampleo.
+            resampling_threshold: Umbral para resampleo (0-1).
         """
         self.num_particles = num_particles
         self.process_noise = process_noise
@@ -161,7 +196,7 @@ class ParticleFilter(LoggerMixin):
 
         Args:
             centroid: Posición inicial (x, y).
-            spread: Dispersión inicial de las partículas.
+            spread: Dispersión inicial de las partículas en píxeles.
         """
         self.particles = np.zeros((self.num_particles, 4), dtype=np.float32)
         self.particles[:, 0] = centroid[0] + np.random.randn(self.num_particles) * spread
@@ -177,7 +212,7 @@ class ParticleFilter(LoggerMixin):
         Predice el siguiente estado de las partículas.
 
         Args:
-            dt: Delta de tiempo para la predicción.
+            dt: Delta de tiempo para la predicción en segundos.
         """
         if not self._initialized or self.particles is None:
             return
@@ -193,6 +228,10 @@ class ParticleFilter(LoggerMixin):
 
         Args:
             observations: Lista de observaciones de sensores.
+
+        Note:
+            Cada observación contribuye al peso de las partículas
+            según su distancia y confianza.
         """
         if not self._initialized or self.particles is None or not observations:
             return
@@ -207,7 +246,6 @@ class ParticleFilter(LoggerMixin):
             )
 
             likelihood = np.exp(-distances ** 2 / (2 * self.measurement_noise ** 2))
-
             likelihood *= obs_confidence
 
             self.weights *= likelihood + 1e-8
@@ -223,6 +261,9 @@ class ParticleFilter(LoggerMixin):
 
         Returns:
             bool: True si se debe resamplear.
+
+        Note:
+            Usa el número efectivo de partículas (N_eff) para decidir.
         """
         if self.weights is None:
             return True
@@ -259,7 +300,11 @@ class ParticleFilter(LoggerMixin):
         Obtiene la estimación del estado.
 
         Returns:
-            Dict[str, Any]: Estimación del estado.
+            Dict[str, Any]: Estimación del estado incluyendo:
+                - centroid: Posición estimada (x, y)
+                - velocity: Velocidad estimada (vx, vy)
+                - uncertainty: Incertidumbre de la estimación
+                - confidence: Confianza de la estimación
         """
         if not self._initialized or self.particles is None or self.weights is None:
             return {
@@ -301,12 +346,12 @@ class SensorFusionTracker(LoggerMixin):
     un tracking más robusto y preciso, especialmente en condiciones adversas.
 
     Características:
-    - Fusión de observaciones visuales, de profundidad y térmicas
-    - Filtro de partículas para fusión robusta
-    - Ponderación adaptativa por fiabilidad de cada sensor
-    - Gestión de calibración entre sensores
-    - Historial de estados fusionados
-    - Estadísticas de rendimiento
+        - Fusión de observaciones visuales, de profundidad y térmicas
+        - Filtro de partículas para fusión robusta
+        - Ponderación adaptativa por fiabilidad de cada sensor
+        - Gestión de calibración entre sensores
+        - Historial de estados fusionados
+        - Estadísticas de rendimiento
 
     Attributes:
         sensor_weights: Pesos de confianza por tipo de sensor.
@@ -316,7 +361,16 @@ class SensorFusionTracker(LoggerMixin):
         _states: Diccionario de estados fusionados por track_id.
         _particle_filters: Diccionario de filtros de partículas.
         _calibration_matrices: Matrices de calibración por sensor.
-        _stats: Estadísticas del sistema de fusión.
+
+    Example:
+        >>> fusion = SensorFusionTracker(
+        ...     sensor_weights={SensorType.VISUAL: 0.7, SensorType.DEPTH: 0.5},
+        ...     fusion_method="particle_filter"
+        ... )
+        >>> obs = SensorObservation(SensorType.VISUAL, bbox, centroid, 0.9)
+        >>> fusion.add_observation(5, obs)
+        >>> state = fusion.get_fused_state(5)
+        >>> print(f"Posición fusionada: {state.centroid}")
     """
 
     def __init__(
@@ -326,7 +380,7 @@ class SensorFusionTracker(LoggerMixin):
         min_observations: int = SENSOR_FUSION_MIN_OBSERVATIONS,
         max_history: int = SENSOR_FUSION_MAX_HISTORY,
         particle_count: int = SENSOR_FUSION_PARTICLE_COUNT,
-    ):
+    ) -> None:
         """
         Inicializa el sistema de fusión de sensores.
 
@@ -337,13 +391,15 @@ class SensorFusionTracker(LoggerMixin):
             max_history: Tamaño máximo del historial.
             particle_count: Número de partículas (para particle_filter).
         """
-        if sensor_weights is None:
-            sensor_weights = {
-                SensorType.VISUAL: SENSOR_FUSION_VISUAL_WEIGHT,
-                SensorType.DEPTH: SENSOR_FUSION_DEPTH_WEIGHT,
-                SensorType.THERMAL: SENSOR_FUSION_THERMAL_WEIGHT,
-                SensorType.MOTION: SENSOR_FUSION_MOTION_WEIGHT,
-            }
+        self.sensor_weights = sensor_weights or {
+            SensorType.VISUAL: SENSOR_FUSION_VISUAL_WEIGHT,
+            SensorType.DEPTH: SENSOR_FUSION_DEPTH_WEIGHT,
+            SensorType.THERMAL: SENSOR_FUSION_THERMAL_WEIGHT,
+            SensorType.MOTION: SENSOR_FUSION_MOTION_WEIGHT,
+            SensorType.RADAR: 0.6,
+            SensorType.LIDAR: 0.6,
+            SensorType.GPS: 0.3,
+        }
 
         self.fusion_method = SensorFusionMethod(fusion_method)
         self.min_observations = min_observations
@@ -368,8 +424,6 @@ class SensorFusionTracker(LoggerMixin):
             "calibrated_sensors": set(),
         }
 
-        self._lock = None
-
         self.logger.info(
             "SensorFusionTracker inicializado",
             fusion_method=self.fusion_method.value,
@@ -389,6 +443,10 @@ class SensorFusionTracker(LoggerMixin):
         Args:
             track_id: ID del track.
             observation: Observación del sensor.
+
+        Note:
+            Las observaciones se acumulan hasta tener suficientes
+            para realizar la fusión.
         """
         if track_id not in self._observations:
             self._observations[track_id] = []
@@ -422,7 +480,12 @@ class SensorFusionTracker(LoggerMixin):
 
         Args:
             track_id: ID del track.
+
+        Note:
+            Realiza la fusión según el método configurado y actualiza
+            el estado fusionado del track.
         """
+        import time
         start_time = time.perf_counter()
 
         observations = self._observations.get(track_id, [])
@@ -478,6 +541,10 @@ class SensorFusionTracker(LoggerMixin):
 
         Returns:
             Optional[FusedState]: Estado fusionado o None.
+
+        Note:
+            Cada observación contribuye según su confianza y el peso
+            de su sensor.
         """
         if not observations:
             return None
@@ -545,7 +612,6 @@ class SensorFusionTracker(LoggerMixin):
         pf = self._particle_filters[track_id]
 
         pf.predict(dt=0.1)
-
         pf.update(observations)
 
         estimate = pf.get_estimate()
@@ -608,7 +674,7 @@ class SensorFusionTracker(LoggerMixin):
             track_id: ID del track.
 
         Returns:
-            float: Incertidumbre (0-1).
+            float: Incertidumbre (0-1, donde 1 es máxima).
         """
         state = self._states.get(track_id)
         if state is None:
@@ -626,6 +692,10 @@ class SensorFusionTracker(LoggerMixin):
         Args:
             sensor_id: Identificador del sensor.
             calibration_matrix: Matriz de calibración (3x3 homográfica).
+
+        Note:
+            La matriz de calibración se aplica a las observaciones
+            para alinearlas con el sistema de coordenadas global.
         """
         self._calibration_matrices[sensor_id] = calibration_matrix
         self._stats["calibrated_sensors"].add(sensor_id)
@@ -673,7 +743,7 @@ class SensorFusionTracker(LoggerMixin):
         Obtiene la salud de cada sensor basado en observaciones recientes.
 
         Returns:
-            Dict[SensorType, float]: Puntuación de salud por sensor.
+            Dict[SensorType, float]: Puntuación de salud por sensor (0-1).
         """
         health = {}
 
@@ -714,9 +784,7 @@ class SensorFusionTracker(LoggerMixin):
         self._stats["active_tracks"] = len(self._states)
 
     def clear_all(self) -> None:
-        """
-        Limpia todas las observaciones y estados.
-        """
+        """Limpia todas las observaciones y estados."""
         self._observations.clear()
         self._states.clear()
         self._particle_filters.clear()
