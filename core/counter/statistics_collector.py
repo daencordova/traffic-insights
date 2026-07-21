@@ -13,6 +13,10 @@ from dataclasses import dataclass, field
 @dataclass
 class VehicleEvent:
     """Evento de conteo de un vehículo."""
+    __slots__ = ('timestamp', 'object_id', 'line_id', 'line_name',
+                     'label', 'class_id', 'centroid', 'velocity',
+                     'confidence', 'metadata')
+
     timestamp: str
     object_id: int
     line_id: str

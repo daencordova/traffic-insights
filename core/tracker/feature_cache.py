@@ -3,10 +3,10 @@ Gestor de caché para features de re-identificación
 """
 
 import time
-import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
-from collections import OrderedDict
 from dataclasses import dataclass
+
+import numpy as np
 
 from utils.logger import LoggerMixin
 from utils.geometry import euclidean_distance
@@ -15,6 +15,9 @@ from utils.geometry import euclidean_distance
 @dataclass
 class FeatureEntry:
     """Entrada en el caché de features"""
+    __slots__ = ('track_id', 'features', 'confidence', 'last_seen',
+                     'last_position', 'access_count')
+
     track_id: int
     features: np.ndarray
     confidence: float

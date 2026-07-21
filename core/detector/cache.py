@@ -5,8 +5,8 @@ Implementa un caché LRU con gestión de memoria para almacenar
 resultados de detección y evitar procesamiento redundante.
 """
 
-import hashlib
 import time
+import hashlib
 from typing import Dict, Optional, List, Any, OrderedDict
 
 import cv2

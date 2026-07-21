@@ -5,10 +5,10 @@ Mantiene el historial de posiciones, velocidades y otros datos
 para cada track.
 """
 
+import time
 from typing import Dict, List, Tuple, Optional, Any
 from collections import deque
 from dataclasses import dataclass, field
-import time
 
 import numpy as np
 
@@ -27,6 +27,9 @@ class TrajectorySample:
         confidence: Confianza de la muestra
         metadata: Metadatos adicionales
     """
+    __slots__ = ('position', 'timestamp', 'velocity', 'acceleration',
+                     'heading', 'confidence', 'metadata')
+
     position: Tuple[float, float]
     timestamp: float
     velocity: Tuple[float, float] = (0.0, 0.0)

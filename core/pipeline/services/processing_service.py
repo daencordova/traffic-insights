@@ -25,6 +25,11 @@ from utils.logger import LoggerMixin
 @dataclass
 class ProcessingResult:
     """Resultado del procesamiento de un frame."""
+    __slots__ = (
+        'frame_number', 'detections', 'tracks', 'stats',
+        'processed_frame', 'processing_time_ms', 'capture_time_ms', 'timestamp'
+    )
+
     frame_number: int
     detections: List[dict]
     tracks: dict

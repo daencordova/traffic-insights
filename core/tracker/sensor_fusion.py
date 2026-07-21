@@ -13,9 +13,9 @@ La fusión de sensores permite:
 """
 
 import time
+from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any, Set
 from dataclasses import dataclass, field
-from enum import Enum
 from collections import deque
 
 import numpy as np
@@ -88,6 +88,11 @@ class SensorObservation:
         sensor_id: Identificador único del sensor.
         calibration_matrix: Matriz de calibración para este sensor.
     """
+    __slots__ = (
+        'sensor_type', 'bbox', 'centroid', 'confidence', 'timestamp',
+        'metadata', 'track_id', 'sensor_id', 'calibration_matrix'
+    )
+
     sensor_type: SensorType
     bbox: Tuple[int, int, int, int]
     centroid: Tuple[int, int]
@@ -116,6 +121,11 @@ class FusedState:
         history: Historial de estados fusionados.
         method: Método de fusión utilizado.
     """
+    __slots__ = (
+        'track_id', 'centroid', 'bbox', 'confidence', 'velocity',
+        'uncertainty', 'timestamp', 'sensor_contributions', 'history', 'method'
+    )
+
     track_id: int
     centroid: Tuple[float, float]
     bbox: Tuple[int, int, int, int]

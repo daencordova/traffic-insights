@@ -6,12 +6,14 @@ varias posibles trayectorias para un mismo objeto, manejando eficazmente
 occlusiones y ambigüedades en la asociación de datos.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Set, Tuple
-from enum import Enum
-import numpy as np
 import time
 import threading
+from enum import Enum
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any, Set, Tuple
+
+import numpy as np
+
 from core.constants import MAX_TRACK_HISTORY
 
 
@@ -43,6 +45,11 @@ class TrackHypothesis:
         velocity: Velocidad estimada de la hipótesis.
         acceleration: Aceleración estimada de la hipótesis.
     """
+    __slots__ = (
+        'track_id', 'positions', 'features', 'confidence', 'probability',
+        'last_update', 'active', 'parent_id', 'status', 'creation_time',
+        'bbox_history', 'velocity', 'acceleration', '_lock'
+    )
 
     track_id: int
     positions: List[Tuple[int, int]] = field(default_factory=list)

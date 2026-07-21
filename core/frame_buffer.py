@@ -47,6 +47,9 @@ class FrameMetadata:
         processing_time_ms: Tiempo de procesamiento en milisegundos.
         dropped: Indica si el frame fue descartado.
     """
+    __slots__ = ('timestamp', 'frame_number', 'source_fps',
+                     'capture_time_ms', 'processing_time_ms', 'dropped')
+
     timestamp: float
     frame_number: int
     source_fps: float

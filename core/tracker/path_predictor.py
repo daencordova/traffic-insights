@@ -43,7 +43,7 @@ class TrajectoryPrediction:
         confidences: Confianza por cada predicción (0-1).
         timestamps: Timestamps de cada predicción.
         horizon_seconds: Horizonte de predicción en segundos.
-        state: Estado de la trayectoria (moving, stopped, etc.).
+        state: Estado de la trayectoria.
         motion_model: Modelo de movimiento utilizado.
         predicted_velocity: Velocidad predicha (vx, vy).
         predicted_acceleration: Aceleración predicha (ax, ay).
@@ -51,14 +51,13 @@ class TrajectoryPrediction:
         collision_risk: Riesgo de colisión (0-1).
         trajectory_type: Tipo de trayectoria.
         metadata: Metadatos adicionales.
-
-    Example:
-        >>> prediction = predictor.update(track_id, position)
-        >>> if prediction.collision_risk > 0.7:
-        ...     print(f"⚠️ Alto riesgo de colisión para track {track_id}")
-        >>> for pos in prediction.positions[:5]:
-        ...     print(f"Posición predicha: {pos}")
     """
+    __slots__ = (
+        'track_id', 'positions', 'confidences', 'timestamps', 'horizon_seconds',
+        'state', 'motion_model', 'predicted_velocity', 'predicted_acceleration',
+        'uncertainty', 'collision_risk', 'trajectory_type', 'metadata'
+    )
+
     track_id: int
     positions: List[Tuple[float, float]]
     confidences: List[float]
