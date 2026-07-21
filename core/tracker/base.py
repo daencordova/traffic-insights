@@ -1,12 +1,14 @@
 """
 Tracker avanzado con re-identificación robusta.
 
-Orquesta todos los subsistemas de tracking:
-- TrackManager: Gestión de ciclo de vida
+Este módulo implementa el tracker principal del sistema que orquesta
+todos los subsistemas de tracking:
+
+- TrackManager: Gestión de ciclo de vida de tracks
 - TrackMatcher: Matching entre detecciones y tracks
-- TrackUpdater: Actualización de estado
-- TrackStateMachine: Gestión de estados
-- ReIdentificationService: Re-identificación
+- TrackUpdater: Actualización de estado de tracks
+- TrackStateMachine: Gestión de estados de tracks
+- ReIdentificationService: Re-identificación de objetos perdidos
 - SensorFusionService: Fusión de sensores
 - PathPredictionService: Predicción de trayectoria
 - OnlineLearningService: Aprendizaje en línea
@@ -18,19 +20,10 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from core.interfaces import ITracker
-from core.constants import (
-    MAX_ACTIVE_TRACKS,
-    MIN_HITS_TO_CONFIRM,
-    MAX_FRAMES_MISSED,
-    MEMORY_CHECK_INTERVAL,
-    CLEANUP_INTERVAL
-)
 from models.enums import TrackStatus
 from utils.logger import LoggerMixin
 from utils.helpers import get_memory_usage, force_garbage_collection
 from core.validators import validate_detection
-
 from core.tracker.services.matcher_service import TrackMatcher, MatchResult
 from core.tracker.managers.track_manager import TrackManager
 from core.tracker.state.state_machine import TrackStateMachine
@@ -41,14 +34,52 @@ from core.tracker.path_predictor import PathPredictor
 from core.tracker.online_learner import OnlineFeatureLearner
 from core.tracker.mht_integration import MHTIntegration
 from core.tracker.managers.feature_manager import FeatureManager
+from core.interfaces import ITracker
+from core.constants import (
+    MAX_ACTIVE_TRACKS,
+    MIN_HITS_TO_CONFIRM,
+    MAX_FRAMES_MISSED,
+    MEMORY_CHECK_INTERVAL,
+    CLEANUP_INTERVAL
+)
 
 
 class AdvancedTracker(ITracker, LoggerMixin):
     """
     Tracker avanzado con re-identificación robusta.
 
-    Orquesta todos los subsistemas de tracking, delegando
-    responsabilidades en servicios especializados.
+    Este tracker orquesta todos los subsistemas de tracking para
+    proporcionar un seguimiento robusto de objetos en video.
+
+    Características principales:
+        - Matching jerárquico (IoU, features, movimiento, forma)
+        - Re-identificación de objetos perdidos
+        - Filtro de Kalman para predicción de posición
+        - Fusión de sensores (visual, profundidad, térmico)
+        - Predicción de trayectoria con modelos adaptativos
+        - Aprendizaje en línea de features
+        - Multi-Hypothesis Tracking (MHT)
+
+    Attributes:
+        config: Configuración del tracker.
+        track_manager: Gestor de ciclo de vida de tracks.
+        track_matcher: Servicio de matching.
+        track_updater: Actualizador de estados.
+        state_machine: Máquina de estados.
+        feature_manager: Gestor de features.
+        reid_system: Sistema de re-identificación.
+        mht_integration: Sistema MHT.
+        online_learner: Aprendizaje en línea.
+        sensor_fusion: Fusión de sensores.
+        path_predictor: Predicción de trayectoria.
+
+    Example:
+        >>> tracker = AdvancedTracker()
+        >>> frame = cv2.imread("frame.jpg")
+        >>> detections = detector.detect(frame)
+        >>> tracks = tracker.update(detections, frame)
+        >>> for track_id, track_data in tracks.items():
+        ...     print(f"Track {track_id}: {track_data['centroid']}")
     """
 
     MAX_DETECTIONS_PER_FRAME = 50
@@ -56,7 +87,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
     MEMORY_CHECK_INTERVAL = MEMORY_CHECK_INTERVAL
 
     def __init__(self) -> None:
-        """Inicializa el tracker avanzado."""
+        """Inicializa el tracker avanzado con configuración global."""
         from config.manager import config_manager
 
         self.config = config_manager.config.tracker
@@ -85,7 +116,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
         )
 
     def _init_managers(self) -> None:
-        """Inicializa los gestores principales."""
+        """Inicializa los gestores principales del tracker."""
         self.track_manager = TrackManager(
             max_active_tracks=self.config.max_active_tracks or MAX_ACTIVE_TRACKS
         )
@@ -116,7 +147,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
         )
 
     def _init_advanced_features(self) -> None:
-        """Inicializa las características avanzadas."""
+        """Inicializa las características avanzadas del tracker."""
         self.mht_integration = self._init_mht()
 
         self.online_learner = self._init_online_learner()
@@ -126,14 +157,23 @@ class AdvancedTracker(ITracker, LoggerMixin):
         self.path_predictor = self._init_path_predictor()
 
     def _init_state_machine(self) -> None:
-        """Inicializa la máquina de estados."""
+        """Inicializa la máquina de estados para los tracks."""
         self.state_machine = TrackStateMachine(
             min_hits_to_confirm=self.config.min_hits_to_confirm or MIN_HITS_TO_CONFIRM,
             max_frames_missed=self.config.max_frames_missed or MAX_FRAMES_MISSED
         )
 
     def _init_feature_manager(self) -> FeatureManager:
-        """Inicializa el gestor de features."""
+        """
+        Inicializa el gestor de features.
+
+        Returns:
+            FeatureManager: Gestor de features configurado.
+
+        Note:
+            Los features se utilizan para re-identificación y matching.
+            Se activan automáticamente si hay GPU disponible.
+        """
         use_features = self._should_use_features()
         feature_extractor = None
 
@@ -155,7 +195,17 @@ class AdvancedTracker(ITracker, LoggerMixin):
         )
 
     def _init_reid_system(self) -> Optional[ReIdentificationSystem]:
-        """Inicializa el sistema de re-identificación."""
+        """
+        Inicializa el sistema de re-identificación.
+
+        Returns:
+            Optional[ReIdentificationSystem]: Sistema de re-identificación
+                o None si está desactivado.
+
+        Note:
+            La re-identificación permite recuperar objetos perdidos
+            basándose en features visuales.
+        """
         if not self.config.enable_reidentification or not self.feature_manager.is_available:
             return None
 
@@ -175,7 +225,16 @@ class AdvancedTracker(ITracker, LoggerMixin):
             return None
 
     def _init_mht(self) -> MHTIntegration:
-        """Inicializa el sistema MHT."""
+        """
+        Inicializa el sistema de Multi-Hypothesis Tracking (MHT).
+
+        Returns:
+            MHTIntegration: Sistema MHT configurado.
+
+        Note:
+            MHT permite mantener múltiples hipótesis de trayectoria
+            para manejar ambigüedades en la asociación de datos.
+        """
         return MHTIntegration(
             max_depth=getattr(self.config, "mht_max_depth", 10),
             pruning_threshold=getattr(self.config, "mht_pruning_threshold", 0.01),
@@ -184,7 +243,17 @@ class AdvancedTracker(ITracker, LoggerMixin):
         )
 
     def _init_online_learner(self) -> Optional[OnlineFeatureLearner]:
-        """Inicializa el sistema de aprendizaje en línea."""
+        """
+        Inicializa el sistema de aprendizaje en línea.
+
+        Returns:
+            Optional[OnlineFeatureLearner]: Sistema de aprendizaje
+                o None si está desactivado.
+
+        Note:
+            El aprendizaje en línea permite adaptar los features
+            a cambios de apariencia del objeto.
+        """
         if not self.feature_manager.is_available or not self.config.enable_reidentification:
             return None
 
@@ -204,7 +273,18 @@ class AdvancedTracker(ITracker, LoggerMixin):
             return None
 
     def _init_sensor_fusion(self) -> Optional[SensorFusionTracker]:
-        """Inicializa el sistema de fusión de sensores."""
+        """
+        Inicializa el sistema de fusión de sensores.
+
+        Returns:
+            Optional[SensorFusionTracker]: Sistema de fusión
+                o None si está desactivado.
+
+        Note:
+            La fusión de sensores combina información de múltiples
+            fuentes (visual, profundidad, térmico) para mejorar
+            la robustez del tracking.
+        """
         if not getattr(self.config, "enable_sensor_fusion", False):
             return None
 
@@ -228,7 +308,17 @@ class AdvancedTracker(ITracker, LoggerMixin):
             return None
 
     def _init_path_predictor(self) -> Optional[PathPredictor]:
-        """Inicializa el sistema de predicción de trayectoria."""
+        """
+        Inicializa el sistema de predicción de trayectoria.
+
+        Returns:
+            Optional[PathPredictor]: Sistema de predicción
+                o None si está desactivado.
+
+        Note:
+            La predicción de trayectoria permite anticipar el
+            movimiento futuro de los objetos para mejorar el tracking.
+        """
         if not getattr(self.config, "enable_path_prediction", True):
             return None
 
@@ -248,7 +338,12 @@ class AdvancedTracker(ITracker, LoggerMixin):
             return None
 
     def _init_stats(self) -> Dict[str, Any]:
-        """Inicializa las estadísticas del tracker."""
+        """
+        Inicializa las estadísticas del tracker.
+
+        Returns:
+            Dict[str, Any]: Diccionario de estadísticas iniciales.
+        """
         return {
             "total_tracks": 0,
             "confirmed_tracks": 0,
@@ -263,11 +358,30 @@ class AdvancedTracker(ITracker, LoggerMixin):
         Actualiza el tracker con nuevas detecciones.
 
         Args:
-            detections: Lista de detecciones
-            frame: Frame actual
+            detections: Lista de detecciones del frame actual.
+            frame: Imagen actual para extraer features y contexto.
 
         Returns:
-            Dict[int, Dict[str, Any]]: Información de tracking
+            Dict[int, Dict[str, Any]]: Información de tracking actualizada,
+                donde la clave es el track_id y el valor contiene:
+                - centroid: Centroide del objeto
+                - bbox: Bounding box
+                - status: Estado del track
+                - age: Edad en frames
+                - hits: Número de detecciones asociadas
+                - confidence: Confianza del track
+                - velocity: Velocidad actual
+                - history: Historial de posiciones
+                - predicted_centroid: Posición predicha
+
+        Raises:
+            TrackingError: Si ocurre un error durante el tracking.
+
+        Example:
+            >>> detections = detector.detect(frame)
+            >>> tracks = tracker.update(detections, frame)
+            >>> for track_id, data in tracks.items():
+            ...     print(f"Track {track_id} en {data['centroid']}")
         """
         if frame is None or frame.size == 0:
             return {}
@@ -315,14 +429,18 @@ class AdvancedTracker(ITracker, LoggerMixin):
         frame: np.ndarray
     ) -> MatchResult:
         """
-        Realiza matching entre detecciones y tracks.
+        Realiza matching entre detecciones y tracks existentes.
 
         Args:
-            detections: Lista de detecciones
-            frame: Frame actual
+            detections: Lista de detecciones.
+            frame: Frame actual para contexto.
 
         Returns:
-            MatchResult: Resultado del matching
+            MatchResult: Resultado del matching con matches y no-matches.
+
+        Note:
+            Utiliza el matcher jerárquico que combina múltiples
+            criterios (IoU, features, movimiento, forma).
         """
         tracks = list(self.track_manager.get_all_tracks().values())
 
@@ -344,11 +462,11 @@ class AdvancedTracker(ITracker, LoggerMixin):
         match_result: MatchResult
     ) -> None:
         """
-        Actualiza tracks con nuevas detecciones.
+        Actualiza tracks con nuevas detecciones asociadas.
 
         Args:
-            detections: Lista de detecciones
-            match_result: Resultado del matching
+            detections: Lista de detecciones.
+            match_result: Resultado del matching con matches.
         """
         tracks = self.track_manager.get_all_tracks()
         track_ids = list(tracks.keys())
@@ -387,10 +505,10 @@ class AdvancedTracker(ITracker, LoggerMixin):
 
     def _handle_unmatched(self, match_result: MatchResult) -> None:
         """
-        Maneja tracks no asociados.
+        Maneja tracks no asociados (pérdidas).
 
         Args:
-            match_result: Resultado del matching
+            match_result: Resultado del matching con tracks no asociados.
         """
         tracks = self.track_manager.get_all_tracks()
         track_ids = list(tracks.keys())
@@ -417,10 +535,14 @@ class AdvancedTracker(ITracker, LoggerMixin):
 
     def _handle_dead_track(self, track_id: int) -> None:
         """
-        Maneja un track que ha muerto.
+        Maneja un track que ha muerto (no recuperable).
 
         Args:
-            track_id: ID del track muerto
+            track_id: ID del track muerto.
+
+        Note:
+            Guarda los features del track para posible re-identificación
+            futura y limpia los subsistemas asociados.
         """
         track = self.track_manager.get_track(track_id)
         if track is None:
@@ -449,15 +571,19 @@ class AdvancedTracker(ITracker, LoggerMixin):
         frame: np.ndarray
     ) -> int:
         """
-        Realiza re-identificación.
+        Realiza re-identificación de objetos perdidos.
 
         Args:
-            detections: Lista de detecciones
-            unmatched_dets: Índices de detecciones no asociadas
-            frame: Frame actual
+            detections: Lista de detecciones.
+            unmatched_dets: Índices de detecciones no asociadas.
+            frame: Frame actual para extraer features.
 
         Returns:
-            int: Número de tracks re-identificados
+            int: Número de tracks re-identificados exitosamente.
+
+        Note:
+            Utiliza features visuales para encontrar coincidencias
+            con tracks perdidos anteriormente.
         """
         if not self.reid_system or not unmatched_dets:
             return 0
@@ -505,8 +631,8 @@ class AdvancedTracker(ITracker, LoggerMixin):
         Crea nuevos tracks a partir de detecciones no asociadas.
 
         Args:
-            detections: Lista de detecciones
-            match_result: Resultado del matching
+            detections: Lista de detecciones.
+            match_result: Resultado del matching con detecciones no asociadas.
         """
         tracks_created = 0
 
@@ -552,10 +678,10 @@ class AdvancedTracker(ITracker, LoggerMixin):
         Inicializa características avanzadas para un nuevo track.
 
         Args:
-            track: Track a inicializar
-            detection: Detección asociada
-            confidence: Confianza
-            features: Features del track
+            track: Track a inicializar.
+            detection: Detección asociada.
+            confidence: Confianza de la detección.
+            features: Features extraídos (opcional).
         """
         track_id = track.track_id
 
@@ -611,12 +737,18 @@ class AdvancedTracker(ITracker, LoggerMixin):
                 )
 
     def _predict_positions(self) -> None:
-        """Predice posiciones de todos los tracks."""
+        """Predice posiciones de todos los tracks usando filtro de Kalman."""
         for track in self.track_manager.get_all_tracks().values():
             self.track_updater.predict_position(track)
 
     def _extract_features(self, detections: List[Dict[str, Any]], frame: np.ndarray) -> None:
-        """Extrae features para todas las detecciones."""
+        """
+        Extrae features para todas las detecciones.
+
+        Args:
+            detections: Lista de detecciones.
+            frame: Frame actual para extraer features.
+        """
         for det in detections:
             if "box" in det:
                 features = self.feature_manager.extract_features(
@@ -630,7 +762,13 @@ class AdvancedTracker(ITracker, LoggerMixin):
         detections: List[Dict[str, Any]],
         match_result: MatchResult
     ) -> None:
-        """Actualiza sistemas avanzados."""
+        """
+        Actualiza todos los sistemas avanzados.
+
+        Args:
+            detections: Lista de detecciones.
+            match_result: Resultado del matching.
+        """
         if self.online_learner:
             self._update_online_learning(detections, match_result)
 
@@ -645,7 +783,13 @@ class AdvancedTracker(ITracker, LoggerMixin):
         detections: List[Dict[str, Any]],
         match_result: MatchResult
     ) -> None:
-        """Actualiza el aprendizaje en línea."""
+        """
+        Actualiza el aprendizaje en línea con nuevas observaciones.
+
+        Args:
+            detections: Lista de detecciones.
+            match_result: Resultado del matching.
+        """
         if self.online_learner is None:
             return
 
@@ -679,7 +823,13 @@ class AdvancedTracker(ITracker, LoggerMixin):
         detections: List[Dict[str, Any]],
         match_result: MatchResult
     ) -> None:
-        """Actualiza la fusión de sensores."""
+        """
+        Actualiza la fusión de sensores con nuevas observaciones.
+
+        Args:
+            detections: Lista de detecciones.
+            match_result: Resultado del matching.
+        """
         if self.sensor_fusion is None:
             return
 
@@ -717,7 +867,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
                 )
 
     def _update_path_prediction(self) -> None:
-        """Actualiza la predicción de trayectoria."""
+        """Actualiza la predicción de trayectoria para todos los tracks."""
         if self.path_predictor is None:
             return
 
@@ -745,7 +895,15 @@ class AdvancedTracker(ITracker, LoggerMixin):
                 )
 
     def _validate_detections(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Valida y filtra detecciones."""
+        """
+        Valida y filtra detecciones.
+
+        Args:
+            detections: Lista de detecciones a validar.
+
+        Returns:
+            List[Dict[str, Any]]: Lista de detecciones válidas.
+        """
         if not detections:
             return []
 
@@ -759,7 +917,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
         return valid
 
     def _perform_cleanup(self) -> None:
-        """Realiza limpieza periódica de tracks."""
+        """Realiza limpieza periódica de tracks muertos."""
         current_time = time.time()
         if current_time - self._last_cleanup_time >= self.CLEANUP_INTERVAL:
             self._last_cleanup_time = current_time
@@ -774,7 +932,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
                 )
 
     def _check_memory(self) -> None:
-        """Verifica el uso de memoria."""
+        """Verifica el uso de memoria y limpia si es necesario."""
         current_time = time.time()
         if current_time - self._last_memory_check < self.MEMORY_CHECK_INTERVAL:
             return
@@ -806,7 +964,16 @@ class AdvancedTracker(ITracker, LoggerMixin):
         self._stats["lost_tracks"] = self.track_manager.get_lost_count()
 
     def _should_use_features(self) -> bool:
-        """Determina si se deben usar features."""
+        """
+        Determina si se deben usar features visuales.
+
+        Returns:
+            bool: True si se deben usar features.
+
+        Note:
+            Los features solo se activan si hay GPU disponible
+            y no se está en modo CPU forzado.
+        """
         from models.enums import DeviceType
         if self.global_config.model.device == DeviceType.CPU:
             return False
@@ -822,7 +989,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
         Retorna información de tracking actual.
 
         Returns:
-            Dict[int, Dict[str, Any]]: Información de tracking
+            Dict[int, Dict[str, Any]]: Información de tracking.
         """
         result = {}
 
@@ -848,7 +1015,13 @@ class AdvancedTracker(ITracker, LoggerMixin):
         return result
 
     def _enrich_track_data(self, track_id: int, track_data: Dict[str, Any]) -> None:
-        """Enriquece los datos del track con información de subsistemas."""
+        """
+        Enriquece los datos del track con información de subsistemas.
+
+        Args:
+            track_id: ID del track.
+            track_data: Diccionario de datos del track a enriquecer.
+        """
         if self.online_learner:
             learner_stats = self.online_learner.get_stats(track_id)
             if learner_stats:
@@ -880,7 +1053,12 @@ class AdvancedTracker(ITracker, LoggerMixin):
             track_data["mht_confidence"] = self.mht_integration.get_hypothesis_confidence(track_id)
 
     def get_stats(self) -> Dict[str, Any]:
-        """Retorna estadísticas del tracker."""
+        """
+        Retorna estadísticas del tracker.
+
+        Returns:
+            Dict[str, Any]: Estadísticas detalladas del tracker.
+        """
         return {
             **self._stats,
             "active_tracks": self.track_manager.get_active_count(),
@@ -894,7 +1072,15 @@ class AdvancedTracker(ITracker, LoggerMixin):
         }
 
     def get_track(self, track_id: int) -> Optional[Any]:
-        """Obtiene un track por su ID."""
+        """
+        Obtiene un track por su ID.
+
+        Args:
+            track_id: ID del track a obtener.
+
+        Returns:
+            Optional[Any]: TrackState del track o None si no existe.
+        """
         return self.track_manager.get_track(track_id)
 
     def reset(self) -> None:

@@ -1,7 +1,16 @@
 """
 Detector de objetos YOLO con optimizaciones.
 
-Implementa el detector base con caché, preprocesamiento y estadísticas.
+Este módulo implementa el detector base del sistema utilizando YOLO
+con caché, preprocesamiento y estadísticas de rendimiento.
+
+El detector soporta:
+- Detección de objetos con YOLO (Ultralytics)
+- Caché LRU para detecciones
+- Preprocesamiento de imágenes
+- Estadísticas de rendimiento
+- Soporte para batch inference
+- Exportación automática a ONNX
 """
 
 import time
@@ -10,13 +19,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from ultralytics import YOLO
 
+from utils.geometry import calculate_centroid
+from utils.helpers import get_memory_usage
+from utils.logger import LoggerMixin
 from core.detector.cache import DetectionCache
 from core.detector.preprocessor import ImagePreprocessor
 from core.detector.config import DetectorConfig
 from core.exceptions import DetectionError, ModelLoadError
-from utils.geometry import calculate_centroid
-from utils.helpers import get_memory_usage
-from utils.logger import LoggerMixin
+from core.interfaces import IDetector
 from core.validators import validate_frame, validate_bbox, validate_centroid
 from core.constants import (
     MIN_BOX_SIZE,
@@ -28,7 +38,7 @@ from core.constants import (
     MEMORY_CHECK_INTERVAL,
     MEMORY_WARNING_THRESHOLD
 )
-from core.interfaces import IDetector
+
 
 Detection = Dict[str, Any]
 DetectionList = List[Detection]
@@ -39,19 +49,30 @@ class YOLODetector(IDetector, LoggerMixin):
     """
     Detector YOLO con caché y preprocesamiento.
 
+    Este detector utiliza YOLO de Ultralytics con optimizaciones
+    para mejorar el rendimiento en CPU y GPU.
+
     Características:
-    - Detección de objetos con YOLO
-    - Caché LRU para detecciones
-    - Preprocesamiento de imágenes
-    - Estadísticas de rendimiento
-    - Soporte para batch inference
+        - Detección de objetos con YOLO
+        - Caché LRU para detecciones (reduce procesamiento redundante)
+        - Preprocesamiento de imágenes (mejora calidad)
+        - Estadísticas de rendimiento
+        - Soporte para batch inference
+        - Exportación automática a ONNX para inferencia optimizada
 
     Attributes:
-        config: Configuración del detector
-        device: Dispositivo de inferencia
-        model: Modelo YOLO
-        cache: Caché de detecciones
+        config: Configuración del detector (umbrales, clases, etc.)
+        device: Dispositivo de inferencia ('cpu', 'cuda', 'mps')
+        model: Modelo YOLO cargado
+        cache: Caché de detecciones LRU
         preprocessor: Preprocesador de imágenes
+
+    Example:
+        >>> detector = YOLODetector()
+        >>> frame = cv2.imread("image.jpg")
+        >>> detections = detector.detect(frame)
+        >>> for det in detections:
+        ...     print(f"Objeto: {det['label']} confianza: {det['confidence']:.2f}")
     """
 
     MIN_BOX_SIZE: int = MIN_BOX_SIZE
@@ -66,7 +87,12 @@ class YOLODetector(IDetector, LoggerMixin):
         Inicializa el detector YOLO.
 
         Args:
-            config: Configuración del detector (opcional)
+            config: Configuración del detector. Si es None, se usa
+                la configuración global del sistema.
+
+        Raises:
+            ModelLoadError: Si el modelo no se puede cargar.
+            ConfigurationError: Si la configuración es inválida.
         """
         self.config = config or DetectorConfig.from_global_config()
         self.logger.info("Inicializando YOLODetector", model=self.config.model_path)
@@ -99,7 +125,16 @@ class YOLODetector(IDetector, LoggerMixin):
         )
 
     def _get_device(self) -> str:
-        """Obtiene el dispositivo óptimo."""
+        """
+        Obtiene el dispositivo óptimo para inferencia.
+
+        Returns:
+            str: Dispositivo seleccionado ('cpu', 'cuda', 'mps').
+
+        Note:
+            Si el dispositivo es 'auto', se selecciona automáticamente
+            el mejor disponible (GPU > MPS > CPU).
+        """
         device = self.config.device
 
         if device == "auto":
@@ -116,7 +151,19 @@ class YOLODetector(IDetector, LoggerMixin):
         return str(device)
 
     def _load_model(self) -> YOLO:
-        """Carga el modelo YOLO."""
+        """
+        Carga el modelo YOLO desde el archivo configurado.
+
+        Returns:
+            YOLO: Modelo YOLO cargado.
+
+        Raises:
+            ModelLoadError: Si el modelo no se encuentra o no se puede cargar.
+
+        Note:
+            Si el modelo no existe pero es un modelo YOLO estándar,
+            se descarga automáticamente desde Ultralytics.
+        """
         self.logger.info("Cargando modelo", path=self.config.model_path)
 
         try:
@@ -163,7 +210,18 @@ class YOLODetector(IDetector, LoggerMixin):
         return model
 
     def _export_to_onnx(self, model: YOLO) -> Optional[str]:
-        """Exporta modelo a ONNX."""
+        """
+        Exporta el modelo a formato ONNX para inferencia optimizada.
+
+        Args:
+            model: Modelo YOLO a exportar.
+
+        Returns:
+            Optional[str]: Ruta al archivo ONNX o None si falla.
+
+        Note:
+            ONNX Runtime ofrece mejor rendimiento en CPU que PyTorch.
+        """
         import os
 
         onnx_path = self.config.model_path.replace(".pt", ".onnx")
@@ -185,7 +243,16 @@ class YOLODetector(IDetector, LoggerMixin):
         return onnx_path
 
     def _calculate_cache_size(self) -> int:
-        """Calcula el tamaño óptimo del caché."""
+        """
+        Calcula el tamaño óptimo del caché basado en memoria disponible.
+
+        Returns:
+            int: Tamaño del caché entre 4 y 64 entradas.
+
+        Note:
+            El tamaño se calcula como 10% de la memoria disponible,
+            limitado a 250MB máximo.
+        """
         try:
             mem = get_memory_usage()
             available_mb = mem.get("system_available_mb", 4096)
@@ -196,31 +263,92 @@ class YOLODetector(IDetector, LoggerMixin):
             return 16
 
     def _validate_frame(self, frame: np.ndarray) -> bool:
-        """Valida que el frame sea válido."""
+        """
+        Valida que el frame sea válido para procesamiento.
+
+        Args:
+            frame: Frame a validar.
+
+        Returns:
+            bool: True si el frame es válido.
+
+        Note:
+            Verifica que el frame no sea None, tenga tamaño > 0,
+            y sea un array numpy con dimensiones mínimas.
+        """
         return validate_frame(frame, min_width=10, min_height=10)
 
     def _validate_box(self, box: Any) -> bool:
-        """Valida un bounding box."""
+        """
+        Valida un bounding box.
+
+        Args:
+            box: Bounding box a validar (x1, y1, x2, y2).
+
+        Returns:
+            bool: True si el box es válido.
+
+        Note:
+            Verifica que el box tenga tamaño mínimo y máximo configurados.
+        """
         return validate_bbox(box, min_size=self.MIN_BOX_SIZE, max_size=self.MAX_BOX_SIZE)
 
     def _validate_centroid(self, centroid: Any) -> bool:
-        """Valida un centroide."""
+        """
+        Valida un centroide.
+
+        Args:
+            centroid: Centroide a validar (x, y).
+
+        Returns:
+            bool: True si el centroide es válido.
+        """
         return validate_centroid(centroid)
 
     def _validate_confidence(self, confidence: Any) -> bool:
-        """Valida un valor de confianza."""
+        """
+        Valida un valor de confianza.
+
+        Args:
+            confidence: Confianza a validar (0-1).
+
+        Returns:
+            bool: True si la confianza está en rango válido.
+        """
         if not isinstance(confidence, (int, float)):
             return False
         return self.MIN_CONFIDENCE <= confidence <= self.MAX_CONFIDENCE
 
     def _validate_detection(self, detection: Dict[str, Any]) -> bool:
-        """Valida una detección completa."""
+        """
+        Valida una detección completa.
+
+        Args:
+            detection: Diccionario de detección.
+
+        Returns:
+            bool: True si la detección es válida.
+
+        Note:
+            Verifica que tenga todos los campos requeridos y valores válidos.
+        """
         from core.validators import validate_detection
         result = validate_detection(detection, min_confidence=0.0)
         return result.is_valid
 
     def _filter_valid_detections(self, detections: DetectionList) -> DetectionList:
-        """Filtra detecciones válidas."""
+        """
+        Filtra detecciones válidas.
+
+        Args:
+            detections: Lista de detecciones a filtrar.
+
+        Returns:
+            DetectionList: Lista de detecciones válidas.
+
+        Note:
+            Descarta detecciones inválidas y registra estadísticas.
+        """
         valid = [d for d in detections if self._validate_detection(d)]
         if len(valid) != len(detections):
             self.logger.debug(
@@ -232,7 +360,19 @@ class YOLODetector(IDetector, LoggerMixin):
         return valid
 
     def _parse_results(self, result) -> DetectionList:
-        """Parsea resultados de YOLO."""
+        """
+        Parsea resultados de YOLO a formato estándar.
+
+        Args:
+            result: Resultado de YOLO (ultralytics.Results).
+
+        Returns:
+            DetectionList: Lista de detecciones parseadas.
+
+        Note:
+            Convierte los resultados de YOLO a un formato diccionario
+            consistente con el resto del sistema.
+        """
         detections = []
 
         if result is None or result.boxes is None:
@@ -264,9 +404,14 @@ class YOLODetector(IDetector, LoggerMixin):
 
         return detections
 
-
     def _check_memory(self) -> None:
-        """Verifica uso de memoria."""
+        """
+        Verifica uso de memoria y limpia caché si es necesario.
+
+        Note:
+            Si la memoria supera el umbral de advertencia (75%),
+            se limpia el caché automáticamente.
+        """
         current_time = time.time()
         if current_time - self._last_memory_check < MEMORY_CHECK_INTERVAL:
             return
@@ -292,10 +437,19 @@ class YOLODetector(IDetector, LoggerMixin):
         Detecta objetos en un frame.
 
         Args:
-            frame: Imagen a procesar
+            frame: Imagen a procesar en formato numpy array (H, W, C) BGR.
 
         Returns:
-            Lista de detecciones validadas
+            DetectionList: Lista de detecciones validadas.
+
+        Raises:
+            DetectionError: Si ocurre un error durante la inferencia.
+
+        Example:
+            >>> detector = YOLODetector()
+            >>> frame = cv2.imread("traffic.jpg")
+            >>> detections = detector.detect(frame)
+            >>> print(f"Encontrados {len(detections)} vehículos")
         """
         if not self._validate_frame(frame):
             return []
@@ -366,13 +520,18 @@ class YOLODetector(IDetector, LoggerMixin):
 
     def detect_batch(self, frames: List[np.ndarray]) -> List[DetectionList]:
         """
-        Detecta objetos en múltiples frames.
+        Detecta objetos en múltiples frames (batch inference).
 
         Args:
-            frames: Lista de imágenes
+            frames: Lista de imágenes a procesar.
 
         Returns:
-            Lista de listas de detecciones
+            List[DetectionList]: Lista de listas de detecciones,
+                una por frame de entrada.
+
+        Note:
+            El batch inference es más eficiente que procesar frames
+            individualmente cuando hay múltiples frames disponibles.
         """
         if not frames:
             return []
@@ -441,11 +600,29 @@ class YOLODetector(IDetector, LoggerMixin):
             return [[] for _ in frames]
 
     def get_classes(self) -> List[int]:
-        """Retorna las clases que detecta."""
+        """
+        Retorna las clases que detecta el modelo.
+
+        Returns:
+            List[int]: Lista de IDs de clases configuradas para detección.
+        """
         return self.config.vehicle_classes
 
     def get_performance_stats(self) -> Dict[str, Any]:
-        """Retorna estadísticas de rendimiento."""
+        """
+        Retorna estadísticas de rendimiento del detector.
+
+        Returns:
+            Dict[str, Any]: Diccionario con estadísticas incluyendo:
+                - total_detections: Total de detecciones realizadas
+                - avg_inference_time_ms: Tiempo promedio de inferencia
+                - avg_batch_time_ms: Tiempo promedio de batch inference
+                - total_batches: Número de batches procesados
+                - samples: Número de muestras de inferencia
+                - device: Dispositivo utilizado
+                - cache: Estadísticas del caché
+                - preprocessor: Estadísticas del preprocesador
+        """
         avg_time = np.mean(self._inference_times) if self._inference_times else 0
         avg_batch_time = np.mean(self._batch_inference_times) if self._batch_inference_times else 0
 
@@ -465,11 +642,16 @@ class YOLODetector(IDetector, LoggerMixin):
         self.cache.clear()
 
     def enable_enhancement(self, enable: bool = True) -> None:
-        """Activa/desactiva el preprocesamiento."""
+        """
+        Activa o desactiva el preprocesamiento de imágenes.
+
+        Args:
+            enable: True para activar, False para desactivar.
+        """
         self.preprocessor.set_enabled(enable)
 
     def _print_startup_info(self) -> None:
-        """Imprime información de inicio usando logger."""
+        """Imprime información de inicio usando el logger."""
         self.logger.info("=" * 60)
         self.logger.info("🤖 DETECTOR YOLO")
         self.logger.info("=" * 60)
