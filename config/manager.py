@@ -1,12 +1,19 @@
 """
 Gestor de configuración mejorado con carga desde YAML y soporte de entorno.
+
+Este módulo proporciona un gestor de configuración singleton que:
+- Carga configuración desde archivos YAML
+- Valida la configuración con Pydantic
+- Soporta overrides desde variables de entorno
+- Proporciona acceso a la configuración en toda la aplicación
+- Guarda la configuración actual a archivo
 """
 
 import os
+import yaml
 import logging
 from pathlib import Path
 from typing import Optional, Any
-import yaml
 
 from config.settings import Config
 from core.exceptions import ConfigurationError
@@ -15,18 +22,47 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
-    """Gestor de configuración singleton con validación Pydantic."""
+    """
+    Gestor de configuración singleton con validación Pydantic.
+
+    Esta clase implementa el patrón Singleton para proporcionar
+    un único punto de acceso a la configuración del sistema.
+
+    Características:
+        - Singleton thread-safe
+        - Carga desde YAML con validación
+        - Overrides desde variables de entorno
+        - Guardado a archivo
+        - Acceso por ruta con notación de puntos
+
+    Attributes:
+        _instance: Instancia única del gestor.
+        _config: Configuración actual del sistema.
+
+    Example:
+        >>> config_manager = ConfigManager.get_instance()
+        >>> config = config_manager.load_from_file("config.yaml")
+        >>> confidence = config_manager.get("model.confidence_threshold")
+        >>> config_manager.set("model.confidence_threshold", 0.5)
+    """
 
     _instance: Optional["ConfigManager"] = None
     _config: Optional[Config] = None
 
     def __new__(cls):
+        """Implementación del patrón Singleton."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
     @classmethod
     def get_instance(cls) -> "ConfigManager":
+        """
+        Obtiene la instancia única del gestor de configuración.
+
+        Returns:
+            ConfigManager: Instancia única del gestor.
+        """
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
@@ -37,6 +73,9 @@ class ConfigManager:
 
         Returns:
             Config: Configuración por defecto.
+
+        Note:
+            Los valores por defecto están definidos en config/settings.py.
         """
         logger.info("📄 Cargando configuración por defecto")
         self._config = Config()
@@ -58,14 +97,17 @@ class ConfigManager:
         Carga configuración desde archivo YAML con logging detallado.
 
         Args:
-            path: Ruta al archivo de configuración
+            path: Ruta al archivo de configuración.
 
         Returns:
-            Config: Objeto de configuración validado
+            Config: Objeto de configuración validado.
 
         Raises:
-            ConfigurationError: Si hay errores en la configuración
-            FileNotFoundError: Si el archivo no existe
+            ConfigurationError: Si hay errores en la configuración.
+            FileNotFoundError: Si el archivo no existe.
+
+        Example:
+            >>> config = config_manager.load_from_file("config_prod.yaml")
         """
         path = Path(path)
 
@@ -138,7 +180,18 @@ class ConfigManager:
         return self._config
 
     def _apply_environment_overrides(self):
-        """Aplica overrides desde variables de entorno (solo si existen)."""
+        """
+        Aplica overrides desde variables de entorno.
+
+        Variables de entorno soportadas:
+            - MODEL_PATH: Ruta al modelo
+            - CAMERA_SOURCE: Fuente de la cámara
+            - USE_GPU: Usar GPU (true/false)
+            - CONFIDENCE_THRESHOLD: Umbral de confianza
+
+        Note:
+            Solo se aplican overrides si las variables de entorno existen.
+        """
         if self._config is None:
             return
 
@@ -170,13 +223,33 @@ class ConfigManager:
 
     @property
     def config(self) -> Config:
+        """
+        Obtiene la configuración actual.
+
+        Returns:
+            Config: Configuración actual o por defecto si no está cargada.
+
+        Note:
+            Si no hay configuración cargada, retorna la configuración por defecto.
+        """
         if self._config is None:
             logger.warning("Configuración no cargada, usando valores por defecto")
             self._config = Config()
         return self._config
 
     def save_to_file(self, path: str):
-        """Guarda la configuración actual a archivo."""
+        """
+        Guarda la configuración actual a archivo YAML.
+
+        Args:
+            path: Ruta donde guardar el archivo.
+
+        Raises:
+            ConfigurationError: Si no se puede guardar el archivo.
+
+        Example:
+            >>> config_manager.save_to_file("config_backup.yaml")
+        """
         try:
             with open(path, "w", encoding="utf-8") as f:
                 yaml.dump(
@@ -191,7 +264,20 @@ class ConfigManager:
             raise ConfigurationError(f"No se pudo guardar configuración: {e}")
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Obtiene un valor por ruta con notación de puntos."""
+        """
+        Obtiene un valor por ruta con notación de puntos.
+
+        Args:
+            key: Ruta al valor (ej: "model.confidence_threshold").
+            default: Valor por defecto si la clave no existe.
+
+        Returns:
+            Any: Valor de la configuración o default.
+
+        Example:
+            >>> confidence = config_manager.get("model.confidence_threshold", 0.5)
+            >>> imgsz = config_manager.get("model.imgsz", 640)
+        """
         keys = key.split(".")
         value = self.config
 
@@ -206,7 +292,20 @@ class ConfigManager:
         return value
 
     def set(self, key: str, value: Any):
-        """Establece un valor por ruta con notación de puntos."""
+        """
+        Establece un valor por ruta con notación de puntos.
+
+        Args:
+            key: Ruta al valor (ej: "model.confidence_threshold").
+            value: Nuevo valor a establecer.
+
+        Raises:
+            KeyError: Si la clave no existe.
+
+        Example:
+            >>> config_manager.set("model.confidence_threshold", 0.6)
+            >>> config_manager.set("camera.fps", 30)
+        """
         keys = key.split(".")
         target = self.config
 
