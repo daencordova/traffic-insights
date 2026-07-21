@@ -1,18 +1,32 @@
 """
-Buffer circular optimizado para almacenamiento de frames con bajo overhead
+Buffer circular optimizado para almacenamiento de frames con bajo overhead.
+
+Este módulo proporciona un buffer circular eficiente para almacenar
+frames de video con metadatos asociados, optimizado para uso en
+pipelines de visión por computador.
 """
 
+import time
+import threading
+from enum import Enum, auto
+from dataclasses import dataclass
 from collections import deque
 from typing import Optional, Deque, Tuple
-import threading
-import time
+
 import numpy as np
-from dataclasses import dataclass
-from enum import Enum, auto
 
 
 class BufferStatus(Enum):
-    """Estados del buffer"""
+    """
+    Estados posibles del buffer circular.
+
+    Attributes:
+        EMPTY: Buffer vacío sin frames.
+        PARTIAL: Buffer con algunos frames (0-70% de capacidad).
+        FULL: Buffer casi lleno (70-90% de capacidad).
+        OVERFLOW: Buffer en riesgo de overflow (>90% de capacidad).
+        DRAINING: Buffer en proceso de vaciado.
+    """
     EMPTY = auto()
     PARTIAL = auto()
     FULL = auto()
@@ -22,7 +36,17 @@ class BufferStatus(Enum):
 
 @dataclass
 class FrameMetadata:
-    """Metadatos asociados a un frame"""
+    """
+    Metadatos asociados a un frame almacenado.
+
+    Attributes:
+        timestamp: Timestamp de captura del frame (time.time()).
+        frame_number: Número secuencial del frame.
+        source_fps: FPS de la fuente de origen.
+        capture_time_ms: Tiempo de captura en milisegundos.
+        processing_time_ms: Tiempo de procesamiento en milisegundos.
+        dropped: Indica si el frame fue descartado.
+    """
     timestamp: float
     frame_number: int
     source_fps: float
@@ -31,20 +55,32 @@ class FrameMetadata:
     dropped: bool = False
 
     def __post_init__(self):
+        """Asigna timestamp actual si no se proporcionó."""
         if self.timestamp == 0:
             self.timestamp = time.time()
 
 
 class CircularFrameBuffer:
     """
-    Buffer circular optimizado con memoria preasignada para frames
+    Buffer circular optimizado con memoria preasignada para frames.
+
+    Este buffer está diseñado para minimizar asignaciones de memoria
+    y proporcionar acceso rápido a frames en un pipeline de procesamiento
+    de video en tiempo real.
 
     Características:
-    - Memoria preasignada para evitar reallocaciones
-    - Soporte para drops selectivos
-    - Estadísticas de rendimiento
-    - Thread-safe
-    - Liberación inmediata de frames para optimización de memoria
+        - Memoria preasignada para evitar reallocaciones
+        - Soporte para drops selectivos
+        - Estadísticas de rendimiento
+        - Thread-safe
+        - Liberación inmediata de frames para optimización de memoria
+
+    Attributes:
+        max_size: Tamaño máximo del buffer.
+        drop_policy: Política de drop cuando está lleno ('oldest', 'newest').
+        dtype: Tipo de datos de los frames (por defecto np.uint8).
+        count: Número actual de frames en el buffer.
+        status: Estado actual del buffer.
     """
 
     def __init__(
@@ -55,12 +91,27 @@ class CircularFrameBuffer:
         drop_policy: str = "oldest"
     ):
         """
+        Inicializa el buffer circular.
+
         Args:
-            max_size: Tamaño máximo del buffer
-            frame_shape: Shape predefinido para preasignar memoria
-            dtype: Tipo de datos de los frames
-            drop_policy: Política de drop cuando está lleno
+            max_size: Tamaño máximo del buffer.
+            frame_shape: Shape predefinido para preasignar memoria.
+                Si se proporciona, se preasigna memoria para todos los frames.
+            dtype: Tipo de datos de los frames.
+            drop_policy: Política de drop cuando está lleno.
+                'oldest': Elimina el frame más antiguo.
+                'newest': Elimina el frame más nuevo.
+
+        Raises:
+            ValueError: Si max_size es menor o igual a 0.
+            ValueError: Si drop_policy no es válido.
         """
+        if max_size <= 0:
+            raise ValueError(f"max_size debe ser mayor a 0: {max_size}")
+
+        if drop_policy not in ["oldest", "newest"]:
+            raise ValueError(f"drop_policy inválido: {drop_policy}")
+
         self.max_size = max_size
         self.drop_policy = drop_policy
         self.dtype = dtype
@@ -93,13 +144,20 @@ class CircularFrameBuffer:
 
     def put(self, frame: np.ndarray, metadata: Optional[FrameMetadata] = None) -> bool:
         """
-        Inserta un frame en el buffer
+        Inserta un frame en el buffer.
+
+        Args:
+            frame: Frame a insertar en formato numpy array.
+            metadata: Metadatos asociados al frame. Si es None, se crean automáticamente.
 
         Returns:
-            True si se insertó correctamente, False si fue descartado
+            bool: True si se insertó correctamente, False si fue descartado.
+
+        Raises:
+            ValueError: Si frame es None o está vacío.
         """
         if frame is None or frame.size == 0:
-            return False
+            raise ValueError("Frame no puede ser None o estar vacío")
 
         with self._lock:
             self._total_frames_received += 1
@@ -109,7 +167,8 @@ class CircularFrameBuffer:
                 metadata = FrameMetadata(
                     timestamp=time.time(),
                     frame_number=self._total_frames_received,
-                    source_fps=0.0
+                    source_fps=0.0,
+                    capture_time_ms=0.0
                 )
 
             if self._is_full():
@@ -138,11 +197,15 @@ class CircularFrameBuffer:
         Obtiene el siguiente frame del buffer y libera la memoria inmediatamente.
 
         Args:
-            block: Si debe bloquear esperando un frame
-            timeout: Timeout en segundos si block=True
+            block: Si debe bloquear esperando un frame.
+            timeout: Timeout en segundos si block=True.
 
         Returns:
-            Tupla (frame, metadata) o None si no hay frames
+            Optional[Tuple[np.ndarray, FrameMetadata]]: Tupla (frame, metadata)
+                o None si no hay frames disponibles.
+
+        Raises:
+            TimeoutError: Si timeout expira y no hay frames disponibles.
         """
         start_time = time.time()
 
@@ -161,9 +224,6 @@ class CircularFrameBuffer:
                     self._head = (self._head + 1) % self.max_size
                     self._total_frames_processed += 1
 
-                    if not self._preallocated and frame is not None:
-                        pass
-
                     self._update_status()
 
                     return frame, metadata
@@ -178,11 +238,11 @@ class CircularFrameBuffer:
         Obtiene un lote de frames liberando memoria inmediatamente.
 
         Args:
-            batch_size: Tamaño máximo del lote
-            timeout: Timeout para esperar frames
+            batch_size: Tamaño máximo del lote.
+            timeout: Timeout para esperar frames en segundos.
 
         Returns:
-            Lista de tuplas (frame, metadata)
+            list: Lista de tuplas (frame, metadata) con hasta batch_size elementos.
         """
         batch = []
         start_time = time.time()
@@ -197,7 +257,13 @@ class CircularFrameBuffer:
         return batch
 
     def peek(self) -> Optional[Tuple[np.ndarray, FrameMetadata]]:
-        """Mira el siguiente frame sin removerlo"""
+        """
+        Mira el siguiente frame sin removerlo del buffer.
+
+        Returns:
+            Optional[Tuple[np.ndarray, FrameMetadata]]: Tupla (frame, metadata)
+                o None si no hay frames disponibles.
+        """
         with self._lock:
             if self._count == 0:
                 return None
@@ -211,7 +277,12 @@ class CircularFrameBuffer:
             return frame, metadata
 
     def clear(self) -> int:
-        """Limpia el buffer y retorna el número de frames eliminados"""
+        """
+        Limpia el buffer y retorna el número de frames eliminados.
+
+        Returns:
+            int: Número de frames eliminados del buffer.
+        """
         with self._lock:
             count = self._count
             if self._preallocated:
@@ -227,11 +298,16 @@ class CircularFrameBuffer:
             return count
 
     def _is_full(self) -> bool:
-        """Verifica si el buffer está lleno"""
+        """Verifica si el buffer está lleno."""
         return self._count >= self.max_size
 
     def _handle_overflow(self):
-        """Maneja el overflow según la política configurada"""
+        """
+        Maneja el overflow según la política configurada.
+
+        Si drop_policy es 'oldest', elimina el frame más antiguo.
+        Si drop_policy es 'newest', no hace nada (descarta el nuevo).
+        """
         if self.drop_policy == "oldest":
             if self._preallocated:
                 old_frame = self._buffer[self._head]
@@ -245,25 +321,9 @@ class CircularFrameBuffer:
             self._metadata.popleft()
             self._count -= 1
 
-        elif self.drop_policy == "newest":
-            pass
-
-        elif self.drop_policy == "lowest_priority":
-            if self._preallocated:
-                old_frame = self._buffer[self._head]
-                self._memory_freed += old_frame.nbytes
-                old_frame.fill(0)
-                self._head = (self._head + 1) % self.max_size
-            else:
-                old_frame = self._buffer.popleft()
-                if old_frame is not None:
-                    self._memory_freed += old_frame.nbytes
-            self._metadata.popleft()
-            self._count -= 1
-
     def _update_status(self):
-        """Actualiza el estado del buffer"""
-        ratio = self._count / self.max_size
+        """Actualiza el estado del buffer basado en su ocupación."""
+        ratio = self._count / self.max_size if self.max_size > 0 else 0
 
         if self._count == 0:
             self._status = BufferStatus.EMPTY
@@ -280,7 +340,25 @@ class CircularFrameBuffer:
             self._last_watermark_time = current_time
 
     def get_stats(self) -> dict:
-        """Obtiene estadísticas del buffer"""
+        """
+        Obtiene estadísticas detalladas del buffer.
+
+        Returns:
+            dict: Diccionario con estadísticas del buffer incluyendo:
+                - size: Tamaño actual
+                - max_size: Tamaño máximo
+                - capacity_ratio: Ratio de uso
+                - status: Estado actual
+                - total_frames_received: Total de frames recibidos
+                - total_frames_dropped: Total de frames descartados
+                - drop_rate: Tasa de descarte
+                - overflow_count: Número de overflows
+                - avg_watermark: Nivel promedio de ocupación
+                - preallocated: Si usa memoria preasignada
+                - drop_policy: Política de descarte
+                - memory_freed_mb: Memoria liberada en MB
+                - total_memory_allocated_mb: Memoria total asignada en MB
+        """
         with self._lock:
             return {
                 "size": self._count,
@@ -301,20 +379,33 @@ class CircularFrameBuffer:
 
     @property
     def count(self) -> int:
+        """Número actual de frames en el buffer."""
         with self._lock:
             return self._count
 
     @property
     def is_empty(self) -> bool:
+        """Indica si el buffer está vacío."""
         with self._lock:
             return self._count == 0
 
     @property
     def is_full(self) -> bool:
+        """Indica si el buffer está lleno."""
         with self._lock:
             return self._count >= self.max_size
 
     @property
     def status(self) -> BufferStatus:
+        """Estado actual del buffer."""
         with self._lock:
             return self._status
+
+    def __len__(self) -> int:
+        """Retorna el número de frames en el buffer."""
+        with self._lock:
+            return self._count
+
+    def __bool__(self) -> bool:
+        """Indica si el buffer tiene frames."""
+        return self.count > 0
