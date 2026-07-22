@@ -6,6 +6,8 @@ de seguimiento de tráfico. Se recomienda usar el pipeline asíncrono para
 mejor rendimiento.
 """
 
+from __future__ import annotations
+
 import time
 from typing import Optional
 
@@ -21,6 +23,7 @@ from core.context_managers import VideoCaptureContext
 from utils.logger import LoggerMixin
 from utils.helpers import get_memory_usage, force_garbage_collection
 from core.pipeline.system_info import set_system_status
+from core.validators import validate_frame, ensure_valid_frame
 from core.constants import (
     MEMORY_CHECK_INTERVAL,
     GC_INTERVAL,
@@ -28,7 +31,7 @@ from core.constants import (
     TARGET_FPS,
     MIN_ACCEPTABLE_FPS
 )
-from core.validators import validate_frame, ensure_valid_frame
+
 
 
 class VehicleCountingPipeline(LoggerMixin):

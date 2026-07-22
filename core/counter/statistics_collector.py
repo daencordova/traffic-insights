@@ -4,6 +4,8 @@ Recolector de estadísticas de conteo.
 Maneja la recolección y cálculo de estadísticas de vehículos.
 """
 
+from __future__ import annotations
+
 import time
 from typing import Dict, Any, List
 from collections import defaultdict

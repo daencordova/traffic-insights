@@ -12,6 +12,8 @@ El matching jerárquico utiliza:
 5. Distancia espacial - Fallback
 """
 
+from __future__ import annotations
+
 import time
 from enum import Enum
 from typing import List, Tuple, Dict, Any, Optional

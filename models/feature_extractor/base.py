@@ -5,6 +5,8 @@ Coordina los diferentes backends y proporciona una interfaz
 unificada para la extracción de features.
 """
 
+from __future__ import annotations
+
 import time
 from typing import Optional, Dict, Any, Tuple
 from collections import deque

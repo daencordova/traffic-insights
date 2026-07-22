@@ -5,6 +5,8 @@ Proporciona funciones para validar detecciones individuales y listas,
 asegurando que cumplan con los requisitos del sistema.
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, List, Tuple
 from dataclasses import dataclass
 

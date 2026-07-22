@@ -18,6 +18,8 @@ El sistema MHT es especialmente útil en:
 - Condiciones de iluminación variables
 """
 
+from __future__ import annotations
+
 import time
 import threading
 from typing import Any, Dict, List, Optional, Tuple

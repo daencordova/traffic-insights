@@ -5,7 +5,9 @@ Proporciona funciones para validar bounding boxes y centroides,
 asegurando que cumplan con los requisitos del sistema.
 """
 
-from typing import Any, Tuple, List, Union, Optional
+from __future__ import annotations
+
+from typing import Any, Tuple, List, Optional
 
 import numpy as np
 

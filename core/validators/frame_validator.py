@@ -5,6 +5,8 @@ Proporciona funciones para validar la integridad y formato de los frames
 antes de su procesamiento en el pipeline.
 """
 
+from __future__ import annotations
+
 from typing import Optional, Tuple
 
 import numpy as np

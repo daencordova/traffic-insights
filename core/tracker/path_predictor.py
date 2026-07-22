@@ -13,6 +13,8 @@ El sistema combina:
 - Cuantificación de incertidumbre
 """
 
+from __future__ import annotations
+
 import time
 from typing import List, Tuple, Dict, Any, Optional
 

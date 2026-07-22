@@ -12,10 +12,11 @@ La fusión de sensores permite:
 - Tracking continuo incluso cuando un sensor falla
 """
 
+from __future__ import annotations
+
 import time
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any, Set
-from dataclasses import field
 from collections import deque
 
 import numpy as np
