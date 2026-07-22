@@ -13,6 +13,8 @@ El contador es responsable de:
 - Calcular métricas de tráfico
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, List, Set
 
 import numpy as np

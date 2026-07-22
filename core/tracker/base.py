@@ -15,6 +15,8 @@ todos los subsistemas de tracking:
 - MHTService: Multi-Hypothesis Tracking
 """
 
+from __future__ import annotations
+
 import time
 from typing import Any, Dict, List, Optional
 

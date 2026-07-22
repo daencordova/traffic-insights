@@ -12,6 +12,8 @@ El pipeline asíncrono utiliza un orquestador que coordina:
 - Monitoreo de rendimiento (MonitoringService)
 """
 
+from __future__ import annotations
+
 from typing import Optional, Callable
 
 from core.pipeline.orchestrator import PipelineOrchestrator

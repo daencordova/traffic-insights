@@ -5,7 +5,10 @@ Este módulo define los contratos que deben cumplir los componentes
 principales del sistema: detector, tracker, counter y pipeline.
 """
 
+from __future__ import annotations
+
 from typing import Any, Dict, List, Protocol, runtime_checkable
+
 import numpy as np
 
 

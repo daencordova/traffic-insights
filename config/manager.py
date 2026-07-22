@@ -9,6 +9,8 @@ Este módulo proporciona un gestor de configuración singleton que:
 - Guarda la configuración actual a archivo
 """
 
+from __future__ import annotations
+
 import os
 import yaml
 import logging

@@ -2,6 +2,8 @@
 Estado de un track para el sistema de tracking
 """
 
+from __future__ import annotations
+
 from typing import Optional, Tuple, Dict, Any, Deque
 from collections import deque
 

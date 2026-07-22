@@ -13,6 +13,8 @@ El detector soporta:
 - Exportación automática a ONNX
 """
 
+from __future__ import annotations
+
 import time
 from typing import Any, Dict, List, Optional, Tuple
 

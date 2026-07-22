@@ -9,6 +9,8 @@ del dominio heredan de VehicleCountingError, permitiendo capturar
 cualquier error del sistema de forma consistente.
 """
 
+from __future__ import annotations
+
 from typing import Optional, Dict, Any
 
 

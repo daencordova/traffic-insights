@@ -9,6 +9,8 @@ Este módulo proporciona un sistema de logging avanzado que soporta:
 - Mixin para fácil integración en clases
 """
 
+from __future__ import annotations
+
 import sys
 import json
 import logging

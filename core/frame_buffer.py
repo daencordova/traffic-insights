@@ -6,6 +6,8 @@ frames de video con metadatos asociados, optimizado para uso en
 pipelines de visión por computador.
 """
 
+from __future__ import annotations
+
 import time
 import threading
 from enum import Enum, auto
