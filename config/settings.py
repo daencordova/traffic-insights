@@ -124,6 +124,20 @@ class TrackerConfig(BaseModel):
     )
     prediction_uncertainty_threshold: float = Field(0.7, ge=0.0, le=1.0, description="Umbral de incertidumbre")
 
+    max_search_radius: float = Field(
+        150.0,
+        ge=30.0,
+        le=500.0,
+        description="Radio máximo para búsqueda de tracks cercanos en píxeles. "
+                    "Valores más bajos = más rápido pero puede perder matches."
+    )
+    tree_update_interval: float = Field(
+        0.5,
+        ge=0.1,
+        le=2.0,
+        description="Intervalo de actualización del KD-Tree en segundos."
+    )
+
     @field_validator('mht_max_depth')
     def validate_mht_depth(cls, v, info):
         """Valida que mht_max_depth sea >= 2 si MHT está activo."""

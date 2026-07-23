@@ -140,12 +140,19 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         """Inicializa los sistemas de matching."""
         self.reid_system = self._init_reid_system()
 
+        max_search_radius = getattr(
+            self.config,
+            "max_search_radius",
+            150.0
+        )
+
         self.track_matcher = TrackMatcher(
             matcher=None,
             reid_system=self.reid_system,
             iou_threshold=self.config.iou_threshold,
             feature_threshold=self.config.feature_threshold,
-            spatial_threshold=self.config.max_distance
+            spatial_threshold=self.config.max_distance,
+            max_search_radius=max_search_radius,
         )
 
     def _init_advanced_features(self) -> None:

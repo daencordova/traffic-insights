@@ -52,6 +52,7 @@ class TrackMatcher(LoggerMixin):
         iou_threshold: float = 0.3,
         feature_threshold: float = 0.6,
         spatial_threshold: float = 50.0,
+        max_search_radius: float = 150.0,
     ):
         self.matcher = matcher
         self.reid_system = reid_system
@@ -67,6 +68,22 @@ class TrackMatcher(LoggerMixin):
             "unmatched_detections": 0,
             "unmatched_tracks": 0,
         }
+
+        if matcher is None:
+            from config.manager import config_manager
+            config = config_manager.config
+            max_search_radius = getattr(
+                config.tracker,
+                "max_search_radius",
+                150.0
+            )
+
+            self.matcher = TMatcher(
+                iou_threshold=iou_threshold,
+                feature_threshold=feature_threshold,
+                spatial_threshold=spatial_threshold,
+                max_search_radius=max_search_radius,
+            )
 
         self.logger.info(
             "TrackMatcher inicializado",

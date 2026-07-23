@@ -21,6 +21,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+from scipy.spatial import KDTree
 
 from utils.geometry import calculate_iou
 from utils.logger import LoggerMixin
@@ -115,9 +116,10 @@ class TrackMatcher(LoggerMixin):
         shape_threshold: float = TRACK_VALIDATION_SHAPE_THRESHOLD,
         spatial_threshold: float = MAX_MATCH_DISTANCE,
         enable_adaptive_thresholds: bool = True,
+        max_search_radius: float = 150.0,
     ):
         """
-        Inicializa el matcher jerárquico.
+        Inicializa el matcher jerárquico con poda espacial.
 
         Args:
             iou_threshold: Umbral de IoU (0-1).
@@ -126,28 +128,291 @@ class TrackMatcher(LoggerMixin):
             shape_threshold: Umbral de similitud de forma (0-1).
             spatial_threshold: Umbral de distancia espacial (píxeles).
             enable_adaptive_thresholds: Ajustar umbrales automáticamente.
+            max_search_radius: Radio máximo para búsqueda de tracks cercanos.
         """
         self.iou_threshold = iou_threshold
         self.feature_threshold = feature_threshold
         self.motion_threshold = motion_threshold
         self.shape_threshold = shape_threshold
         self.spatial_threshold = spatial_threshold
+        self.max_search_radius = max_search_radius
         self.enable_adaptive_thresholds = enable_adaptive_thresholds
 
         self._match_stats = {
-            MatchLevel.IOU: {"success": 0, "total": 0},
+            MatchLevel.IOU: {"success": 0, "total": 0, "filtered_by_distance": 0},
             MatchLevel.FEATURE: {"success": 0, "total": 0},
             MatchLevel.MOTION: {"success": 0, "total": 0},
             MatchLevel.SHAPE: {"success": 0, "total": 0},
             MatchLevel.SPATIAL: {"success": 0, "total": 0},
         }
 
+        self._kd_tree = None
+        self._track_centroids = None
+        self._last_update_time = 0
+        self._tree_update_interval = 0.5
+
         self.logger.info(
-            "TrackMatcher inicializado",
+            "TrackMatcher optimizado inicializado",
             iou_threshold=iou_threshold,
-            feature_threshold=feature_threshold,
+            max_search_radius=max_search_radius,
             adaptive_thresholds=enable_adaptive_thresholds
         )
+
+    def _iou_matching(
+        self,
+        detections: List[Dict[str, Any]],
+        tracks: List[Any]
+    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
+        """
+        Matching basado en IoU con poda espacial usando KD-Tree.
+
+        Esta versión optimizada reduce drásticamente el número de cálculos
+        de IoU al filtrar tracks que están demasiado lejos de cada detección.
+
+        Args:
+            detections: Lista de detecciones.
+            tracks: Lista de tracks.
+
+        Returns:
+            Tuple: (matches, unmatched_dets, unmatched_tracks)
+        """
+        n_dets = len(detections)
+        n_trks = len(tracks)
+
+        if n_dets == 0 or n_trks == 0:
+            return [], list(range(n_dets)), list(range(n_trks))
+
+        det_centroids = self._extract_detection_centroids(detections)
+        trk_centroids = self._extract_track_centroids(tracks)
+
+        if len(det_centroids) == 0 or len(trk_centroids) == 0:
+            return [], list(range(n_dets)), list(range(n_trks))
+
+        self._update_kd_tree(tracks, trk_centroids)
+
+        iou_matrix = np.zeros((n_dets, n_trks), dtype=np.float32)
+        candidates_count = 0
+        total_pairs = n_dets * n_trks
+
+        for i, det_centroid in enumerate(det_centroids):
+            if self._kd_tree is None:
+                continue
+
+            indices = self._kd_tree.query_ball_point(
+                det_centroid,
+                self.max_search_radius
+            )
+
+            if not indices:
+                self._match_stats[MatchLevel.IOU]["filtered_by_distance"] += 1
+                continue
+
+            candidates_count += len(indices)
+            det_box = detections[i].get("box")
+
+            if det_box is None:
+                continue
+
+            for j in indices:
+                if j >= len(tracks):
+                    continue
+
+                trk_box = tracks[j].bbox
+                if trk_box is None:
+                    continue
+
+                iou = calculate_iou(det_box, trk_box)
+
+                if iou > self.iou_threshold:
+                    iou_matrix[i, j] = float(iou)
+
+        if n_dets > 0:
+            avg_candidates = candidates_count / n_dets
+            reduction = (1 - candidates_count / max(1, total_pairs)) * 100
+            self.logger.debug(
+                "Poda espacial aplicada",
+                total_pairs=total_pairs,
+                candidates=candidates_count,
+                reduction=f"{reduction:.1f}%",
+                avg_candidates=f"{avg_candidates:.1f}"
+            )
+
+        row_indices, col_indices = linear_sum_assignment(-iou_matrix)
+
+        matches = []
+        unmatched_dets = list(range(n_dets))
+        unmatched_trks = list(range(n_trks))
+
+        for row, col in zip(row_indices, col_indices):
+            if iou_matrix[row, col] > 0:
+                matches.append((row, col))
+                if row in unmatched_dets:
+                    unmatched_dets.remove(row)
+                if col in unmatched_trks:
+                    unmatched_trks.remove(col)
+
+        self._match_stats[MatchLevel.IOU]["success"] += len(matches)
+        self._match_stats[MatchLevel.IOU]["total"] += 1
+
+        return matches, unmatched_dets, unmatched_trks
+
+    def _update_kd_tree(self, tracks: List[Any], centroids: List[Tuple[float, float]]) -> None:
+        """
+        Actualiza el KD-Tree con los centroides actuales de los tracks.
+
+        Args:
+            tracks: Lista de tracks.
+            centroids: Lista de centroides correspondientes.
+        """
+        current_time = time.time()
+
+        if (
+            self._kd_tree is not None
+            and current_time - self._last_update_time < self._tree_update_interval
+            and len(self._track_centroids) == len(centroids)
+        ):
+            return
+
+        if not centroids:
+            self._kd_tree = None
+            self._track_centroids = None
+            return
+
+        try:
+            trk_array = np.array(centroids, dtype=np.float32)
+
+            if np.any(np.isnan(trk_array)) or np.any(np.isinf(trk_array)):
+                self.logger.warning("Centroides inválidos detectados, reconstruyendo...")
+                trk_array = np.nan_to_num(trk_array, nan=0.0, posinf=0.0, neginf=0.0)
+
+            self._kd_tree = KDTree(trk_array)
+            self._track_centroids = trk_array
+            self._last_update_time = current_time
+
+            self.logger.debug(
+                "KD-Tree actualizado",
+                tracks=len(centroids),
+                update_interval=self._tree_update_interval
+            )
+
+        except Exception as e:
+            self.logger.warning(f"Error actualizando KD-Tree: {e}")
+            self._kd_tree = None
+            self._track_centroids = None
+
+    def _extract_detection_centroids(
+        self,
+        detections: List[Dict[str, Any]]
+    ) -> List[Tuple[float, float]]:
+        """
+        Extrae centroides de detecciones de forma segura.
+
+        Args:
+            detections: Lista de detecciones.
+
+        Returns:
+            List[Tuple[float, float]]: Lista de centroides.
+        """
+        centroids = []
+
+        for det in detections:
+            centroid = det.get("centroid")
+
+            if centroid is None:
+                bbox = det.get("box")
+                if bbox and len(bbox) == 4:
+                    x1, y1, x2, y2 = bbox
+                    centroid = ((x1 + x2) / 2, (y1 + y2) / 2)
+                    det["centroid"] = centroid
+
+            if centroid is not None:
+                try:
+                    x, y = centroid
+                    if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                        centroids.append((float(x), float(y)))
+                except (TypeError, ValueError):
+                    continue
+
+        return centroids
+
+    def _extract_track_centroids(
+        self,
+        tracks: List[Any]
+    ) -> List[Tuple[float, float]]:
+        """
+        Extrae centroides de tracks de forma segura.
+
+        Args:
+            tracks: Lista de tracks.
+
+        Returns:
+            List[Tuple[float, float]]: Lista de centroides.
+        """
+        centroids = []
+
+        for track in tracks:
+            if hasattr(track, 'centroid') and track.centroid is not None:
+                try:
+                    x, y = track.centroid
+                    if isinstance(x, (int, float)) and isinstance(y, (int, float)):
+                        centroids.append((float(x), float(y)))
+                except (TypeError, ValueError):
+                    continue
+
+        return centroids
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Obtiene estadísticas del matcher incluyendo métricas de optimización.
+
+        Returns:
+            Dict[str, Any]: Estadísticas por nivel de matching.
+        """
+        iou_stats = self._match_stats[MatchLevel.IOU]
+        total_iou_pairs = iou_stats.get("total", 1)
+        filtered = iou_stats.get("filtered_by_distance", 0)
+
+        return {
+            MatchLevel.IOU.value: {
+                "success_rate": iou_stats["success"] / max(1, iou_stats["total"]),
+                "total_attempts": iou_stats["total"],
+                "successful_matches": iou_stats["success"],
+                "filtered_by_distance": filtered,
+                "filter_rate": filtered / max(1, total_iou_pairs) * 100,
+            },
+            MatchLevel.FEATURE.value: {
+                "success_rate": self._match_stats[MatchLevel.FEATURE]["success"] / max(1, self._match_stats[MatchLevel.FEATURE]["total"]),
+                "total_attempts": self._match_stats[MatchLevel.FEATURE]["total"],
+                "successful_matches": self._match_stats[MatchLevel.FEATURE]["success"],
+            },
+            MatchLevel.MOTION.value: {
+                "success_rate": self._match_stats[MatchLevel.MOTION]["success"] / max(1, self._match_stats[MatchLevel.MOTION]["total"]),
+                "total_attempts": self._match_stats[MatchLevel.MOTION]["total"],
+                "successful_matches": self._match_stats[MatchLevel.MOTION]["success"],
+            },
+            MatchLevel.SHAPE.value: {
+                "success_rate": self._match_stats[MatchLevel.SHAPE]["success"] / max(1, self._match_stats[MatchLevel.SHAPE]["total"]),
+                "total_attempts": self._match_stats[MatchLevel.SHAPE]["total"],
+                "successful_matches": self._match_stats[MatchLevel.SHAPE]["success"],
+            },
+            MatchLevel.SPATIAL.value: {
+                "success_rate": self._match_stats[MatchLevel.SPATIAL]["success"] / max(1, self._match_stats[MatchLevel.SPATIAL]["total"]),
+                "total_attempts": self._match_stats[MatchLevel.SPATIAL]["total"],
+                "successful_matches": self._match_stats[MatchLevel.SPATIAL]["success"],
+            },
+            "optimization": {
+                "max_search_radius": self.max_search_radius,
+                "tree_update_interval": self._tree_update_interval,
+                "tree_active": self._kd_tree is not None,
+                "track_centroids_cached": len(self._track_centroids) if self._track_centroids is not None else 0,
+            }
+        }
+
+    def reset_stats(self) -> None:
+        """Reinicia las estadísticas del matcher."""
+        for level in self._match_stats:
+            self._match_stats[level] = {"success": 0, "total": 0, "filtered_by_distance": 0}
+        self.logger.debug("Estadísticas del matcher reiniciadas")
 
     def match(
         self,
@@ -853,19 +1118,3 @@ class TrackMatcher(LoggerMixin):
                     speeds.append(speed)
 
         return float(np.mean(speeds)) if speeds else 0.0
-
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del matcher.
-
-        Returns:
-            Dict[str, Any]: Estadísticas por nivel de matching.
-        """
-        return {
-            level.value: {
-                "success_rate": stats["success"] / max(1, stats["total"]),
-                "total_attempts": stats["total"],
-                "successful_matches": stats["success"],
-            }
-            for level, stats in self._match_stats.items()
-        }

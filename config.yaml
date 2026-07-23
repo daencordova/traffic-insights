@@ -68,6 +68,9 @@ tracker:
   prediction_motion_model: "adaptive"
   prediction_uncertainty_threshold: 0.7
 
+  max_search_radius: 150.0
+  tree_update_interval: 0.5
+
 lanes:
   enable_detection: false
   enable_auto_calibration: true
