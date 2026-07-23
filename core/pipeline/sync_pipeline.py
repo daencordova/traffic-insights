@@ -61,6 +61,14 @@ class SyncPipeline(LoggerMixin):
         self.config = config_manager.config
         self.logger.info("Inicializando SyncPipeline")
 
+        self._init_components()
+        self._init_state()
+        self._print_startup_info()
+
+        self.logger.info("Pipeline inicializado")
+
+    def _init_components(self) -> None:
+        """Inicializa los componentes del pipeline."""
         use_optimized = getattr(
             self.config.optimization,
             "use_optimized_detector",
@@ -90,6 +98,8 @@ class SyncPipeline(LoggerMixin):
         self.renderer.set_pipeline_reference(self)
         self.controls.register_callback("on_reset", self._reset_system)
 
+    def _init_state(self) -> None:
+        """Inicializa el estado del pipeline."""
         self.is_running = False
         self.is_paused = False
         self.fps = 0.0
@@ -104,10 +114,6 @@ class SyncPipeline(LoggerMixin):
         self._last_valid_frame = None
         self._consecutive_errors = 0
         self._max_consecutive_errors = 5
-
-        self._print_startup_info()
-        self.logger.info("Pipeline inicializado")
-
 
     def run(self, source: Optional[str] = None) -> None:
         """
@@ -128,72 +134,13 @@ class SyncPipeline(LoggerMixin):
                 reconnect_delay=self.config.camera.reconnect_delay,
             ) as capture:
 
-                if not capture.is_opened():
-                    raise RuntimeError(f"No se pudo abrir la fuente: {source}")
-
-                if not self._verify_capture(capture):
-                    raise RuntimeError("Verificación de captura fallida")
-
-                self.logger.info("✅ Fuente verificada correctamente")
-                self.logger.info("\n🔄 Procesando... Presiona 'q' para salir\n")
+                if not self._initialize_capture(capture, source):
+                    return
 
                 self.is_running = True
                 self._start_time = time.time()
 
-                while self.is_running:
-                    try:
-                        self._check_memory()
-
-                        if self.controls.is_paused:
-                            self._handle_paused_state(capture)
-                            continue
-
-                        ret, frame = capture.read()
-                        if not ret:
-                            self._handle_read_error(capture)
-                            continue
-
-                        if not self._validate_frame(frame):
-                            self.logger.debug("Frame inválido, saltando...")
-                            self._show_error_frame("Frame inválido")
-                            continue
-
-                        try:
-                            processed = self.process_frame(frame)
-                        except Exception as e:
-                            self.logger.error(f"Error procesando frame: {e}", exc_info=True)
-                            self._show_error_frame(f"Error: {str(e)[:30]}")
-                            self._consecutive_errors += 1
-
-                            if self._consecutive_errors > self._max_consecutive_errors:
-                                self.logger.error("Demasiados errores consecutivos, deteniendo...")
-                                break
-
-                            time.sleep(0.05)
-                            continue
-
-                        self._consecutive_errors = 0
-
-                        if processed is not None and self._validate_frame(processed):
-                            self._display_frame(processed)
-                        else:
-                            self._display_fallback_frame()
-
-                        key = cv2.waitKey(1) & 0xFF
-                        if not self.controls.process_key(key):
-                            self.is_running = False
-                            break
-
-                        self._update_fps()
-
-                    except KeyboardInterrupt:
-                        self.logger.info("Interrupción por usuario")
-                        print("\n⏹️ Interrupción recibida")
-                        break
-                    except Exception as e:
-                        self.logger.error(f"Error en bucle principal: {e}", exc_info=True)
-                        time.sleep(0.1)
-                        continue
+                self._run_main_loop(capture)
 
         except KeyboardInterrupt:
             self.logger.info("Interrupción por usuario")
@@ -204,6 +151,173 @@ class SyncPipeline(LoggerMixin):
         finally:
             self._cleanup()
 
+    def _run_main_loop(self, capture: VideoCaptureContext) -> None:
+        """
+        Bucle principal de procesamiento.
+
+        Args:
+            capture: Contexto de captura de video
+        """
+        self.logger.info("\n🔄 Procesando... Presiona 'q' para salir\n")
+
+        while self.is_running:
+            try:
+                self._check_memory()
+
+                if self.controls.is_paused:
+                    self._handle_paused_state(capture)
+                    continue
+
+                frame = self._read_frame_safely(capture)
+                if frame is None:
+                    continue
+
+                processed = self._process_frame_safely(frame)
+
+                self._display_frame_safely(processed)
+
+                if not self._handle_keyboard():
+                    self.is_running = False
+                    break
+
+                self._update_fps()
+
+            except KeyboardInterrupt:
+                self.logger.info("Interrupción por usuario")
+                print("\n⏹️ Interrupción recibida")
+                break
+            except Exception as e:
+                self.logger.error(f"Error en bucle principal: {e}", exc_info=True)
+                time.sleep(0.1)
+                continue
+
+    def _initialize_capture(self, capture: VideoCaptureContext, source: str) -> bool:
+        """
+        Inicializa y verifica la captura.
+
+        Args:
+            capture: Contexto de captura
+            source: Fuente de video
+
+        Returns:
+            bool: True si la inicialización fue exitosa
+        """
+        if not capture.is_opened():
+            self.logger.error(f"No se pudo abrir la fuente: {source}")
+            return False
+
+        if not self._verify_capture(capture):
+            self.logger.error("Verificación de captura fallida")
+            return False
+
+        self.logger.info("✅ Fuente verificada correctamente")
+        return True
+
+    def _read_frame_safely(self, capture: VideoCaptureContext) -> Optional[np.ndarray]:
+        """
+        Lee un frame de la captura con manejo de errores.
+
+        Args:
+            capture: Contexto de captura
+
+        Returns:
+            Optional[np.ndarray]: Frame leído o None si hay error
+        """
+        ret, frame = capture.read()
+
+        if not ret:
+            self._handle_read_error(capture)
+            self._show_error_frame("Error leyendo frame")
+            return None
+
+        if not self._validate_frame(frame):
+            self.logger.debug("Frame inválido, saltando...")
+            self._show_error_frame("Frame inválido")
+            return None
+
+        return frame
+
+    def _verify_capture(self, capture: VideoCaptureContext) -> bool:
+        """
+        Verifica que la captura funcione correctamente.
+
+        Args:
+            capture: Contexto de captura
+
+        Returns:
+            bool: True si la verificación fue exitosa
+        """
+        self.logger.debug("Verificando captura...")
+
+        ret, test_frame = capture.read()
+        if not ret or test_frame is None:
+            self.logger.error("No se pudo leer frame de prueba")
+            return False
+
+        if not self._validate_frame(test_frame):
+            self.logger.error("Frame de prueba inválido")
+            return False
+
+        fps = capture.get_fps()
+        if fps > 0:
+            self.logger.debug(f"FPS de fuente: {fps:.1f}")
+
+        return True
+
+    def _handle_read_error(self, capture: VideoCaptureContext) -> None:
+        """
+        Maneja errores de lectura de frames con reconexión.
+
+        Args:
+            capture: Contexto de captura
+        """
+        self.logger.warning("Error leyendo frame, intentando recuperar...")
+
+        for attempt in range(self.MAX_RECONNECT_ATTEMPTS):
+            try:
+                time.sleep(self.RECONNECT_DELAY)
+                ret, frame = capture.read()
+                if ret and frame is not None and self._validate_frame(frame):
+                    self.logger.info(f"Frame recuperado en intento {attempt + 1}")
+                    return
+            except Exception:
+                pass
+
+        self.logger.warning("Reconectando a la fuente...")
+        try:
+            if capture.reconnect():
+                self.logger.info("Reconexión exitosa")
+                for _ in range(3):
+                    capture.read()
+                return
+        except Exception as e:
+            self.logger.error(f"Error en reconexión: {e}")
+
+        self.logger.error("No se pudo recuperar la fuente")
+
+    def _process_frame_safely(self, frame: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Procesa un frame con manejo de errores.
+
+        Args:
+            frame: Frame a procesar
+
+        Returns:
+            Optional[np.ndarray]: Frame procesado o None si hay error
+        """
+        try:
+            return self.process_frame(frame)
+        except Exception as e:
+            self.logger.error(f"Error procesando frame: {e}", exc_info=True)
+            self._show_error_frame(f"Error: {str(e)[:30]}")
+            self._consecutive_errors += 1
+
+            if self._consecutive_errors > self._max_consecutive_errors:
+                self.logger.error("Demasiados errores consecutivos, deteniendo...")
+                self.is_running = False
+
+            time.sleep(0.05)
+            return None
 
     def process_frame(self, frame: np.ndarray) -> Optional[np.ndarray]:
         """
@@ -327,38 +441,19 @@ class SyncPipeline(LoggerMixin):
                 pass
             return result
 
-
-    def _validate_frame(self, frame: np.ndarray) -> bool:
-        """Valida que el frame sea válido."""
-        return validate_frame(frame, min_width=10, min_height=10)
-
-    def _verify_capture(self, capture: VideoCaptureContext) -> bool:
+    def _display_frame_safely(self, processed: Optional[np.ndarray]) -> None:
         """
-        Verifica que la captura funcione correctamente.
+        Muestra un frame procesado con manejo de errores.
 
         Args:
-            capture: Contexto de captura
-
-        Returns:
-            bool: True si la verificación fue exitosa
+            processed: Frame procesado a mostrar
         """
-        self.logger.debug("Verificando captura...")
+        self._consecutive_errors = 0
 
-        ret, test_frame = capture.read()
-        if not ret or test_frame is None:
-            self.logger.error("No se pudo leer frame de prueba")
-            return False
-
-        if not self._validate_frame(test_frame):
-            self.logger.error("Frame de prueba inválido")
-            return False
-
-        fps = capture.get_fps()
-        if fps > 0:
-            self.logger.debug(f"FPS de fuente: {fps:.1f}")
-
-        return True
-
+        if processed is not None and self._validate_frame(processed):
+            self._display_frame(processed)
+        else:
+            self._display_fallback_frame()
 
     def _display_frame(self, frame: np.ndarray) -> None:
         """
@@ -442,7 +537,6 @@ class SyncPipeline(LoggerMixin):
         except Exception as e:
             self.logger.debug(f"Error mostrando frame de error: {e}")
 
-
     def _handle_paused_state(self, capture: VideoCaptureContext) -> None:
         """
         Maneja el estado de pausa.
@@ -452,75 +546,117 @@ class SyncPipeline(LoggerMixin):
         """
         if self._last_valid_frame is not None:
             try:
-                pause_frame = self._last_valid_frame.copy()
-                overlay = pause_frame.copy()
-                h, w = pause_frame.shape[:2]
-
-                cv2.rectangle(
-                    overlay,
-                    (w//4, h//3),
-                    (3*w//4, 2*h//3),
-                    (0, 0, 0),
-                    -1
-                )
-                cv2.addWeighted(overlay, 0.5, pause_frame, 0.5, 0, pause_frame)
-
-                cv2.putText(
-                    pause_frame,
-                    "PAUSADO",
-                    (w//2 - 80, h//2 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1.2,
-                    (0, 255, 255),
-                    3
-                )
-                cv2.putText(
-                    pause_frame,
-                    "Presiona ESPACIO para reanudar",
-                    (w//2 - 120, h//2 + 40),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (255, 255, 255),
-                    2
-                )
-
-                cv2.imshow(WINDOW_NAME, pause_frame)
+                self._render_pause_overlay()
             except Exception as e:
                 self.logger.debug(f"Error mostrando pausa: {e}")
 
         key = cv2.waitKey(50) & 0xFF
         self.controls.process_key(key)
 
-    def _handle_read_error(self, capture: VideoCaptureContext) -> None:
+    def _render_pause_overlay(self) -> None:
+        """Renderiza el overlay de pausa sobre el último frame válido."""
+        pause_frame = self._last_valid_frame.copy()
+        h, w = pause_frame.shape[:2]
+
+        overlay = pause_frame.copy()
+        cv2.rectangle(
+            overlay,
+            (w//4, h//3),
+            (3*w//4, 2*h//3),
+            (0, 0, 0),
+            -1
+        )
+        cv2.addWeighted(overlay, 0.5, pause_frame, 0.5, 0, pause_frame)
+
+        cv2.putText(
+            pause_frame,
+            "PAUSADO",
+            (w//2 - 80, h//2 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.2,
+            (0, 255, 255),
+            3
+        )
+        cv2.putText(
+            pause_frame,
+            "Presiona ESPACIO para reanudar",
+            (w//2 - 120, h//2 + 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2
+        )
+
+        cv2.imshow(WINDOW_NAME, pause_frame)
+
+    def _handle_keyboard(self) -> bool:
         """
-        Maneja errores de lectura de frames.
+        Maneja las teclas presionadas.
+
+        Returns:
+            bool: True si el sistema debe continuar ejecutándose
+        """
+        key = cv2.waitKey(1) & 0xFF
+        return self.controls.process_key(key)
+
+    def _validate_frame(self, frame: np.ndarray) -> bool:
+        """
+        Valida que el frame sea válido.
 
         Args:
-            capture: Contexto de captura
-        """
-        self.logger.warning("Error leyendo frame, intentando recuperar...")
+            frame: Frame a validar
 
-        for attempt in range(self.MAX_RECONNECT_ATTEMPTS):
+        Returns:
+            bool: True si el frame es válido
+        """
+        return validate_frame(frame, min_width=10, min_height=10)
+
+    def _check_memory(self) -> None:
+        """
+        Verifica el uso de memoria y realiza limpieza si es necesario.
+        """
+        current_time = time.time()
+
+        if current_time - self._last_memory_check >= MEMORY_CHECK_INTERVAL:
+            self._last_memory_check = current_time
+            self._perform_memory_check()
+
+        if current_time - self._last_gc_time >= GC_INTERVAL:
+            self._last_gc_time = current_time
             try:
-                time.sleep(self.RECONNECT_DELAY)
-                ret, frame = capture.read()
-                if ret and frame is not None and self._validate_frame(frame):
-                    self.logger.info(f"Frame recuperado en intento {attempt + 1}")
-                    return
+                import gc
+                gc.collect()
             except Exception:
                 pass
 
-        self.logger.warning("Reconectando a la fuente...")
+    def _perform_memory_check(self) -> None:
+        """Realiza la verificación de memoria y limpieza."""
         try:
-            if capture.reconnect():
-                self.logger.info("Reconexión exitosa")
-                for _ in range(3):
-                    capture.read()
-                return
-        except Exception as e:
-            self.logger.error(f"Error en reconexión: {e}")
+            mem = get_memory_usage()
+            mem_percent = mem.get("percent", 0)
 
-        self.logger.error("No se pudo recuperar la fuente")
+            if mem_percent > 75:
+                self.logger.warning(
+                    f"Memoria alta: {mem_percent:.1f}%, limpiando..."
+                )
+                self._cleanup_memory()
+
+                if mem_percent > 85:
+                    self.logger.warning("Memoria crítica, limpieza agresiva")
+                    import gc
+                    gc.collect()
+                    force_garbage_collection()
+
+        except Exception as e:
+            self.logger.debug(f"Error verificando memoria: {e}")
+
+    def _cleanup_memory(self) -> None:
+        """Limpia la memoria del detector y recolecta basura."""
+        try:
+            self.detector.clear_cache()
+        except Exception:
+            pass
+        force_garbage_collection()
 
     def _update_system_status(self) -> None:
         """Actualiza el estado del sistema para el dashboard."""
@@ -532,7 +668,6 @@ class SyncPipeline(LoggerMixin):
         else:
             set_system_status("STOPPED")
 
-
     def _update_fps(self) -> None:
         """Actualiza el contador de FPS."""
         self._fps_counter += 1
@@ -540,77 +675,6 @@ class SyncPipeline(LoggerMixin):
             self.fps = self._fps_counter
             self._fps_counter = 0
             self._fps_timer = time.time()
-
-    def _check_memory(self) -> None:
-        """Verifica el uso de memoria y realiza limpieza si es necesario."""
-        current_time = time.time()
-
-        if current_time - self._last_memory_check >= MEMORY_CHECK_INTERVAL:
-            self._last_memory_check = current_time
-
-            try:
-                mem = get_memory_usage()
-                mem_percent = mem.get("percent", 0)
-
-                if mem_percent > 75:
-                    self.logger.warning(
-                        f"Memoria alta: {mem_percent:.1f}%, limpiando..."
-                    )
-                    try:
-                        self.detector.clear_cache()
-                    except Exception:
-                        pass
-                    force_garbage_collection()
-
-                    if mem_percent > 85:
-                        self.logger.warning("Memoria crítica, limpieza agresiva")
-                        import gc
-                        gc.collect()
-                        force_garbage_collection()
-            except Exception as e:
-                self.logger.debug(f"Error verificando memoria: {e}")
-
-        if current_time - self._last_gc_time >= GC_INTERVAL:
-            self._last_gc_time = current_time
-            try:
-                import gc
-                gc.collect()
-            except Exception:
-                pass
-
-
-    def _cleanup(self) -> None:
-        """Limpieza de recursos al finalizar."""
-        self.is_running = False
-
-        try:
-            cv2.destroyAllWindows()
-        except Exception as e:
-            self.logger.debug(f"Error cerrando ventanas: {e}")
-
-        try:
-            self.detector.clear_cache()
-        except Exception as e:
-            self.logger.debug(f"Error limpiando caché del detector: {e}")
-
-        try:
-            self.tracker.reset()
-        except Exception as e:
-            self.logger.debug(f"Error reiniciando tracker: {e}")
-
-        try:
-            force_garbage_collection()
-        except Exception:
-            pass
-
-        runtime = time.time() - self._start_time
-        self.logger.info(
-            "Pipeline detenido",
-            runtime_seconds=f"{runtime:.1f}",
-            frames=self.frame_count,
-            fps=self.fps
-        )
-        self._print_final_report()
 
     def _reset_system(self) -> None:
         """Reinicia el sistema."""
@@ -632,6 +696,52 @@ class SyncPipeline(LoggerMixin):
         self._consecutive_errors = 0
 
         self.logger.info("Sistema reiniciado")
+
+    def _cleanup(self) -> None:
+        """Limpieza de recursos al finalizar."""
+        self.is_running = False
+
+        self._close_windows()
+        self._clear_detector_cache()
+        self._reset_tracker()
+        self._force_garbage_collection()
+
+        runtime = time.time() - self._start_time
+        self.logger.info(
+            "Pipeline detenido",
+            runtime_seconds=f"{runtime:.1f}",
+            frames=self.frame_count,
+            fps=self.fps
+        )
+        self._print_final_report()
+
+    def _close_windows(self) -> None:
+        """Cierra las ventanas de OpenCV."""
+        try:
+            cv2.destroyAllWindows()
+        except Exception as e:
+            self.logger.debug(f"Error cerrando ventanas: {e}")
+
+    def _clear_detector_cache(self) -> None:
+        """Limpia el caché del detector."""
+        try:
+            self.detector.clear_cache()
+        except Exception as e:
+            self.logger.debug(f"Error limpiando caché del detector: {e}")
+
+    def _reset_tracker(self) -> None:
+        """Reinicia el tracker."""
+        try:
+            self.tracker.reset()
+        except Exception as e:
+            self.logger.debug(f"Error reiniciando tracker: {e}")
+
+    def _force_garbage_collection(self) -> None:
+        """Fuerza la recolección de basura."""
+        try:
+            force_garbage_collection()
+        except Exception:
+            pass
 
     def pause(self) -> None:
         """Pausa la ejecución."""
@@ -701,7 +811,6 @@ class SyncPipeline(LoggerMixin):
                 self.logger.info(f"   {cls_name}: {count}")
 
         self.logger.info("=" * 60)
-
 
     def __del__(self) -> None:
         """Limpieza de recursos al destruir el pipeline."""
