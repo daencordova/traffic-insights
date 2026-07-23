@@ -1,6 +1,6 @@
 model:
   model_path: "yolov8n.pt"
-  confidence_threshold: 0.35
+  confidence_threshold: 0.5
   iou_threshold: 0.45
   vehicle_classes: [2, 3, 5, 7]
   device: "cpu"

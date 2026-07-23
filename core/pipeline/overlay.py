@@ -17,6 +17,8 @@ import cv2
 import numpy as np
 
 from utils.logger import LoggerMixin
+from core.validators import ensure_valid_frame
+from utils.color_manager import get_color_manager
 from core.constants import (
     FONT_SCALE,
     LINE_THICKNESS,
@@ -32,7 +34,6 @@ from core.constants import (
     PREDICTION_POINT_RADIUS_MIN,
     PREDICTION_POINT_RADIUS_MAX,
 )
-from core.validators import ensure_valid_frame
 
 
 class OverlayRenderer(LoggerMixin):
@@ -68,6 +69,7 @@ class OverlayRenderer(LoggerMixin):
         'show_track_confidence',
         'track_circle_style',
         '_default_frame_size',
+        '_color_manager',
     )
 
     STATUS_COLORS = {
@@ -121,6 +123,8 @@ class OverlayRenderer(LoggerMixin):
             self._config.camera.width,
             self._config.camera.height
         )
+
+        self._color_manager = get_color_manager()
 
         self.logger.info(
             "OverlayRenderer mejorado inicializado",
@@ -726,6 +730,9 @@ class OverlayRenderer(LoggerMixin):
 
         h, w = frame.shape[:2]
 
+        track_ids = list(tracks.keys())
+        colors = self._color_manager.get_colors_for_tracks(track_ids)
+
         for track_id, track_data in tracks.items():
             try:
                 if not isinstance(track_data, dict):
@@ -739,17 +746,21 @@ class OverlayRenderer(LoggerMixin):
                 if cx is None or cy is None:
                     continue
 
+                color = colors.get(track_id, (0, 255, 0))
+
                 status = track_data.get("status", "")
-                color, status_icon, _ = self._get_enhanced_status_info(status)
+                status_color, status_icon, _ = self._get_enhanced_status_info(status)
+                final_color = self._blend_colors(color, status_color)
+
                 history = track_data.get("history", [])
 
-                self._draw_track_arrow(frame, history, cx, cy, color, w, h)
-                self._draw_track_circle(frame, cx, cy, color, track_data)
-                self._draw_track_label(frame, cx, cy, track_id, status_icon, color)
-                self._draw_track_trail(frame, history, color, self.trail_length)
-                self._draw_track_bbox(frame, track_data, color)
+                self._draw_track_arrow(frame, history, cx, cy, final_color, w, h)
+                self._draw_track_circle(frame, cx, cy, final_color, track_data)
+                self._draw_track_label(frame, cx, cy, track_id, status_icon, final_color)
+                self._draw_track_trail(frame, history, final_color, self.trail_length)
+                self._draw_track_bbox(frame, track_data, final_color)
                 self._draw_track_speed(frame, cx, cy, track_data, h, w)
-                self._draw_track_prediction(frame, track_data, cx, cy, color)
+                self._draw_track_prediction(frame, track_data, cx, cy, final_color)
 
             except Exception as e:
                 self.logger.error(
@@ -759,6 +770,32 @@ class OverlayRenderer(LoggerMixin):
                 continue
 
         return frame
+
+    def _blend_colors(
+        self,
+        color1: Tuple[int, int, int],
+        color2: Tuple[int, int, int],
+        weight: float = 0.3
+    ) -> Tuple[int, int, int]:
+        """
+        Mezcla dos colores.
+
+        Args:
+            color1: Color base.
+            color2: Color de estado.
+            weight: Peso del color de estado (0-1).
+
+        Returns:
+            Tuple[int, int, int]: Color mezclado en formato BGR.
+        """
+        b1, g1, r1 = color1
+        b2, g2, r2 = color2
+
+        b = int(b1 * (1 - weight) + b2 * weight)
+        g = int(g1 * (1 - weight) + g2 * weight)
+        r = int(r1 * (1 - weight) + r2 * weight)
+
+        return (b, g, r)
 
     def _draw_enhanced_path_prediction(
         self,
