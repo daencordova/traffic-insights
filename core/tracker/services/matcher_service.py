@@ -10,8 +10,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from core.tracker.matcher import HierarchicalMatcher
-from core.tracker.reidentifier import ReIdentificationSystem
+from core.tracker.matcher import TrackMatcher as TMatcher
+from core.tracker.reidentifier import ReIDSystem
 from utils.logger import LoggerMixin
 from utils.geometry import calculate_iou
 
@@ -47,8 +47,8 @@ class TrackMatcher(LoggerMixin):
 
     def __init__(
         self,
-        matcher: Optional[HierarchicalMatcher] = None,
-        reid_system: Optional[ReIdentificationSystem] = None,
+        matcher: Optional[TMatcher] = None,
+        reid_system: Optional[ReIDSystem] = None,
         iou_threshold: float = 0.3,
         feature_threshold: float = 0.6,
         spatial_threshold: float = 50.0,

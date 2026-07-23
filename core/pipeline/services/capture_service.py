@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 
 from core.capture.reconnector import Reconnector
-from core.frame_buffer import CircularFrameBuffer, FrameMetadata
+from core.frame_buffer import FrameBuffer, FrameMetadata
 from core.validators import validate_frame
 from core.circuit_breaker import CircuitBreaker, circuit_breaker_registry
 from core.exceptions import CameraError
@@ -33,7 +33,7 @@ class CaptureService(LoggerMixin):
     def __init__(
         self,
         config,
-        buffer: Optional[CircularFrameBuffer] = None,
+        buffer: Optional[FrameBuffer] = None,
         on_frame_captured: Optional[Callable] = None,
         on_frame_dropped: Optional[Callable] = None
     ):
@@ -75,14 +75,14 @@ class CaptureService(LoggerMixin):
             breaker_name=self._circuit_breaker.name
         )
 
-    def _create_buffer(self) -> CircularFrameBuffer:
+    def _create_buffer(self) -> FrameBuffer:
         """Crea el buffer circular."""
         frame_shape = (
             self.config.camera.height,
             self.config.camera.width,
             3
         )
-        return CircularFrameBuffer(
+        return FrameBuffer(
             max_size=self.config.camera.buffer_size,
             frame_shape=frame_shape,
             drop_policy="oldest"

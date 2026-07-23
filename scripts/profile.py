@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.manager import config_manager
 from core.detector.optimized import OptimizedYOLODetector
-from core.tracker.base import AdvancedTracker
+from core.tracker.base import MultiObjectTracker
 
 
 def run_profile():
@@ -27,7 +27,7 @@ def run_profile():
     config_manager.load_from_file("config.yaml")
 
     detector = OptimizedYOLODetector()
-    tracker = AdvancedTracker()
+    tracker = MultiObjectTracker()
 
     frame = np.zeros((480, 640, 3), dtype=np.uint8)
     cv2.rectangle(frame, (100, 100), (200, 200), (255, 255, 255), -1)

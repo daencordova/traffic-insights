@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 from core.detector import YOLODetector
-from core.tracker import AdvancedTracker
+from core.tracker import MultiObjectTracker
 from core.counter import VehicleCounter
 from core.pipeline.renderer import FrameRenderer
 from core.pipeline.controls import ControlHandler
@@ -33,13 +33,12 @@ from core.constants import (
 )
 
 
-
-class VehicleCountingPipeline(LoggerMixin):
+class SyncPipeline(LoggerMixin):
     """
     Pipeline síncrono del sistema de seguimiento de tráfico.
 
     Este pipeline procesa frames de forma secuencial (bloqueante).
-    Para mejor rendimiento, usar AsyncVehicleCountingPipeline.
+    Para mejor rendimiento, usar AsyncPipeline.
 
     Attributes:
         config: Configuración del sistema
@@ -60,7 +59,7 @@ class VehicleCountingPipeline(LoggerMixin):
         """Inicializa el pipeline síncrono."""
         from config.manager import config_manager
         self.config = config_manager.config
-        self.logger.info("Inicializando VehicleCountingPipeline")
+        self.logger.info("Inicializando SyncPipeline")
 
         use_optimized = getattr(
             self.config.optimization,
@@ -83,7 +82,7 @@ class VehicleCountingPipeline(LoggerMixin):
         else:
             self.detector = YOLODetector()
 
-        self.tracker = AdvancedTracker()
+        self.tracker = MultiObjectTracker()
         self.counter = VehicleCounter()
         self.renderer = FrameRenderer(self.config)
         self.controls = ControlHandler(self.config)

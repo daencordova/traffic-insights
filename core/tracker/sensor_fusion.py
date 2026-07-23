@@ -372,7 +372,7 @@ class ParticleFilter(LoggerMixin):
         return self._initialized
 
 
-class SensorFusionTracker(LoggerMixin):
+class SensorFusion(LoggerMixin):
     """
     Sistema de fusión de sensores para tracking multi-modal robusto.
 
@@ -397,7 +397,7 @@ class SensorFusionTracker(LoggerMixin):
         _calibration_matrices: Matrices de calibración por sensor.
 
     Example:
-        >>> fusion = SensorFusionTracker(
+        >>> fusion = SensorFusion(
         ...     sensor_weights={SensorType.VISUAL: 0.7, SensorType.DEPTH: 0.5},
         ...     fusion_method="particle_filter"
         ... )
@@ -459,7 +459,7 @@ class SensorFusionTracker(LoggerMixin):
         }
 
         self.logger.info(
-            "SensorFusionTracker inicializado",
+            "SensorFusion inicializado",
             fusion_method=self.fusion_method.value,
             min_observations=min_observations,
             particle_count=particle_count,
@@ -827,7 +827,7 @@ class SensorFusionTracker(LoggerMixin):
         self._stats["active_tracks"] = 0
         self._stats["total_tracks"] = 0
 
-        self.logger.info("SensorFusionTracker limpiado")
+        self.logger.info("SensorFusion limpiado")
 
     def get_stats(self) -> Dict[str, Any]:
         """

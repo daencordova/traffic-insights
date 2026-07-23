@@ -2,8 +2,8 @@
 Módulo de pipeline del sistema de seguimiento de tráfico.
 """
 
-from core.pipeline.sync_pipeline import VehicleCountingPipeline as SyncPipeline
-from core.pipeline.async_pipeline import AsyncVehicleCountingPipeline
+from core.pipeline.sync_pipeline import SyncPipeline
+from core.pipeline.async_pipeline import AsyncPipeline
 from core.pipeline.renderer import FrameRenderer
 from core.pipeline.renderer_config import RendererConfig
 from core.pipeline.render_pipeline import RenderPipeline, RenderLayer
@@ -24,8 +24,7 @@ from core.pipeline.system_info import (
 
 __all__ = [
     "SyncPipeline",
-    "VehicleCountingPipeline",
-    "AsyncVehicleCountingPipeline",
+    "AsyncPipeline",
     "FrameRenderer",
     "RendererConfig",
     "RenderPipeline",
@@ -43,5 +42,3 @@ __all__ = [
     "get_system_status",
     "get_system_info_collector",
 ]
-
-VehicleCountingPipeline = SyncPipeline

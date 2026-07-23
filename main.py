@@ -17,31 +17,29 @@ import logging
 import signal
 import time
 from pathlib import Path
-from typing import NoReturn, Dict
+from typing import NoReturn, Dict, Callable
 
-current_dir = Path(__file__).parent
-sys.path.insert(0, str(current_dir))
-
+from core.pipeline.async_pipeline import AsyncPipeline
+from core.pipeline.sync_pipeline import SyncPipeline
 from config.manager import config_manager
 from config.validator import validate_config
+from core.circuit_breaker import circuit_breaker_registry
+from utils.helpers import ensure_directory_exists, get_memory_usage
+from utils.logger import setup_logger
 from core.error_handler import (
     setup_global_exception_handler,
-    global_error_handler,
-    GlobalErrorHandler
+    global_error_handler
 )
 from core.exceptions import (
     ConfigurationError,
     VehicleCountingError,
     CameraError,
-    PipelineError,
-    ResourceError
+    PipelineError
 )
-from core.circuit_breaker import circuit_breaker_registry
-from core.pipeline.async_pipeline import AsyncVehicleCountingPipeline
-from core.pipeline.sync_pipeline import VehicleCountingPipeline
-from utils.helpers import ensure_directory_exists, get_memory_usage
-from utils.logger import setup_logger, StructuredLogger
-from utils.decorators import retry_on_failure, time_operation
+
+
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
 
 
 def setup_signal_handlers(logger: logging.Logger) -> None:
@@ -64,7 +62,7 @@ def setup_signal_handlers(logger: logging.Logger) -> None:
         signal.signal(signal.SIGBREAK, signal_handler)
 
 
-def create_recovery_callbacks(logger: logging.Logger) -> Dict[str, callable]:
+def create_recovery_callbacks(logger: logging.Logger) -> Dict[str, Callable]:
     """
     Crea los callbacks de recuperación para el manejador de errores.
 
@@ -255,12 +253,11 @@ def main() -> NoReturn:
         if args.use_async:
             logger.info("🚀 Iniciando pipeline ASÍNCRONO...")
 
-            pipeline = AsyncVehicleCountingPipeline(
+            pipeline = AsyncPipeline(
                 buffer_size=buffer_size,
                 num_workers=workers,
                 enable_batch_processing=batch,
-                batch_size=args.batch_size if batch else 1,
-                enable_performance_monitoring=args.monitor,
+                batch_size=args.batch_size if batch else 1
             )
 
             pipeline.on_frame_processed = lambda result: (
@@ -325,7 +322,7 @@ def main() -> NoReturn:
             logger.info("🚀 Iniciando pipeline SÍNCRONO (legacy)...")
             logger.warning("⚠️ El modo síncrono es legacy. Se recomienda usar el modo asíncrono.")
 
-            pipeline = VehicleCountingPipeline()
+            pipeline = SyncPipeline()
             pipeline.run(source=args.source)
 
     except KeyboardInterrupt:

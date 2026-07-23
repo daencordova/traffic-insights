@@ -1,7 +1,7 @@
 """
 Gestor de captura de video con reconexión automática y control de flujo.
 
-Extraído de AsyncVehicleCountingPipeline para mejorar la estructura del código.
+Extraído de AsyncPipeline para mejorar la estructura del código.
 """
 
 import time
@@ -11,7 +11,7 @@ from typing import Optional, Callable
 import numpy as np
 
 from core.capture.reconnector import Reconnector
-from core.frame_buffer import CircularFrameBuffer, FrameMetadata
+from core.frame_buffer import FrameBuffer, FrameMetadata
 from core.validators import validate_frame
 from core.constants import (
     CAPTURE_MIN_FPS_CPU,
@@ -52,7 +52,7 @@ class CaptureManager(LoggerMixin):
     def __init__(
         self,
         config,
-        buffer: CircularFrameBuffer,
+        buffer: FrameBuffer,
         stop_event: threading.Event,
         pause_event: threading.Event,
         is_cpu_mode: bool = False,

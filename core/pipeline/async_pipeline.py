@@ -20,7 +20,7 @@ from core.pipeline.orchestrator import PipelineOrchestrator
 from utils.logger import LoggerMixin
 
 
-class AsyncVehicleCountingPipeline(LoggerMixin):
+class AsyncPipeline(LoggerMixin):
     """
     Pipeline asíncrono para procesamiento de video en tiempo real.
 
@@ -41,7 +41,7 @@ class AsyncVehicleCountingPipeline(LoggerMixin):
         _orchestrator: Orquestador del pipeline.
 
     Example:
-        >>> pipeline = AsyncVehicleCountingPipeline(
+        >>> pipeline = AsyncPipeline(
         ...     buffer_size=30,
         ...     num_workers=4,
         ...     enable_batch_processing=True
@@ -82,7 +82,7 @@ class AsyncVehicleCountingPipeline(LoggerMixin):
         """
         from config.manager import config_manager
         self.config = config_manager.config
-        self.logger.info("Inicializando AsyncVehicleCountingPipeline")
+        self.logger.info("Inicializando AsyncPipeline")
 
         is_cpu = self.config.model.device == "cpu"
         if is_cpu:
@@ -118,7 +118,7 @@ class AsyncVehicleCountingPipeline(LoggerMixin):
             con la configuración global del sistema.
         """
         from core.detector import YOLODetector
-        from core.tracker import AdvancedTracker
+        from core.tracker import MultiObjectTracker
         from core.counter import VehicleCounter
         from core.pipeline.renderer import FrameRenderer
         from core.pipeline.controls import ControlHandler
@@ -140,7 +140,7 @@ class AsyncVehicleCountingPipeline(LoggerMixin):
         else:
             self.detector = detector or YOLODetector()
 
-        self.tracker = tracker or AdvancedTracker()
+        self.tracker = tracker or MultiObjectTracker()
         self.counter = counter or VehicleCounter()
         self.renderer = FrameRenderer(self.config)
         self.controls = ControlHandler(self.config)

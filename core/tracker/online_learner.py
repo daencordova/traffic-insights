@@ -5,8 +5,8 @@ Orquesta los componentes de estadísticas, estrategias de aprendizaje,
 detector de concept drift y agregador de features.
 """
 
-from typing import Dict, Optional, List, Any
 import time
+from typing import Dict, Optional, List, Any
 from collections import deque
 
 import numpy as np
@@ -24,7 +24,7 @@ from core.constants import (
 )
 
 
-class OnlineFeatureLearner(LoggerMixin):
+class OnlineLearner(LoggerMixin):
     """
     Sistema de aprendizaje en línea para features de tracking.
 
@@ -85,7 +85,7 @@ class OnlineFeatureLearner(LoggerMixin):
         }
 
         self.logger.info(
-            "OnlineFeatureLearner inicializado",
+            "OnlineLearner inicializado",
             feature_dim=feature_dim,
             learning_rate=learning_rate,
             strategy=strategy,

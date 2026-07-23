@@ -15,7 +15,7 @@ from typing import Optional, Callable, List, Tuple
 import numpy as np
 
 from core.detector import YOLODetector, OptimizedYOLODetector
-from core.tracker import AdvancedTracker
+from core.tracker import MultiObjectTracker
 from core.counter import VehicleCounter
 from core.frame_buffer import FrameMetadata
 from utils.logger import LoggerMixin
@@ -70,7 +70,7 @@ class ProcessingService(LoggerMixin):
     ):
         self.config = config
         self.detector = self._init_detector(detector)
-        self.tracker = tracker or AdvancedTracker()
+        self.tracker = tracker or MultiObjectTracker()
         self.counter = counter or VehicleCounter()
         self.enable_batch = enable_batch
         self.batch_size = batch_size

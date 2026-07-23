@@ -73,7 +73,7 @@ class MatchResult:
     time_ms: float
 
 
-class HierarchicalMatcher(LoggerMixin):
+class TrackMatcher(LoggerMixin):
     """
     Matcher jerárquico que combina múltiples estrategias de matching.
 
@@ -97,7 +97,7 @@ class HierarchicalMatcher(LoggerMixin):
         enable_adaptive_thresholds: Ajuste automático de umbrales.
 
     Example:
-        >>> matcher = HierarchicalMatcher(
+        >>> matcher = TrackMatcher(
         ...     iou_threshold=0.3,
         ...     feature_threshold=0.6,
         ...     enable_adaptive_thresholds=True
@@ -143,7 +143,7 @@ class HierarchicalMatcher(LoggerMixin):
         }
 
         self.logger.info(
-            "HierarchicalMatcher inicializado",
+            "TrackMatcher inicializado",
             iou_threshold=iou_threshold,
             feature_threshold=feature_threshold,
             adaptive_thresholds=enable_adaptive_thresholds

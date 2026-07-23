@@ -67,7 +67,7 @@ class FrameMetadata:
         self.dropped = dropped
 
 
-class CircularFrameBuffer:
+class FrameBuffer:
     """
     Buffer circular optimizado con memoria preasignada para frames.
 

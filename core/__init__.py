@@ -4,15 +4,15 @@ Módulo core del sistema
 
 from core.interfaces import IDetector, ITracker, ICounter, IPipeline
 from core.detector import YOLODetector, OptimizedYOLODetector, DetectorFactory
-from core.pipeline.sync_pipeline import VehicleCountingPipeline
-from core.pipeline.async_pipeline import AsyncVehicleCountingPipeline
+from core.pipeline.sync_pipeline import SyncPipeline
+from core.pipeline.async_pipeline import AsyncPipeline
 
 from core.tracker import (
-    HierarchicalMatcher,
-    ReIdentificationSystem,
+    TrackMatcher,
+    ReIDSystem,
     TrackValidator,
     FeatureCacheManager,
-    AdvancedTracker
+    MultiObjectTracker
 )
 
 from core.counter import (
@@ -28,16 +28,16 @@ __all__ = [
     "YOLODetector",
     "OptimizedYOLODetector",
     "DetectorFactory",
-    "AdvancedTracker",
+    "MultiObjectTracker",
     "VehicleCounter",
-    "VehicleCountingPipeline",
-    "AsyncVehicleCountingPipeline",
+    "SyncPipeline",
+    "AsyncPipeline",
     "IDetector",
     "ITracker",
     "ICounter",
     "IPipeline",
-    "HierarchicalMatcher",
-    "ReIdentificationSystem",
+    "TrackMatcher",
+    "ReIDSystem",
     "TrackValidator",
     "FeatureCacheManager",
     "LineManager",

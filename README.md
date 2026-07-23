@@ -114,11 +114,11 @@ El sistema sigue una arquitectura de **pipeline modular** con componentes indepe
 | Componente | Descripción | Archivo Principal |
 |------------|-------------|-------------------|
 | **CaptureManager** | Gestión de captura de video con reconexión automática y control de flujo | `core/capture/manager.py` |
-| **CircularFrameBuffer** | Buffer circular optimizado con memoria preasignada | `core/pipeline/buffer.py` |
+| **FrameBuffer** | Buffer circular optimizado con memoria preasignada | `core/pipeline/buffer.py` |
 | **OptimizedThreadPool** | Pool de workers con priorización de tareas | `utils/thread_pool.py` |
 | **YOLODetector** | Detector de objetos con soporte ONNX y caché | `core/detector/base.py` |
 | **OptimizedYOLODetector** | Versión optimizada para CPU con ONNX Runtime y Numba | `core/detector/optimized.py` |
-| **AdvancedTracker** | Tracker con re-identificación, MHT y fusión de sensores | `core/tracker/base.py` |
+| **MultiObjectTracker** | Tracker con re-identificación, MHT y fusión de sensores | `core/tracker/base.py` |
 | **VehicleCounter** | Contador de vehículos con análisis de trayectoria | `core/counter.py` |
 | **FrameRenderer** | Renderizador por capas con caché de métricas | `core/pipeline/renderer.py` |
 
@@ -378,9 +378,9 @@ traffic-insights/
 │   │
 │   ├── tracker/                # Tracking avanzado
 │   │   ├── __init__.py
-│   │   ├── base.py             # AdvancedTracker
-│   │   ├── matcher.py          # HierarchicalMatcher
-│   │   ├── reidentifier.py     # ReIdentificationSystem
+│   │   ├── base.py             # MultiObjectTracker
+│   │   ├── matcher.py          # TrackMatcher
+│   │   ├── reidentifier.py     # ReIDSystem
 │   │   ├── mht_integration.py
 │   │   ├── sensor_fusion.py
 │   │   └── path_predictor.py
@@ -453,23 +453,23 @@ detections = detector.detect(frame)
 
 #### 2. Tracker (`core/tracker/`)
 
-**AdvancedTracker** — Tracker híbrido con todas las características avanzadas:
+**MultiObjectTracker** — Tracker híbrido con todas las características avanzadas:
 
 ```python
-from core.tracker import AdvancedTracker
+from core.tracker import MultiObjectTracker
 
-tracker = AdvancedTracker()
+tracker = MultiObjectTracker()
 tracks = tracker.update(detections, frame)
 ```
 
 #### 3. Pipeline (`core/pipeline/`)
 
-**AsyncVehicleCountingPipeline** — Pipeline asíncrono optimizado:
+**AsyncPipeline** — Pipeline asíncrono optimizado:
 
 ```python
-from core.pipeline import AsyncVehicleCountingPipeline
+from core.pipeline import AsyncPipeline
 
-with AsyncVehicleCountingPipeline() as pipeline:
+with AsyncPipeline() as pipeline:
     pipeline.start()
     while pipeline.is_running:
         time.sleep(0.1)
@@ -613,7 +613,7 @@ Los logs se guardan en `data/logs/system.log`:
 2024-01-15 14:30:25 - main - INFO - 🚗 SISTEMA DE SEGUIMIENTO DE TRÁFICO v0.1.0
 2024-01-15 14:30:25 - ConfigManager - INFO - 📄 Cargando configuración desde: config.yaml
 2024-01-15 14:30:26 - YOLODetector - INFO - 🤖 DETECTOR YOLO inicializado
-2024-01-15 14:30:27 - AsyncVehicleCountingPipeline - INFO - Pipeline asíncrono iniciado
+2024-01-15 14:30:27 - AsyncPipeline - INFO - Pipeline asíncrono iniciado
 ```
 
 ---

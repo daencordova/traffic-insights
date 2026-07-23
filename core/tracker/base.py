@@ -30,10 +30,10 @@ from core.tracker.services.matcher_service import TrackMatcher, MatchResult
 from core.tracker.managers.track_manager import TrackManager
 from core.tracker.state.state_machine import TrackStateMachine
 from core.tracker.state.track_updater import TrackUpdater
-from core.tracker.reidentifier import ReIdentificationSystem
-from core.tracker.sensor_fusion import SensorFusionTracker
+from core.tracker.reidentifier import ReIDSystem
+from core.tracker.sensor_fusion import SensorFusion
 from core.tracker.path_predictor import PathPredictor
-from core.tracker.online_learner import OnlineFeatureLearner
+from core.tracker.online_learner import OnlineLearner
 from core.tracker.mht_integration import MHTIntegration
 from core.tracker.managers.feature_manager import FeatureManager
 from core.interfaces import ITracker
@@ -46,7 +46,7 @@ from core.constants import (
 )
 
 
-class AdvancedTracker(ITracker, LoggerMixin):
+class MultiObjectTracker(ITracker, LoggerMixin):
     """
     Tracker avanzado con re-identificación robusta.
 
@@ -76,7 +76,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
         path_predictor: Predicción de trayectoria.
 
     Example:
-        >>> tracker = AdvancedTracker()
+        >>> tracker = MultiObjectTracker()
         >>> frame = cv2.imread("frame.jpg")
         >>> detections = detector.detect(frame)
         >>> tracks = tracker.update(detections, frame)
@@ -95,7 +95,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
         self.config = config_manager.config.tracker
         self.global_config = config_manager.config
 
-        self.logger.info("Inicializando AdvancedTracker")
+        self.logger.info("Inicializando MultiObjectTracker")
 
         self._init_managers()
         self._init_matchers()
@@ -196,12 +196,12 @@ class AdvancedTracker(ITracker, LoggerMixin):
             spatial_threshold=self.config.reid_spatial_threshold
         )
 
-    def _init_reid_system(self) -> Optional[ReIdentificationSystem]:
+    def _init_reid_system(self) -> Optional[ReIDSystem]:
         """
         Inicializa el sistema de re-identificación.
 
         Returns:
-            Optional[ReIdentificationSystem]: Sistema de re-identificación
+            Optional[ReIDSystem]: Sistema de re-identificación
                 o None si está desactivado.
 
         Note:
@@ -212,7 +212,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
             return None
 
         try:
-            reid = ReIdentificationSystem(
+            reid = ReIDSystem(
                 feature_extractor=self.feature_manager.feature_extractor,
                 max_cache_size=self.config.reid_cache_size,
                 max_age_seconds=self.config.reid_max_age_seconds,
@@ -244,12 +244,12 @@ class AdvancedTracker(ITracker, LoggerMixin):
             enable_mht=getattr(self.config, "enable_mht", False)
         )
 
-    def _init_online_learner(self) -> Optional[OnlineFeatureLearner]:
+    def _init_online_learner(self) -> Optional[OnlineLearner]:
         """
         Inicializa el sistema de aprendizaje en línea.
 
         Returns:
-            Optional[OnlineFeatureLearner]: Sistema de aprendizaje
+            Optional[OnlineLearner]: Sistema de aprendizaje
                 o None si está desactivado.
 
         Note:
@@ -260,7 +260,7 @@ class AdvancedTracker(ITracker, LoggerMixin):
             return None
 
         try:
-            learner = OnlineFeatureLearner(
+            learner = OnlineLearner(
                 feature_dim=2048,
                 learning_rate=getattr(self.config, "online_learning_rate", 0.05),
                 min_samples=getattr(self.config, "online_learning_min_samples", 5),
@@ -274,12 +274,12 @@ class AdvancedTracker(ITracker, LoggerMixin):
             self.logger.warning("Aprendizaje en línea desactivado", error=str(e))
             return None
 
-    def _init_sensor_fusion(self) -> Optional[SensorFusionTracker]:
+    def _init_sensor_fusion(self) -> Optional[SensorFusion]:
         """
         Inicializa el sistema de fusión de sensores.
 
         Returns:
-            Optional[SensorFusionTracker]: Sistema de fusión
+            Optional[SensorFusion]: Sistema de fusión
                 o None si está desactivado.
 
         Note:
@@ -291,7 +291,8 @@ class AdvancedTracker(ITracker, LoggerMixin):
             return None
 
         try:
-            fusion = SensorFusionTracker(
+            from core.tracker.sensor_fusion import SensorType
+            fusion = SensorFusion(
                 sensor_weights={
                     SensorType.VISUAL: getattr(self.config, "fusion_visual_weight", 0.7),
                     SensorType.DEPTH: getattr(self.config, "fusion_depth_weight", 0.5),

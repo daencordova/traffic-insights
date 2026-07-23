@@ -31,7 +31,7 @@ class ReIdentificationCandidate:
     combined_score: float = 0.0
 
 
-class ReIdentificationSystem(LoggerMixin):
+class ReIDSystem(LoggerMixin):
     """
     Sistema avanzado de re-identificación
 
@@ -77,7 +77,7 @@ class ReIdentificationSystem(LoggerMixin):
         self._cooldown_seconds = 2.0
 
         self.logger.info(
-            "ReIdentificationSystem inicializado",
+            "ReIDSystem inicializado",
             max_cache_size=max_cache_size,
             max_age_seconds=max_age_seconds,
             similarity_threshold=similarity_threshold,
