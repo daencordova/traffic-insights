@@ -11,17 +11,23 @@ El contador es responsable de:
 - Recolectar estadísticas de conteo
 - Mantener historial de eventos
 - Calcular métricas de tráfico
+
+Componentes principales:
+- LineManager: Gestión de líneas de conteo
+- CrossingDetector: Detección de cruces de líneas
+- StatisticsCollector: Recolección de estadísticas
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set
+import time
+from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
 
 from utils.logger import LoggerMixin
 from core.interfaces import ICounter
-from core.counter.line_manager import LineManager
+from core.counter.line_manager import LineManager, CountingLine
 from core.counter.crossing_detector import CrossingDetector
 from core.counter.statistics_collector import StatisticsCollector, VehicleEvent
 
@@ -47,6 +53,8 @@ class VehicleCounter(ICounter, LoggerMixin):
         crossing_detector: Detector de cruces de líneas.
         stats_collector: Recolector de estadísticas.
         config: Configuración del sistema.
+        _frame_counter: Contador de frames procesados.
+        _last_process_time: Tiempo de la última actualización.
 
     Example:
         >>> counter = VehicleCounter()
@@ -89,6 +97,7 @@ class VehicleCounter(ICounter, LoggerMixin):
 
         self._frame_counter = 0
         self._last_process_time = 0.0
+        self._processed_tracks_count = 0
 
     def process(self, tracks: Dict[int, Dict[str, Any]], frame: np.ndarray) -> Dict[str, Any]:
         """
@@ -117,25 +126,58 @@ class VehicleCounter(ICounter, LoggerMixin):
             El procesamiento se realiza por cada track activo,
             verificando si ha cruzado alguna línea de conteo.
         """
-        import time
         start_time = time.perf_counter()
-
         self._frame_counter += 1
+        self._processed_tracks_count = 0
 
-        if frame is None or frame.size == 0:
-            self.logger.debug("Frame inválido recibido")
+        if not self._is_valid_input(frame, tracks):
             return self.get_stats()
 
         if not self.line_manager.has_active_lines():
             return self.get_stats()
 
         height = frame.shape[0]
+        self._process_all_tracks(tracks, height)
 
-        processed_count = 0
+        self._update_minute_stats()
+
+        self._log_performance(start_time)
+
+        return self.get_stats()
+
+    def _is_valid_input(self, frame: np.ndarray, tracks: Dict[int, Dict[str, Any]]) -> bool:
+        """
+        Valida la entrada del método process.
+
+        Args:
+            frame: Frame a validar.
+            tracks: Tracks a validar.
+
+        Returns:
+            bool: True si la entrada es válida.
+        """
+        if frame is None or frame.size == 0:
+            self.logger.debug("Frame inválido recibido")
+            return False
+
+        if not isinstance(tracks, dict):
+            self.logger.debug("Tracks inválidos (no es diccionario)")
+            return False
+
+        return True
+
+    def _process_all_tracks(self, tracks: Dict[int, Dict[str, Any]], height: int) -> None:
+        """
+        Procesa todos los tracks para detección de cruces.
+
+        Args:
+            tracks: Diccionario de tracks activos.
+            height: Alto del frame.
+        """
         for object_id, track_data in tracks.items():
             try:
-                if self._process_track(object_id, track_data, height):
-                    processed_count += 1
+                if self._process_single_track(object_id, track_data, height):
+                    self._processed_tracks_count += 1
             except Exception as e:
                 self.logger.debug(
                     "Error procesando track",
@@ -144,23 +186,7 @@ class VehicleCounter(ICounter, LoggerMixin):
                 )
                 continue
 
-        total = self.stats_collector.get_total_count()
-        self.stats_collector.update_minute_counts(total)
-
-        self._last_process_time = (time.perf_counter() - start_time) * 1000
-
-        if self._frame_counter % 100 == 0 and processed_count > 0:
-            self.logger.debug(
-                "Procesamiento de conteo",
-                frames=self._frame_counter,
-                tracks=len(tracks),
-                processed=processed_count,
-                total=total
-            )
-
-        return self.get_stats()
-
-    def _process_track(self, object_id: int, track_data: Dict[str, Any], height: int) -> bool:
+    def _process_single_track(self, object_id: int, track_data: Dict[str, Any], height: int) -> bool:
         """
         Procesa un track individual para detección de cruces.
 
@@ -171,10 +197,6 @@ class VehicleCounter(ICounter, LoggerMixin):
 
         Returns:
             bool: True si se procesó correctamente (cruzó alguna línea).
-
-        Note:
-            Para cada línea de conteo, verifica si el objeto
-            ha cruzado y registra el evento correspondiente.
         """
         if not self._validate_track_data(track_data):
             return False
@@ -183,34 +205,10 @@ class VehicleCounter(ICounter, LoggerMixin):
         crossed_any = False
 
         for line in self.line_manager.get_all_lines():
-            crossed = self.crossing_detector.detect_crossing(
-                object_id=object_id,
-                current_position=centroid,
-                line=line,
-                height=height
-            )
-
-            if crossed:
-                self.stats_collector.record_crossing(
-                    object_id=object_id,
-                    line_id=line.id,
-                    line_name=line.name,
-                    track_data=track_data,
-                    centroid=centroid
-                )
-
+            if self._check_line_crossing(object_id, centroid, line, height):
                 crossed_any = True
 
-                self.logger.debug(
-                    "Vehículo contado",
-                    object_id=object_id,
-                    line=line.id,
-                    total=self.stats_collector.get_total_count()
-                )
-
-        velocity = track_data.get("velocity", (0, 0))
-        if isinstance(velocity, (tuple, list)) and len(velocity) == 2:
-            self.stats_collector.record_speed(object_id, velocity)
+        self._record_track_velocity(object_id, track_data)
 
         return crossed_any
 
@@ -223,9 +221,6 @@ class VehicleCounter(ICounter, LoggerMixin):
 
         Returns:
             bool: True si los datos son válidos.
-
-        Note:
-            Verifica que el centroid exista y sea válido.
         """
         if not isinstance(track_data, dict):
             return False
@@ -245,6 +240,121 @@ class VehicleCounter(ICounter, LoggerMixin):
             return False
 
         return True
+
+    def _check_line_crossing(
+        self,
+        object_id: int,
+        centroid: Tuple[int, int],
+        line: CountingLine,
+        height: int
+    ) -> bool:
+        """
+        Verifica si un objeto ha cruzado una línea específica.
+
+        Args:
+            object_id: ID del objeto.
+            centroid: Centroide actual.
+            line: Línea de conteo.
+            height: Alto del frame.
+
+        Returns:
+            bool: True si el objeto cruzó la línea.
+        """
+        crossed = self.crossing_detector.detect_crossing(
+            object_id=object_id,
+            current_position=centroid,
+            line=line,
+            height=height
+        )
+
+        if crossed:
+            self._handle_crossing(object_id, line, centroid)
+            return True
+
+        return False
+
+    def _handle_crossing(
+        self,
+        object_id: int,
+        line: CountingLine,
+        centroid: Tuple[int, int]
+    ) -> None:
+        """
+        Maneja un evento de cruce de línea.
+
+        Args:
+            object_id: ID del objeto.
+            line: Línea de conteo cruzada.
+            centroid: Posición del objeto.
+        """
+        pass
+
+    def _record_crossing(
+        self,
+        object_id: int,
+        line: CountingLine,
+        track_data: Dict[str, Any],
+        centroid: Tuple[int, int]
+    ) -> None:
+        """
+        Registra un cruce en el recolector de estadísticas.
+
+        Args:
+            object_id: ID del objeto.
+            line: Línea de conteo.
+            track_data: Datos del track.
+            centroid: Posición del objeto.
+        """
+        self.stats_collector.record_crossing(
+            object_id=object_id,
+            line_id=line.id,
+            line_name=line.name,
+            track_data=track_data,
+            centroid=centroid
+        )
+
+        self.logger.debug(
+            "Vehículo contado",
+            object_id=object_id,
+            line=line.id,
+            total=self.stats_collector.get_total_count()
+        )
+
+    def _record_track_velocity(self, object_id: int, track_data: Dict[str, Any]) -> None:
+        """
+        Registra la velocidad de un track.
+
+        Args:
+            object_id: ID del objeto.
+            track_data: Datos del track.
+        """
+        velocity = track_data.get("velocity", (0, 0))
+        if isinstance(velocity, (tuple, list)) and len(velocity) == 2:
+            self.stats_collector.record_speed(object_id, velocity)
+
+    def _update_minute_stats(self) -> None:
+        """Actualiza los conteos por minuto."""
+        total = self.stats_collector.get_total_count()
+        self.stats_collector.update_minute_counts(total)
+
+    def _log_performance(self, start_time: float) -> None:
+        """
+        Registra métricas de rendimiento.
+
+        Args:
+            start_time: Timestamp de inicio del procesamiento.
+        """
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        self._last_process_time = elapsed_ms
+
+        if self._frame_counter % 100 == 0 and self._processed_tracks_count > 0:
+            self.logger.debug(
+                "Procesamiento de conteo",
+                frames=self._frame_counter,
+                tracks_processed=self._processed_tracks_count,
+                total=self.stats_collector.get_total_count(),
+                time_ms=f"{elapsed_ms:.2f}"
+            )
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -275,6 +385,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         stats["active_objects"] = self.crossing_detector.get_active_objects()
         stats["frame_counter"] = self._frame_counter
         stats["last_process_time_ms"] = self._last_process_time
+        stats["processed_tracks"] = self._processed_tracks_count
 
         return stats
 
@@ -383,6 +494,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         self.stats_collector.reset()
         self._frame_counter = 0
         self._last_process_time = 0.0
+        self._processed_tracks_count = 0
 
         self.logger.info("Contador reiniciado")
 
@@ -392,4 +504,7 @@ class VehicleCounter(ICounter, LoggerMixin):
 
     def __str__(self) -> str:
         """Representación en string del contador."""
-        return f"VehicleCounter(total={self.stats_collector.get_total_count()}, lines={self.line_manager.get_line_count()})"
+        return (
+            f"VehicleCounter(total={self.stats_collector.get_total_count()}, "
+            f"lines={self.line_manager.get_line_count()})"
+        )
