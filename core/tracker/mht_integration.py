@@ -243,13 +243,33 @@ class MHTIntegration(LoggerMixin):
         if not self.enable_mht:
             return {}
 
-        import time
         start_time = time.perf_counter()
-        confirmed = {}
 
         if not detections:
-            return confirmed
+            return {}
 
+        self._cleanup_recently_recovered()
+
+        track_ids = list(tracks.keys())
+
+        self._process_matches(tracks, detections, matches, track_ids)
+
+        self._handle_unmatched_tracks(tracks, matches, unmatched_tracks, track_ids)
+
+        confirmed = self._attempt_recoveries(detections, unmatched_detections, tracks)
+
+        self._create_temporary_hypotheses(detections, unmatched_detections)
+
+        self._prune_tree()
+
+        self._update_stats(tracks)
+
+        self._log_performance(start_time, matches)
+
+        return confirmed
+
+    def _cleanup_recently_recovered(self) -> None:
+        """Limpia los tracks recuperados que han expirado."""
         current_time = time.time()
         expired = [
             tid for tid, ts in self._recently_recovered.items()
@@ -258,8 +278,22 @@ class MHTIntegration(LoggerMixin):
         for tid in expired:
             del self._recently_recovered[tid]
 
-        track_ids = list(tracks.keys())
+    def _process_matches(
+        self,
+        tracks: Dict[int, TrackState],
+        detections: List[Dict[str, Any]],
+        matches: List[Tuple[int, int]],
+        track_ids: List[int]
+    ) -> None:
+        """
+        Procesa los matches entre detecciones y tracks.
 
+        Args:
+            tracks: Diccionario de tracks activos.
+            detections: Lista de detecciones actuales.
+            matches: Lista de matches (detection_idx, track_idx).
+            track_ids: Lista de IDs de tracks.
+        """
         for det_idx, track_idx in matches:
             if track_idx >= len(track_ids) or det_idx >= len(detections):
                 continue
@@ -270,57 +304,134 @@ class MHTIntegration(LoggerMixin):
             if detection is None:
                 continue
 
-            best_hyp = self.hypothesis_tree.get_best_hypothesis(track_id)
+            self._process_single_match(track_id, detection, tracks)
 
-            try:
-                if best_hyp is not None:
-                    centroid = detection.get('centroid')
-                    if centroid is not None:
-                        best_hyp.update_position(
-                            centroid,
-                            detection.get('box')
-                        )
+    def _process_single_match(
+        self,
+        track_id: int,
+        detection: Dict[str, Any],
+        tracks: Dict[int, TrackState]
+    ) -> None:
+        """
+        Procesa un match individual entre una detección y un track.
 
-                    features = detection.get('features')
-                    if features is not None:
-                        best_hyp.add_feature(features)
+        Args:
+            track_id: ID del track.
+            detection: Detección asociada.
+            tracks: Diccionario de tracks activos.
+        """
+        best_hyp = self.hypothesis_tree.get_best_hypothesis(track_id)
 
-                    best_hyp.confidence = detection.get('confidence', 0.5)
-                    best_hyp.last_update = time.time()
+        try:
+            if best_hyp is not None:
+                self._update_existing_hypothesis(best_hyp, detection, track_id)
+            else:
+                self._create_new_hypothesis_from_track(track_id, detection, tracks)
 
-                    if len(detections) > 10:
-                        hyps = self.hypothesis_tree._hypotheses.get(track_id, [])
-                        active_hyps = [
-                            h for h in hyps
-                            if h.active and h.status == HypothesisStatus.ACTIVE
-                        ]
+        except Exception as e:
+            self.logger.warning(
+                f"Error procesando match para track {track_id}: {e}",
+                exc_info=True
+            )
 
-                        if len(active_hyps) < self.hypothesis_tree.max_hypotheses_per_track:
-                            new_hyp = self.create_hypothesis_from_detection(
-                                detection,
-                                track_id,
-                                confidence=detection.get('confidence', 0.5) * 0.3
-                            )
-                            new_hyp.probability = 0.02
-                            self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
+    def _update_existing_hypothesis(
+        self,
+        hypothesis: TrackHypothesis,
+        detection: Dict[str, Any],
+        track_id: int
+    ) -> None:
+        """
+        Actualiza una hipótesis existente con nueva detección.
 
-                else:
-                    track = tracks.get(track_id)
-                    if track is not None:
-                        new_hyp = self.create_hypothesis_from_track(
-                            track,
-                            detection,
-                            confidence=detection.get('confidence', 0.5)
-                        )
-                        new_hyp.probability = 0.3
-                        self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
-            except Exception as e:
-                self.logger.warning(
-                    f"Error procesando match para track {track_id}: {e}",
-                    exc_info=True
-                )
-                continue
+        Args:
+            hypothesis: Hipótesis a actualizar.
+            detection: Detección actual.
+            track_id: ID del track.
+        """
+        centroid = detection.get('centroid')
+        if centroid is not None:
+            hypothesis.update_position(
+                centroid,
+                detection.get('box')
+            )
 
+        features = detection.get('features')
+        if features is not None:
+            hypothesis.add_feature(features)
+
+        hypothesis.confidence = detection.get('confidence', 0.5)
+        hypothesis.last_update = time.time()
+
+        if len(self.hypothesis_tree._hypotheses.get(track_id, [])) < 10:
+            self._create_alternative_hypothesis(track_id, detection)
+
+    def _create_alternative_hypothesis(
+        self,
+        track_id: int,
+        detection: Dict[str, Any]
+    ) -> None:
+        """
+        Crea una hipótesis alternativa para un track.
+
+        Args:
+            track_id: ID del track.
+            detection: Detección actual.
+        """
+        hyps = self.hypothesis_tree._hypotheses.get(track_id, [])
+        active_hyps = [
+            h for h in hyps
+            if h.active and h.status == HypothesisStatus.ACTIVE
+        ]
+
+        if len(active_hyps) < self.hypothesis_tree.max_hypotheses_per_track:
+            new_hyp = self.create_hypothesis_from_detection(
+                detection,
+                track_id,
+                confidence=detection.get('confidence', 0.5) * 0.3
+            )
+            new_hyp.probability = 0.02
+            self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
+
+    def _create_new_hypothesis_from_track(
+        self,
+        track_id: int,
+        detection: Dict[str, Any],
+        tracks: Dict[int, TrackState]
+    ) -> None:
+        """
+        Crea una nueva hipótesis a partir de un track existente.
+
+        Args:
+            track_id: ID del track.
+            detection: Detección actual.
+            tracks: Diccionario de tracks activos.
+        """
+        track = tracks.get(track_id)
+        if track is not None:
+            new_hyp = self.create_hypothesis_from_track(
+                track,
+                detection,
+                confidence=detection.get('confidence', 0.5)
+            )
+            new_hyp.probability = 0.3
+            self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
+
+    def _handle_unmatched_tracks(
+        self,
+        tracks: Dict[int, TrackState],
+        matches: List[Tuple[int, int]],
+        unmatched_tracks: List[int],
+        track_ids: List[int]
+    ) -> None:
+        """
+        Maneja tracks no asociados (pérdidas).
+
+        Args:
+            tracks: Diccionario de tracks activos.
+            matches: Lista de matches.
+            unmatched_tracks: Índices de tracks no asociados.
+            track_ids: Lista de IDs de tracks.
+        """
         for track_idx in unmatched_tracks:
             if track_idx >= len(track_ids):
                 continue
@@ -329,133 +440,141 @@ class MHTIntegration(LoggerMixin):
             if track_id not in tracks:
                 continue
 
-            best_hyp = self.hypothesis_tree.get_best_hypothesis(track_id)
+            self._handle_single_unmatched_track(track_id, tracks)
 
-            if best_hyp is not None and len(best_hyp.positions) > 3:
-                velocity = best_hyp.get_recent_velocity()
-                last_pos = best_hyp.positions[-1]
-                predicted_pos = (
-                    int(last_pos[0] + velocity[0]),
-                    int(last_pos[1] + velocity[1])
-                )
+    def _handle_single_unmatched_track(
+        self,
+        track_id: int,
+        tracks: Dict[int, TrackState]
+    ) -> None:
+        """
+        Maneja un track individual no asociado.
 
-                new_hyp = TrackHypothesis(
-                    track_id=track_id,
-                    positions=best_hyp.positions + [predicted_pos],
-                    confidence=best_hyp.confidence * 0.4,
-                    probability=best_hyp.probability * 0.2,
-                    last_update=time.time(),
-                    active=True,
-                    parent_id=track_id,
-                    status=HypothesisStatus.ACTIVE,
-                    velocity=best_hyp.velocity,
-                )
+        Args:
+            track_id: ID del track.
+            tracks: Diccionario de tracks activos.
+        """
+        best_hyp = self.hypothesis_tree.get_best_hypothesis(track_id)
 
-                track = tracks.get(track_id)
-                if track is not None and hasattr(track, 'features') and track.features is not None:
-                    new_hyp.add_feature(track.features)
+        if best_hyp is not None and len(best_hyp.positions) > 3:
+            self._create_predicted_hypothesis(track_id, best_hyp, tracks)
 
-                self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
+    def _create_predicted_hypothesis(
+        self,
+        track_id: int,
+        best_hyp: TrackHypothesis,
+        tracks: Dict[int, TrackState]
+    ) -> None:
+        """
+        Crea una hipótesis basada en predicción para un track perdido.
 
+        Args:
+            track_id: ID del track.
+            best_hyp: Mejor hipótesis actual.
+            tracks: Diccionario de tracks activos.
+        """
+        velocity = best_hyp.get_recent_velocity()
+        last_pos = best_hyp.positions[-1]
+        predicted_pos = (
+            int(last_pos[0] + velocity[0]),
+            int(last_pos[1] + velocity[1])
+        )
+
+        new_hyp = TrackHypothesis(
+            track_id=track_id,
+            positions=best_hyp.positions + [predicted_pos],
+            confidence=best_hyp.confidence * 0.4,
+            probability=best_hyp.probability * 0.2,
+            last_update=time.time(),
+            active=True,
+            parent_id=track_id,
+            status=HypothesisStatus.ACTIVE,
+            velocity=best_hyp.velocity,
+        )
+
+        track = tracks.get(track_id)
+        if track is not None and hasattr(track, 'features') and track.features is not None:
+            new_hyp.add_feature(track.features)
+
+        self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
+
+    def _attempt_recoveries(
+        self,
+        detections: List[Dict[str, Any]],
+        unmatched_detections: List[int],
+        tracks: Dict[int, TrackState]
+    ) -> Dict[int, Optional[int]]:
+        """
+        Intenta recuperar tracks perdidos usando el árbol de hipótesis.
+
+        Args:
+            detections: Lista de detecciones actuales.
+            unmatched_detections: Índices de detecciones no asociadas.
+            tracks: Diccionario de tracks activos.
+
+        Returns:
+            Dict[int, Optional[int]]: Hipótesis confirmadas por track.
+        """
+        confirmed = {}
         recovered_count = 0
+
         for det_idx in unmatched_detections:
             if det_idx >= len(detections):
                 continue
 
             detection = detections[det_idx]
-            if detection is None or detection.get('confidence', 0) < 0.3:
+
+            if not self._is_valid_recovery_candidate(detection):
                 continue
 
-            bbox = detection.get('box')
-            if bbox:
-                width = bbox[2] - bbox[0]
-                height = bbox[3] - bbox[1]
-                if width < 20 or height < 20 or width > 300 or height > 300:
-                    continue
+            recovered_track_id = self._attempt_single_recovery(detection)
 
-            if len(self.hypothesis_tree._hypotheses) > 0:
-                recovered_track_id = self._attempt_recovery(detection)
-
-                if recovered_track_id is not None:
-                    if recovered_track_id not in tracks:
-                        best_hyp = self.hypothesis_tree.get_best_hypothesis(recovered_track_id)
-                        if best_hyp is not None and best_hyp.probability > 0.3:
-                            centroid = detection.get('centroid')
-                            if centroid is not None:
-                                best_hyp.update_position(
-                                    centroid,
-                                    detection.get('box')
-                                )
-                            best_hyp.confidence = detection.get('confidence', 0.5)
-                            best_hyp.last_update = time.time()
-
-                            new_prob = min(0.6, best_hyp.probability * 1.05)
-                            best_hyp.probability = new_prob
-
-                            self.hypothesis_tree._normalize_probabilities(recovered_track_id)
-
-                            confirmed[recovered_track_id] = id(best_hyp)
-                            self._stats["tracks_recovered_by_mht"] += 1
-                            self._stats["successful_recoveries"] += 1
-                            self._stats["last_recovery_time"] = time.time()
-                            recovered_count += 1
-
-                            self.logger.debug(
-                                "Track recuperado por MHT",
-                                track_id=recovered_track_id,
-                                probability=f"{best_hyp.probability:.3f}"
-                            )
+            if recovered_track_id is not None:
+                if self._confirm_recovered_track(
+                    recovered_track_id,
+                    detection,
+                    tracks,
+                    confirmed
+                ):
+                    recovered_count += 1
 
             if detection.get('confidence', 0) > 0.5 and recovered_count < 2:
-                temp_id = -abs(hash(str(detection.get('centroid', (0, 0))))) % 10000
-                if temp_id not in self.hypothesis_tree._hypotheses:
-                    new_hyp = self.create_hypothesis_from_detection(
-                        detection,
-                        temp_id,
-                        confidence=detection.get('confidence', 0.5) * 0.2
-                    )
-                    new_hyp.probability = 0.005
-                    self.hypothesis_tree.add_hypothesis(temp_id, new_hyp)
-
-        if self._should_prune():
-            pruned = self.hypothesis_tree.prune_all()
-            if pruned > 0:
-                self.logger.debug(
-                    f"Árbol MHT podado: {pruned} hipótesis eliminadas"
-                )
-
-        self._update_stats(tracks)
-
-        elapsed_ms = (time.perf_counter() - start_time) * 1000
-        if elapsed_ms > 10:
-            self.logger.debug(
-                "Actualización MHT completada",
-                time_ms=f"{elapsed_ms:.1f}",
-                matches=len(matches),
-                total_hyps=len(self.hypothesis_tree)
-            )
+                self._create_temporary_hypothesis(detection)
 
         return confirmed
 
-    def _attempt_recovery(self, detection: Dict[str, Any]) -> Optional[int]:
+    def _is_valid_recovery_candidate(self, detection: Dict[str, Any]) -> bool:
         """
-        Intenta recuperar un track perdido usando el árbol de hipótesis.
+        Verifica si una detección es válida para intentar recuperación.
+
+        Args:
+            detection: Detección a verificar.
+
+        Returns:
+            bool: True si es válida.
+        """
+        if detection is None or detection.get('confidence', 0) < 0.3:
+            return False
+
+        bbox = detection.get('box')
+        if bbox:
+            width = bbox[2] - bbox[0]
+            height = bbox[3] - bbox[1]
+            if width < 20 or height < 20 or width > 300 or height > 300:
+                return False
+
+        return True
+
+    def _attempt_single_recovery(self, detection: Dict[str, Any]) -> Optional[int]:
+        """
+        Intenta recuperar un track perdido con una detección.
 
         Args:
             detection: Detección actual.
 
         Returns:
             Optional[int]: ID del track recuperado o None.
-
-        Note:
-            La recuperación se basa en:
-            1. Similitud espacial (distancia)
-            2. Similitud de features (si disponibles)
-            3. Probabilidad de la hipótesis
         """
-        if not self.enable_mht:
-            return None
-
         self._stats["recovery_attempts"] += 1
 
         centroid = detection.get('centroid')
@@ -492,40 +611,109 @@ class MHTIntegration(LoggerMixin):
                     if len(hyp.positions) < 3:
                         continue
 
-                    last_pos = hyp.positions[-1]
-                    spatial_dist = np.linalg.norm(
-                        np.array(centroid) - np.array(last_pos)
+                    score, track_id_match = self._evaluate_recovery_candidate(
+                        hyp, centroid, features, track_id
                     )
 
-                    if spatial_dist > 80.0:
-                        continue
+                    if score > best_score:
+                        best_score = score
+                        best_match = hyp
+                        best_track_id = track_id_match
 
-                    feature_similarity = 0.2
-                    if features is not None and hyp.features:
-                        avg_feature = hyp.get_average_feature()
-                        if avg_feature is not None:
-                            norm_feat = np.linalg.norm(features)
-                            norm_avg = np.linalg.norm(avg_feature)
-                            if norm_feat > 0 and norm_avg > 0:
-                                feature_similarity = np.dot(features, avg_feature) / (
-                                    norm_feat * norm_avg + 1e-8
-                                )
-                                feature_similarity = max(0.0, min(0.5, feature_similarity))
+        return self._finalize_recovery(best_track_id, best_match, current_time)
 
-                    spatial_score = 1.0 - min(1.0, spatial_dist / 80.0)
-                    combined_score = (
-                        0.5 * spatial_score +
-                        0.3 * feature_similarity +
-                        0.2 * hyp.probability
-                    )
+    def _evaluate_recovery_candidate(
+        self,
+        hyp: TrackHypothesis,
+        centroid: Tuple[int, int],
+        features: Optional[np.ndarray],
+        track_id: int
+    ) -> Tuple[float, Optional[int]]:
+        """
+        Evalúa un candidato para recuperación.
 
-                    recovery_threshold = 0.35
-                    if combined_score > best_score and combined_score > recovery_threshold:
-                        if track_id < 10000:
-                            best_score = combined_score
-                            best_match = hyp
-                            best_track_id = track_id
+        Args:
+            hyp: Hipótesis a evaluar.
+            centroid: Centroide de la detección.
+            features: Features de la detección.
+            track_id: ID del track.
 
+        Returns:
+            Tuple[float, Optional[int]]: (puntuación, track_id)
+        """
+        last_pos = hyp.positions[-1]
+        spatial_dist = np.linalg.norm(
+            np.array(centroid) - np.array(last_pos)
+        )
+
+        if spatial_dist > 80.0:
+            return 0.0, None
+
+        feature_similarity = self._compute_feature_similarity(features, hyp)
+
+        spatial_score = 1.0 - min(1.0, spatial_dist / 80.0)
+        combined_score = (
+            0.5 * spatial_score +
+            0.3 * feature_similarity +
+            0.2 * hyp.probability
+        )
+
+        recovery_threshold = 0.35
+        if combined_score > recovery_threshold and track_id < 10000:
+            return combined_score, track_id
+
+        return 0.0, None
+
+    def _compute_feature_similarity(
+        self,
+        features: Optional[np.ndarray],
+        hyp: TrackHypothesis
+    ) -> float:
+        """
+        Calcula la similitud de features entre detección e hipótesis.
+
+        Args:
+            features: Features de la detección.
+            hyp: Hipótesis a comparar.
+
+        Returns:
+            float: Similitud (0-1).
+        """
+        if features is None or not hyp.features:
+            return 0.2
+
+        avg_feature = hyp.get_average_feature()
+        if avg_feature is None:
+            return 0.2
+
+        norm_feat = np.linalg.norm(features)
+        norm_avg = np.linalg.norm(avg_feature)
+
+        if norm_feat > 0 and norm_avg > 0:
+            similarity = np.dot(features, avg_feature) / (
+                norm_feat * norm_avg + 1e-8
+            )
+            return max(0.0, min(0.5, similarity))
+
+        return 0.2
+
+    def _finalize_recovery(
+        self,
+        best_track_id: Optional[int],
+        best_match: Optional[TrackHypothesis],
+        current_time: float
+    ) -> Optional[int]:
+        """
+        Finaliza el proceso de recuperación.
+
+        Args:
+            best_track_id: ID del mejor track.
+            best_match: Mejor hipótesis.
+            current_time: Timestamp actual.
+
+        Returns:
+            Optional[int]: ID del track recuperado o None.
+        """
         if best_track_id is not None and best_match is not None:
             self._recently_recovered[best_track_id] = current_time
 
@@ -536,16 +724,113 @@ class MHTIntegration(LoggerMixin):
 
         return None
 
+    def _confirm_recovered_track(
+        self,
+        recovered_track_id: int,
+        detection: Dict[str, Any],
+        tracks: Dict[int, TrackState],
+        confirmed: Dict[int, Optional[int]]
+    ) -> bool:
+        """
+        Confirma la recuperación de un track.
+
+        Args:
+            recovered_track_id: ID del track recuperado.
+            detection: Detección que lo recuperó.
+            tracks: Diccionario de tracks activos.
+            confirmed: Diccionario de confirmaciones.
+
+        Returns:
+            bool: True si la recuperación fue exitosa.
+        """
+        if recovered_track_id not in tracks:
+            best_hyp = self.hypothesis_tree.get_best_hypothesis(recovered_track_id)
+            if best_hyp is not None and best_hyp.probability > 0.3:
+                centroid = detection.get('centroid')
+                if centroid is not None:
+                    best_hyp.update_position(
+                        centroid,
+                        detection.get('box')
+                    )
+                best_hyp.confidence = detection.get('confidence', 0.5)
+                best_hyp.last_update = time.time()
+
+                new_prob = min(0.6, best_hyp.probability * 1.05)
+                best_hyp.probability = new_prob
+
+                self.hypothesis_tree._normalize_probabilities(recovered_track_id)
+
+                confirmed[recovered_track_id] = id(best_hyp)
+                self._stats["tracks_recovered_by_mht"] += 1
+                self._stats["successful_recoveries"] += 1
+                self._stats["last_recovery_time"] = time.time()
+
+                self.logger.debug(
+                    "Track recuperado por MHT",
+                    track_id=recovered_track_id,
+                    probability=f"{best_hyp.probability:.3f}"
+                )
+
+                return True
+
+        return False
+
+    def _create_temporary_hypothesis(self, detection: Dict[str, Any]) -> None:
+        """
+        Crea una hipótesis temporal para una detección de alta confianza.
+
+        Args:
+            detection: Detección para crear hipótesis.
+        """
+        temp_id = -abs(hash(str(detection.get('centroid', (0, 0))))) % 10000
+        if temp_id not in self.hypothesis_tree._hypotheses:
+            new_hyp = self.create_hypothesis_from_detection(
+                detection,
+                temp_id,
+                confidence=detection.get('confidence', 0.5) * 0.2
+            )
+            new_hyp.probability = 0.005
+            self.hypothesis_tree.add_hypothesis(temp_id, new_hyp)
+
+    def _create_temporary_hypotheses(
+        self,
+        detections: List[Dict[str, Any]],
+        unmatched_detections: List[int]
+    ) -> None:
+        """
+        Crea hipótesis temporales para detecciones no asociadas.
+
+        Args:
+            detections: Lista de detecciones.
+            unmatched_detections: Índices de detecciones no asociadas.
+        """
+        recovered_count = 0
+
+        for det_idx in unmatched_detections:
+            if det_idx >= len(detections):
+                continue
+
+            detection = detections[det_idx]
+
+            if detection.get('confidence', 0) > 0.5 and recovered_count < 2:
+                self._create_temporary_hypothesis(detection)
+                recovered_count += 1
+
+    def _prune_tree(self) -> None:
+        """Poda el árbol de hipótesis si es necesario."""
+        if self._should_prune():
+            pruned = self.hypothesis_tree.prune_all()
+            if pruned > 0:
+                self.logger.debug(
+                    f"Árbol MHT podado: {pruned} hipótesis eliminadas"
+                )
+
     def _should_prune(self) -> bool:
         """
         Determina si es necesario podar el árbol de hipótesis.
 
         Returns:
             bool: True si se debe podar.
-
-        Note:
-            La poda se realiza cuando hay muchas hipótesis
-            o ha pasado mucho tiempo desde la última poda.
         """
         stats = self.hypothesis_tree.get_stats()
         total_hyps = stats.get('total_hypotheses', 0)
@@ -572,6 +857,23 @@ class MHTIntegration(LoggerMixin):
                 total_hyps / total_tracks if total_tracks > 0 else 0.0
             ),
         })
+
+    def _log_performance(self, start_time: float, matches: List[Tuple[int, int]]) -> None:
+        """
+        Registra métricas de rendimiento.
+
+        Args:
+            start_time: Timestamp de inicio.
+            matches: Lista de matches procesados.
+        """
+        elapsed_ms = (time.perf_counter() - start_time) * 1000
+        if elapsed_ms > 10:
+            self.logger.debug(
+                "Actualización MHT completada",
+                time_ms=f"{elapsed_ms:.1f}",
+                matches=len(matches),
+                total_hyps=len(self.hypothesis_tree)
+            )
 
     def get_track_predictions(
         self,
