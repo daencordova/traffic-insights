@@ -185,6 +185,147 @@ class OverlayRenderer(LoggerMixin):
 
         return result
 
+    def _draw_tracks(
+        self,
+        frame: np.ndarray,
+        tracks: Dict[int, Dict[str, Any]]
+    ) -> np.ndarray:
+        """
+        Dibuja todos los tracks activos con información mejorada.
+
+        Args:
+            frame: Frame donde dibujar
+            tracks: Diccionario de tracks activos
+
+        Returns:
+            np.ndarray: Frame con tracks dibujados
+        """
+        if not tracks or frame is None or not isinstance(frame, np.ndarray):
+            return frame
+
+        h, w = frame.shape[:2]
+        track_ids = list(tracks.keys())
+        colors = self._color_manager.get_colors_for_tracks(track_ids)
+
+        for track_id, track_data in tracks.items():
+            self._draw_single_track(frame, track_id, track_data, colors, h, w)
+
+        return frame
+
+    def _draw_single_track(
+        self,
+        frame: np.ndarray,
+        track_id: int,
+        track_data: Dict[str, Any],
+        colors: Dict[int, Tuple[int, int, int]],
+        h: int,
+        w: int
+    ) -> None:
+        """
+        Dibuja un track individual.
+
+        Args:
+            frame: Frame donde dibujar
+            track_id: ID del track
+            track_data: Datos del track
+            colors: Diccionario de colores por track
+            h: Alto del frame
+            w: Ancho del frame
+        """
+        try:
+            if not isinstance(track_data, dict):
+                return
+
+            centroid = track_data.get("centroid")
+            if not centroid or not isinstance(centroid, (tuple, list)):
+                return
+
+            cx, cy = self._sanitize_centroid(centroid, h, w)
+            if cx is None or cy is None:
+                return
+
+            color = colors.get(track_id, (0, 255, 0))
+            final_color = self._get_final_color(track_data, color)
+
+            history = track_data.get("history", [])
+            self._draw_track_elements(
+                frame, track_id, track_data, history,
+                cx, cy, final_color, h, w
+            )
+
+        except Exception as e:
+            self.logger.error(
+                f"Error dibujando track {track_id}: {e}",
+                exc_info=True
+            )
+
+    def _get_final_color(
+        self,
+        track_data: Dict[str, Any],
+        base_color: Tuple[int, int, int]
+    ) -> Tuple[int, int, int]:
+        """
+        Obtiene el color final combinando base con estado.
+
+        Args:
+            track_data: Datos del track
+            base_color: Color base del track
+
+        Returns:
+            Tuple[int, int, int]: Color final
+        """
+        status = track_data.get("status", "")
+        status_color, _, _ = self._get_enhanced_status_info(status)
+        return self._blend_colors(base_color, status_color)
+
+    def _draw_track_elements(
+        self,
+        frame: np.ndarray,
+        track_id: int,
+        track_data: Dict[str, Any],
+        history: List[Tuple[int, int]],
+        cx: int,
+        cy: int,
+        color: Tuple[int, int, int],
+        h: int,
+        w: int
+    ) -> None:
+        """
+        Dibuja todos los elementos visuales de un track.
+
+        Args:
+            frame: Frame donde dibujar
+            track_id: ID del track
+            track_data: Datos del track
+            history: Historial del track
+            cx: Centroide X
+            cy: Centroide Y
+            color: Color del track
+            h: Alto del frame
+            w: Ancho del frame
+        """
+        self._draw_track_arrow(frame, history, cx, cy, color, w, h)
+        self._draw_track_circle(frame, cx, cy, color, track_data)
+        self._draw_track_label(frame, cx, cy, track_id, self._get_status_icon(track_data), color)
+        self._draw_track_trail(frame, history, color, self.trail_length)
+        self._draw_track_bbox(frame, track_data, color)
+        self._draw_track_speed(frame, cx, cy, track_data, h, w)
+        self._draw_track_prediction(frame, track_data, cx, cy, color)
+
+    def _get_status_icon(self, track_data: Dict[str, Any]) -> str:
+        """
+        Obtiene el icono del estado del track.
+
+        Args:
+            track_data: Datos del track
+
+        Returns:
+            str: Icono del estado
+        """
+        status = track_data.get("status", "")
+        _, icon, _ = self._get_enhanced_status_info(status)
+        return icon
+
     def _sanitize_point(
         self,
         point: Any,
@@ -280,78 +421,31 @@ class OverlayRenderer(LoggerMixin):
         """
         return self.PREDICTION_STATE_COLORS.get(state, (255, 255, 0))
 
-    def _draw_counting_lines(
+    def _blend_colors(
         self,
-        frame: np.ndarray,
-        stats: Dict[str, Any]
-    ) -> np.ndarray:
+        color1: Tuple[int, int, int],
+        color2: Tuple[int, int, int],
+        weight: float = 0.3
+    ) -> Tuple[int, int, int]:
         """
-        Dibuja las líneas de conteo con sus contadores.
+        Mezcla dos colores.
 
         Args:
-            frame: Frame donde dibujar
-            stats: Estadísticas del sistema
+            color1: Color base.
+            color2: Color de estado.
+            weight: Peso del color de estado (0-1).
 
         Returns:
-            np.ndarray: Frame con líneas de conteo dibujadas
+            Tuple[int, int, int]: Color mezclado en formato BGR.
         """
-        if not self._config.counting_lines:
-            return frame
+        b1, g1, r1 = color1
+        b2, g2, r2 = color2
 
-        if frame is None or not isinstance(frame, np.ndarray):
-            return frame
+        b = int(b1 * (1 - weight) + b2 * weight)
+        g = int(g1 * (1 - weight) + g2 * weight)
+        r = int(r1 * (1 - weight) + r2 * weight)
 
-        h, w = frame.shape[:2]
-
-        for idx, line_config in enumerate(self._config.counting_lines):
-            try:
-                if not isinstance(line_config, dict):
-                    continue
-
-                points = line_config.get("points", [])
-                if len(points) < 1:
-                    continue
-
-                color = tuple(line_config.get("color", (0, 255, 0)))
-                name = line_config.get("name", f"Line {idx + 1}")
-                line_id = line_config.get("id", f"line_{idx}")
-
-                count = stats.get("line_counts", {}).get(line_id, 0)
-
-                first_point = points[0]
-                if isinstance(first_point, (list, tuple)) and len(first_point) == 2:
-                    y_position = min(max(0, first_point[1]), h - 1)
-
-                    cv2.line(
-                        frame,
-                        (0, y_position),
-                        (w, y_position),
-                        color,
-                        LINE_THICKNESS
-                    )
-
-                    label = f"{name}: {count}"
-                    x_pos = min(max(10, first_point[0] + 10), w - 100)
-                    y_pos = max(10, y_position - 10)
-                    cv2.putText(
-                        frame,
-                        label,
-                        (x_pos, y_pos),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        FONT_SCALE,
-                        color,
-                        2
-                    )
-
-            except Exception as e:
-                self.logger.debug(
-                    "Error dibujando línea de conteo",
-                    index=idx,
-                    error=str(e)
-                )
-                continue
-
-        return frame
+        return (b, g, r)
 
     def _draw_track_arrow(
         self,
@@ -481,7 +575,6 @@ class OverlayRenderer(LoggerMixin):
             status_icon: Icono del estado
             color: Color del track
         """
-
         if not self._show_track_ids:
             return
 
@@ -710,93 +803,6 @@ class OverlayRenderer(LoggerMixin):
             color
         )
 
-    def _draw_tracks(
-        self,
-        frame: np.ndarray,
-        tracks: Dict[int, Dict[str, Any]]
-    ) -> np.ndarray:
-        """
-        Dibuja todos los tracks activos con información mejorada.
-
-        Args:
-            frame: Frame donde dibujar
-            tracks: Diccionario de tracks activos
-
-        Returns:
-            np.ndarray: Frame con tracks dibujados
-        """
-        if not tracks or frame is None or not isinstance(frame, np.ndarray):
-            return frame
-
-        h, w = frame.shape[:2]
-
-        track_ids = list(tracks.keys())
-        colors = self._color_manager.get_colors_for_tracks(track_ids)
-
-        for track_id, track_data in tracks.items():
-            try:
-                if not isinstance(track_data, dict):
-                    continue
-
-                centroid = track_data.get("centroid")
-                if not centroid or not isinstance(centroid, (tuple, list)):
-                    continue
-
-                cx, cy = self._sanitize_centroid(centroid, h, w)
-                if cx is None or cy is None:
-                    continue
-
-                color = colors.get(track_id, (0, 255, 0))
-
-                status = track_data.get("status", "")
-                status_color, status_icon, _ = self._get_enhanced_status_info(status)
-                final_color = self._blend_colors(color, status_color)
-
-                history = track_data.get("history", [])
-
-                self._draw_track_arrow(frame, history, cx, cy, final_color, w, h)
-                self._draw_track_circle(frame, cx, cy, final_color, track_data)
-                self._draw_track_label(frame, cx, cy, track_id, status_icon, final_color)
-                self._draw_track_trail(frame, history, final_color, self.trail_length)
-                self._draw_track_bbox(frame, track_data, final_color)
-                self._draw_track_speed(frame, cx, cy, track_data, h, w)
-                self._draw_track_prediction(frame, track_data, cx, cy, final_color)
-
-            except Exception as e:
-                self.logger.error(
-                    f"Error dibujando track {track_id}: {e}",
-                    exc_info=True
-                )
-                continue
-
-        return frame
-
-    def _blend_colors(
-        self,
-        color1: Tuple[int, int, int],
-        color2: Tuple[int, int, int],
-        weight: float = 0.3
-    ) -> Tuple[int, int, int]:
-        """
-        Mezcla dos colores.
-
-        Args:
-            color1: Color base.
-            color2: Color de estado.
-            weight: Peso del color de estado (0-1).
-
-        Returns:
-            Tuple[int, int, int]: Color mezclado en formato BGR.
-        """
-        b1, g1, r1 = color1
-        b2, g2, r2 = color2
-
-        b = int(b1 * (1 - weight) + b2 * weight)
-        g = int(g1 * (1 - weight) + g2 * weight)
-        r = int(r1 * (1 - weight) + r2 * weight)
-
-        return (b, g, r)
-
     def _draw_enhanced_path_prediction(
         self,
         frame: np.ndarray,
@@ -922,6 +928,96 @@ class OverlayRenderer(LoggerMixin):
                     radius = int(15 + 10 * pulse)
                     cv2.circle(frame, (cx, cy), radius, (0, 0, 255), 2)
 
+    def _draw_counting_lines(
+        self,
+        frame: np.ndarray,
+        stats: Dict[str, Any]
+    ) -> np.ndarray:
+        """
+        Dibuja las líneas de conteo con sus contadores.
+
+        Args:
+            frame: Frame donde dibujar
+            stats: Estadísticas del sistema
+
+        Returns:
+            np.ndarray: Frame con líneas de conteo dibujadas
+        """
+        if not self._config.counting_lines:
+            return frame
+
+        if frame is None or not isinstance(frame, np.ndarray):
+            return frame
+
+        h, w = frame.shape[:2]
+
+        for idx, line_config in enumerate(self._config.counting_lines):
+            try:
+                if not isinstance(line_config, dict):
+                    continue
+
+                points = line_config.get("points", [])
+                if len(points) < 1:
+                    continue
+
+                color = tuple(line_config.get("color", (0, 255, 0)))
+                name = line_config.get("name", f"Line {idx + 1}")
+                line_id = line_config.get("id", f"line_{idx}")
+
+                count = stats.get("line_counts", {}).get(line_id, 0)
+
+                first_point = points[0]
+                if isinstance(first_point, (list, tuple)) and len(first_point) == 2:
+                    y_position = min(max(0, first_point[1]), h - 1)
+
+                    cv2.line(
+                        frame,
+                        (0, y_position),
+                        (w, y_position),
+                        color,
+                        LINE_THICKNESS
+                    )
+
+                    label = f"{name}: {count}"
+                    x_pos = min(max(10, first_point[0] + 10), w - 100)
+                    y_pos = max(10, y_position - 10)
+                    cv2.putText(
+                        frame,
+                        label,
+                        (x_pos, y_pos),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        FONT_SCALE,
+                        color,
+                        2
+                    )
+
+            except Exception as e:
+                self.logger.debug(
+                    "Error dibujando línea de conteo",
+                    index=idx,
+                    error=str(e)
+                )
+                continue
+
+        return frame
+
+    def _draw_detections(
+        self,
+        frame: np.ndarray,
+        tracks: Dict[int, Dict[str, Any]]
+    ) -> np.ndarray:
+        """
+        Dibuja las detecciones (si están disponibles en tracks).
+
+        Args:
+            frame: Frame donde dibujar
+            tracks: Diccionario de tracks
+
+        Returns:
+            np.ndarray: Frame con detecciones dibujadas
+        """
+        return frame
+
     def _draw_collision_alerts(
         self,
         frame: np.ndarray,
@@ -985,21 +1081,4 @@ class OverlayRenderer(LoggerMixin):
             2
         )
 
-        return frame
-
-    def _draw_detections(
-        self,
-        frame: np.ndarray,
-        tracks: Dict[int, Dict[str, Any]]
-    ) -> np.ndarray:
-        """
-        Dibuja las detecciones (si están disponibles en tracks).
-
-        Args:
-            frame: Frame donde dibujar
-            tracks: Diccionario de tracks
-
-        Returns:
-            np.ndarray: Frame con detecciones dibujadas
-        """
         return frame
