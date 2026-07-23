@@ -158,11 +158,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
     def _init_advanced_features(self) -> None:
         """Inicializa las características avanzadas del tracker."""
         self.mht_integration = self._init_mht()
-
         self.online_learner = self._init_online_learner()
-
         self.sensor_fusion = self._init_sensor_fusion()
-
         self.path_predictor = self._init_path_predictor()
 
     def _init_state_machine(self) -> None:
@@ -178,10 +175,6 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Returns:
             FeatureManager: Gestor de features configurado.
-
-        Note:
-            Los features se utilizan para re-identificación y matching.
-            Se activan automáticamente si hay GPU disponible.
         """
         use_features = self._should_use_features()
         feature_extractor = None
@@ -189,7 +182,6 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         if use_features:
             try:
                 from models.feature_extractor.factory import FeatureExtractorFactory
-
                 feature_extractor = FeatureExtractorFactory.create_best_available()
                 self.logger.info("Feature extractor activado")
             except Exception as e:
@@ -210,10 +202,6 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Returns:
             Optional[ReIDSystem]: Sistema de re-identificación
                 o None si está desactivado.
-
-        Note:
-            La re-identificación permite recuperar objetos perdidos
-            basándose en features visuales.
         """
         if not self.config.enable_reidentification or not self.feature_manager.is_available:
             return None
@@ -234,16 +222,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             return None
 
     def _init_mht(self) -> MHTIntegration:
-        """
-        Inicializa el sistema de Multi-Hypothesis Tracking (MHT).
-
-        Returns:
-            MHTIntegration: Sistema MHT configurado.
-
-        Note:
-            MHT permite mantener múltiples hipótesis de trayectoria
-            para manejar ambigüedades en la asociación de datos.
-        """
+        """Inicializa el sistema de Multi-Hypothesis Tracking (MHT)."""
         return MHTIntegration(
             max_depth=getattr(self.config, "mht_max_depth", 10),
             pruning_threshold=getattr(self.config, "mht_pruning_threshold", 0.01),
@@ -258,10 +237,6 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Returns:
             Optional[OnlineLearner]: Sistema de aprendizaje
                 o None si está desactivado.
-
-        Note:
-            El aprendizaje en línea permite adaptar los features
-            a cambios de apariencia del objeto.
         """
         if not self.feature_manager.is_available or not self.config.enable_reidentification:
             return None
@@ -288,11 +263,6 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Returns:
             Optional[SensorFusion]: Sistema de fusión
                 o None si está desactivado.
-
-        Note:
-            La fusión de sensores combina información de múltiples
-            fuentes (visual, profundidad, térmico) para mejorar
-            la robustez del tracking.
         """
         if not getattr(self.config, "enable_sensor_fusion", False):
             return None
@@ -324,10 +294,6 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Returns:
             Optional[PathPredictor]: Sistema de predicción
                 o None si está desactivado.
-
-        Note:
-            La predicción de trayectoria permite anticipar el
-            movimiento futuro de los objetos para mejorar el tracking.
         """
         if not getattr(self.config, "enable_path_prediction", True):
             return None
@@ -363,7 +329,28 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             "features_used": self.feature_manager.is_available,
         }
 
-    def update(self, detections: List[Dict[str, Any]], frame: np.ndarray) -> Dict[int, Dict[str, Any]]:
+    def _should_use_features(self) -> bool:
+        """
+        Determina si se deben usar features visuales.
+
+        Returns:
+            bool: True si se deben usar features.
+        """
+        from models.enums import DeviceType
+        if self.global_config.model.device == DeviceType.CPU:
+            return False
+
+        try:
+            import torch
+            return torch.cuda.is_available()
+        except ImportError:
+            return False
+
+    def update(
+        self,
+        detections: List[Dict[str, Any]],
+        frame: np.ndarray
+    ) -> Dict[int, Dict[str, Any]]:
         """
         Actualiza el tracker con nuevas detecciones.
 
@@ -372,26 +359,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             frame: Imagen actual para extraer features y contexto.
 
         Returns:
-            Dict[int, Dict[str, Any]]: Información de tracking actualizada,
-                donde la clave es el track_id y el valor contiene:
-                - centroid: Centroide del objeto
-                - bbox: Bounding box
-                - status: Estado del track
-                - age: Edad en frames
-                - hits: Número de detecciones asociadas
-                - confidence: Confianza del track
-                - velocity: Velocidad actual
-                - history: Historial de posiciones
-                - predicted_centroid: Posición predicha
+            Dict[int, Dict[str, Any]]: Información de tracking actualizada.
 
         Raises:
             TrackingError: Si ocurre un error durante el tracking.
-
-        Example:
-            >>> detections = detector.detect(frame)
-            >>> tracks = tracker.update(detections, frame)
-            >>> for track_id, data in tracks.items():
-            ...     print(f"Track {track_id} en {data['centroid']}")
         """
         if frame is None or frame.size == 0:
             return {}
@@ -425,13 +396,62 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             )
 
         self._perform_cleanup()
-
         self._update_stats()
 
         self._tracking_time_ms = (time.perf_counter() - start_time) * 1000
         self._stats["tracking_time_ms"] = self._tracking_time_ms
 
         return self.get_tracking_info()
+
+    def _validate_detections(
+        self,
+        detections: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Valida y filtra detecciones.
+
+        Args:
+            detections: Lista de detecciones a validar.
+
+        Returns:
+            List[Dict[str, Any]]: Lista de detecciones válidas.
+        """
+        if not detections:
+            return []
+
+        valid = []
+        for det in detections:
+            if validate_detection(det, require_all_fields=True).is_valid:
+                valid.append(det)
+                if len(valid) >= self.MAX_DETECTIONS_PER_FRAME:
+                    break
+
+        return valid
+
+    def _extract_features(
+        self,
+        detections: List[Dict[str, Any]],
+        frame: np.ndarray
+    ) -> None:
+        """
+        Extrae features para todas las detecciones.
+
+        Args:
+            detections: Lista de detecciones.
+            frame: Frame actual para extraer features.
+        """
+        for det in detections:
+            if "box" in det:
+                features = self.feature_manager.extract_features(
+                    frame, det["box"], det.get("confidence", 0.5)
+                )
+                if features is not None:
+                    det["features"] = features
+
+    def _predict_positions(self) -> None:
+        """Predice posiciones de todos los tracks usando filtro de Kalman."""
+        for track in self.track_manager.get_all_tracks().values():
+            self.track_updater.predict_position(track)
 
     def _perform_matching(
         self,
@@ -446,11 +466,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             frame: Frame actual para contexto.
 
         Returns:
-            MatchResult: Resultado del matching con matches y no-matches.
-
-        Note:
-            Utiliza el matcher jerárquico que combina múltiples
-            criterios (IoU, features, movimiento, forma).
+            MatchResult: Resultado del matching.
         """
         tracks = list(self.track_manager.get_all_tracks().values())
 
@@ -489,283 +505,47 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             detection = detections[det_idx]
             features = detection.get("features")
 
-            self.track_manager.update_track(track_id, detection, features)
-            track = self.track_manager.get_track(track_id)
+            self._update_single_track(track_id, detection, features, match_result)
 
-            if track:
-                self.track_updater.correct_position(track, detection)
-                self.track_updater.update_motion_metrics(track)
-
-                new_status = self.state_machine.transition(
-                    track.status,
-                    track.hits,
-                    track.no_losses
-                )
-                track.status = new_status
-
-                if features is not None:
-                    self.feature_manager.cache_features(track_id, features, track.confidence)
-
-                if track_id in match_result.reidentified:
-                    self.logger.info(
-                        "Track recuperado y actualizado",
-                        track_id=track_id,
-                        confidence=track.confidence
-                    )
-
-    def _handle_unmatched(self, match_result: MatchResult) -> None:
-        """
-        Maneja tracks no asociados (pérdidas).
-
-        Args:
-            match_result: Resultado del matching con tracks no asociados.
-        """
-        tracks = self.track_manager.get_all_tracks()
-        track_ids = list(tracks.keys())
-
-        for track_idx in match_result.unmatched_tracks:
-            if track_idx >= len(track_ids):
-                continue
-
-            track_id = track_ids[track_idx]
-            track = self.track_manager.get_track(track_id)
-
-            if track:
-                track.mark_lost()
-
-                new_status = self.state_machine.transition(
-                    track.status,
-                    track.hits,
-                    track.no_losses
-                )
-                track.status = new_status
-
-                if track.status == TrackStatus.DEAD:
-                    self._handle_dead_track(track_id)
-
-    def _handle_dead_track(self, track_id: int) -> None:
-        """
-        Maneja un track que ha muerto (no recuperable).
-
-        Args:
-            track_id: ID del track muerto.
-
-        Note:
-            Guarda los features del track para posible re-identificación
-            futura y limpia los subsistemas asociados.
-        """
-        track = self.track_manager.get_track(track_id)
-        if track is None:
-            return
-
-        self.track_manager.mark_as_lost(track_id)
-
-        if self.reid_system and track.features is not None:
-            self.reid_system.add_lost_track(
-                track_id,
-                track.features,
-                track.confidence
-            )
-
-        if self.online_learner:
-            self.online_learner.clear_track(track_id)
-        if self.sensor_fusion:
-            self.sensor_fusion.clear_track(track_id)
-        if self.path_predictor:
-            self.path_predictor.clear_track(track_id)
-
-    def _perform_reidentification(
+    def _update_single_track(
         self,
-        detections: List[Dict[str, Any]],
-        unmatched_dets: List[int],
-        frame: np.ndarray
-    ) -> int:
-        """
-        Realiza re-identificación de objetos perdidos.
-
-        Args:
-            detections: Lista de detecciones.
-            unmatched_dets: Índices de detecciones no asociadas.
-            frame: Frame actual para extraer features.
-
-        Returns:
-            int: Número de tracks re-identificados exitosamente.
-
-        Note:
-            Utiliza features visuales para encontrar coincidencias
-            con tracks perdidos anteriormente.
-        """
-        if not self.reid_system or not unmatched_dets:
-            return 0
-
-        reidentified = 0
-
-        for det_idx in unmatched_dets:
-            if det_idx >= len(detections):
-                continue
-
-            detection = detections[det_idx]
-
-            track_id = self.reid_system.attempt_reidentification(
-                detection=detection,
-                frame=frame,
-                current_tracks=self.track_manager.get_all_tracks()
-            )
-
-            if track_id is not None:
-                track = self.track_manager.recover_track(track_id)
-                if track:
-                    track.update(detection, detection.get("features"))
-                    track.status = TrackStatus.CONFIRMED
-                    track.no_losses = 0
-
-                    self.track_updater.init_kalman(track)
-
-                    self._stats["reidentified_tracks"] += 1
-                    reidentified += 1
-
-                    self.logger.info(
-                        "Track re-identificado",
-                        track_id=track_id,
-                        confidence=track.confidence
-                    )
-
-        return reidentified
-
-    def _create_new_tracks(
-        self,
-        detections: List[Dict[str, Any]],
+        track_id: int,
+        detection: Dict[str, Any],
+        features: Optional[np.ndarray],
         match_result: MatchResult
     ) -> None:
         """
-        Crea nuevos tracks a partir de detecciones no asociadas.
+        Actualiza un track individual.
 
         Args:
-            detections: Lista de detecciones.
-            match_result: Resultado del matching con detecciones no asociadas.
-        """
-        tracks_created = 0
-
-        for det_idx in match_result.unmatched_detections:
-            if det_idx >= len(detections):
-                continue
-
-            detection = detections[det_idx]
-
-            confidence = detection.get("confidence", 0.0)
-            if confidence < self.global_config.model.confidence_threshold:
-                continue
-
-            if not detection.get("box") or not detection.get("centroid"):
-                continue
-
-            features = detection.get("features")
-            track = self.track_manager.create_track(
-                detection=detection,
-                features=features
-            )
-
-            if track:
-                self.track_updater.init_kalman(track)
-                self._init_advanced_features_for_track(track, detection, confidence, features)
-                tracks_created += 1
-
-        if tracks_created > 0:
-            self.logger.debug(
-                "Nuevos tracks creados",
-                count=tracks_created,
-                active=self.track_manager.get_active_count()
-            )
-
-    def _init_advanced_features_for_track(
-        self,
-        track: Any,
-        detection: Dict[str, Any],
-        confidence: float,
-        features: Optional[np.ndarray]
-    ) -> None:
-        """
-        Inicializa características avanzadas para un nuevo track.
-
-        Args:
-            track: Track a inicializar.
+            track_id: ID del track.
             detection: Detección asociada.
-            confidence: Confianza de la detección.
-            features: Features extraídos (opcional).
+            features: Features extraídos.
+            match_result: Resultado del matching.
         """
-        track_id = track.track_id
+        self.track_manager.update_track(track_id, detection, features)
+        track = self.track_manager.get_track(track_id)
 
-        if self.online_learner and features is not None:
-            try:
-                self.online_learner.update(
-                    track_id=track_id,
-                    features=features,
-                    confidence=confidence
-                )
-            except Exception as e:
-                self.logger.debug(
-                    "Error iniciando aprendizaje en línea",
-                    track_id=track_id,
-                    error=str(e)
-                )
+        if track:
+            self.track_updater.correct_position(track, detection)
+            self.track_updater.update_motion_metrics(track)
 
-        if self.sensor_fusion:
-            try:
-                from core.tracker.sensor_fusion import SensorObservation, SensorType
-                observation = SensorObservation(
-                    sensor_type=SensorType.VISUAL,
-                    bbox=track.bbox,
-                    centroid=track.centroid,
-                    confidence=confidence,
-                    track_id=track_id,
-                    metadata={
-                        "class_id": track.class_id,
-                        "label": track.label,
-                        "frame": self._frame_counter,
-                    }
-                )
-                self.sensor_fusion.add_observation(track_id, observation)
-            except Exception as e:
-                self.logger.debug(
-                    "Error iniciando fusión de sensores",
-                    track_id=track_id,
-                    error=str(e)
-                )
+            new_status = self.state_machine.transition(
+                track.status,
+                track.hits,
+                track.no_losses
+            )
+            track.status = new_status
 
-        if self.path_predictor:
-            try:
-                self.path_predictor.update(
+            if features is not None:
+                self.feature_manager.cache_features(track_id, features, track.confidence)
+
+            if track_id in match_result.reidentified:
+                self.logger.info(
+                    "Track recuperado y actualizado",
                     track_id=track_id,
-                    position=track.centroid,
-                    confidence=confidence
+                    confidence=track.confidence
                 )
-            except Exception as e:
-                self.logger.debug(
-                    "Error iniciando predicción de trayectoria",
-                    track_id=track_id,
-                    error=str(e)
-                )
-
-    def _predict_positions(self) -> None:
-        """Predice posiciones de todos los tracks usando filtro de Kalman."""
-        for track in self.track_manager.get_all_tracks().values():
-            self.track_updater.predict_position(track)
-
-    def _extract_features(self, detections: List[Dict[str, Any]], frame: np.ndarray) -> None:
-        """
-        Extrae features para todas las detecciones.
-
-        Args:
-            detections: Lista de detecciones.
-            frame: Frame actual para extraer features.
-        """
-        for det in detections:
-            if "box" in det:
-                features = self.feature_manager.extract_features(
-                    frame, det["box"], det.get("confidence", 0.5)
-                )
-                if features is not None:
-                    det["features"] = features
 
     def _update_advanced_systems(
         self,
@@ -904,42 +684,262 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                     error=str(e)
                 )
 
-    def _validate_detections(self, detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _handle_unmatched(self, match_result: MatchResult) -> None:
         """
-        Valida y filtra detecciones.
+        Maneja tracks no asociados (pérdidas).
 
         Args:
-            detections: Lista de detecciones a validar.
+            match_result: Resultado del matching con tracks no asociados.
+        """
+        tracks = self.track_manager.get_all_tracks()
+        track_ids = list(tracks.keys())
+
+        for track_idx in match_result.unmatched_tracks:
+            if track_idx >= len(track_ids):
+                continue
+
+            track_id = track_ids[track_idx]
+            track = self.track_manager.get_track(track_id)
+
+            if track:
+                track.mark_lost()
+
+                new_status = self.state_machine.transition(
+                    track.status,
+                    track.hits,
+                    track.no_losses
+                )
+                track.status = new_status
+
+                if track.status == TrackStatus.DEAD:
+                    self._handle_dead_track(track_id)
+
+    def _handle_dead_track(self, track_id: int) -> None:
+        """
+        Maneja un track que ha muerto (no recuperable).
+
+        Args:
+            track_id: ID del track muerto.
+        """
+        track = self.track_manager.get_track(track_id)
+        if track is None:
+            return
+
+        self.track_manager.mark_as_lost(track_id)
+
+        if self.reid_system and track.features is not None:
+            self.reid_system.add_lost_track(
+                track_id,
+                track.features,
+                track.confidence
+            )
+
+        if self.online_learner:
+            self.online_learner.clear_track(track_id)
+        if self.sensor_fusion:
+            self.sensor_fusion.clear_track(track_id)
+        if self.path_predictor:
+            self.path_predictor.clear_track(track_id)
+
+    def _create_new_tracks(
+        self,
+        detections: List[Dict[str, Any]],
+        match_result: MatchResult
+    ) -> None:
+        """
+        Crea nuevos tracks a partir de detecciones no asociadas.
+
+        Args:
+            detections: Lista de detecciones.
+            match_result: Resultado del matching con detecciones no asociadas.
+        """
+        tracks_created = 0
+
+        for det_idx in match_result.unmatched_detections:
+            if det_idx >= len(detections):
+                continue
+
+            detection = detections[det_idx]
+
+            if not self._is_valid_new_track(detection):
+                continue
+
+            features = detection.get("features")
+            track = self.track_manager.create_track(
+                detection=detection,
+                features=features
+            )
+
+            if track:
+                self.track_updater.init_kalman(track)
+                self._init_advanced_features_for_track(
+                    track, detection, detection.get("confidence", 0.5), features
+                )
+                tracks_created += 1
+
+        if tracks_created > 0:
+            self.logger.debug(
+                "Nuevos tracks creados",
+                count=tracks_created,
+                active=self.track_manager.get_active_count()
+            )
+
+    def _is_valid_new_track(self, detection: Dict[str, Any]) -> bool:
+        """
+        Verifica si una detección es válida para crear un nuevo track.
+
+        Args:
+            detection: Detección a verificar.
 
         Returns:
-            List[Dict[str, Any]]: Lista de detecciones válidas.
+            bool: True si la detección es válida.
         """
-        if not detections:
-            return []
+        confidence = detection.get("confidence", 0.0)
+        if confidence < self.global_config.model.confidence_threshold:
+            return False
 
-        valid = []
-        for det in detections:
-            if validate_detection(det, require_all_fields=True).is_valid:
-                valid.append(det)
-                if len(valid) >= self.MAX_DETECTIONS_PER_FRAME:
-                    break
+        if not detection.get("box") or not detection.get("centroid"):
+            return False
 
-        return valid
+        return True
 
-    def _perform_cleanup(self) -> None:
-        """Realiza limpieza periódica de tracks muertos."""
-        current_time = time.time()
-        if current_time - self._last_cleanup_time >= self.CLEANUP_INTERVAL:
-            self._last_cleanup_time = current_time
-            removed = self.track_manager.cleanup_dead_tracks()
+    def _init_advanced_features_for_track(
+        self,
+        track: Any,
+        detection: Dict[str, Any],
+        confidence: float,
+        features: Optional[np.ndarray]
+    ) -> None:
+        """
+        Inicializa características avanzadas para un nuevo track.
 
-            if removed > 0:
-                self.logger.debug(
-                    "Limpieza de tracks completada",
-                    removed=removed,
-                    active=self.track_manager.get_active_count(),
-                    lost=self.track_manager.get_lost_count()
+        Args:
+            track: Track a inicializar.
+            detection: Detección asociada.
+            confidence: Confianza de la detección.
+            features: Features extraídos (opcional).
+        """
+        track_id = track.track_id
+
+        if self.online_learner and features is not None:
+            try:
+                self.online_learner.update(
+                    track_id=track_id,
+                    features=features,
+                    confidence=confidence
                 )
+            except Exception as e:
+                self.logger.debug(
+                    "Error iniciando aprendizaje en línea",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+        if self.sensor_fusion:
+            try:
+                from core.tracker.sensor_fusion import SensorObservation, SensorType
+                observation = SensorObservation(
+                    sensor_type=SensorType.VISUAL,
+                    bbox=track.bbox,
+                    centroid=track.centroid,
+                    confidence=confidence,
+                    track_id=track_id,
+                    metadata={
+                        "class_id": track.class_id,
+                        "label": track.label,
+                        "frame": self._frame_counter,
+                    }
+                )
+                self.sensor_fusion.add_observation(track_id, observation)
+            except Exception as e:
+                self.logger.debug(
+                    "Error iniciando fusión de sensores",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+        if self.path_predictor:
+            try:
+                self.path_predictor.update(
+                    track_id=track_id,
+                    position=track.centroid,
+                    confidence=confidence
+                )
+            except Exception as e:
+                self.logger.debug(
+                    "Error iniciando predicción de trayectoria",
+                    track_id=track_id,
+                    error=str(e)
+                )
+
+    def _perform_reidentification(
+        self,
+        detections: List[Dict[str, Any]],
+        unmatched_dets: List[int],
+        frame: np.ndarray
+    ) -> int:
+        """
+        Realiza re-identificación de objetos perdidos.
+
+        Args:
+            detections: Lista de detecciones.
+            unmatched_dets: Índices de detecciones no asociadas.
+            frame: Frame actual para extraer features.
+
+        Returns:
+            int: Número de tracks re-identificados exitosamente.
+        """
+        if not self.reid_system or not unmatched_dets:
+            return 0
+
+        reidentified = 0
+
+        for det_idx in unmatched_dets:
+            if det_idx >= len(detections):
+                continue
+
+            detection = detections[det_idx]
+            track_id = self.reid_system.attempt_reidentification(
+                detection=detection,
+                frame=frame,
+                current_tracks=self.track_manager.get_all_tracks()
+            )
+
+            if track_id is not None:
+                if self._recover_track(track_id, detection):
+                    reidentified += 1
+
+        return reidentified
+
+    def _recover_track(self, track_id: int, detection: Dict[str, Any]) -> bool:
+        """
+        Recupera un track re-identificado.
+
+        Args:
+            track_id: ID del track a recuperar.
+            detection: Detección que lo re-identificó.
+
+        Returns:
+            bool: True si la recuperación fue exitosa.
+        """
+        track = self.track_manager.recover_track(track_id)
+        if not track:
+            return False
+
+        track.update(detection, detection.get("features"))
+        track.status = TrackStatus.CONFIRMED
+        track.no_losses = 0
+
+        self.track_updater.init_kalman(track)
+        self._stats["reidentified_tracks"] += 1
+
+        self.logger.info(
+            "Track re-identificado",
+            track_id=track_id,
+            confidence=track.confidence
+        )
+
+        return True
 
     def _check_memory(self) -> None:
         """Verifica el uso de memoria y limpia si es necesario."""
@@ -964,6 +964,21 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         except Exception as e:
             self.logger.debug("Error verificando memoria", error=str(e))
 
+    def _perform_cleanup(self) -> None:
+        """Realiza limpieza periódica de tracks muertos."""
+        current_time = time.time()
+        if current_time - self._last_cleanup_time >= self.CLEANUP_INTERVAL:
+            self._last_cleanup_time = current_time
+            removed = self.track_manager.cleanup_dead_tracks()
+
+            if removed > 0:
+                self.logger.debug(
+                    "Limpieza de tracks completada",
+                    removed=removed,
+                    active=self.track_manager.get_active_count(),
+                    lost=self.track_manager.get_lost_count()
+                )
+
     def _update_stats(self) -> None:
         """Actualiza estadísticas del tracker."""
         self._stats["total_tracks"] = self.track_manager.get_active_count()
@@ -972,27 +987,6 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             if t.status == TrackStatus.CONFIRMED
         )
         self._stats["lost_tracks"] = self.track_manager.get_lost_count()
-
-    def _should_use_features(self) -> bool:
-        """
-        Determina si se deben usar features visuales.
-
-        Returns:
-            bool: True si se deben usar features.
-
-        Note:
-            Los features solo se activan si hay GPU disponible
-            y no se está en modo CPU forzado.
-        """
-        from models.enums import DeviceType
-        if self.global_config.model.device == DeviceType.CPU:
-            return False
-
-        try:
-            import torch
-            return torch.cuda.is_available()
-        except ImportError:
-            return False
 
     def get_tracking_info(self) -> Dict[int, Dict[str, Any]]:
         """
