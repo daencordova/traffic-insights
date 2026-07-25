@@ -1,19 +1,20 @@
-"""
-Validador de configuración con validación cruzada.
-"""
+"""Validador de configuración con validación cruzada."""
 
-from pathlib import Path
-from typing import List
 import logging
+from pathlib import Path
+
+from ultralytics import YOLO
 
 from core.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
+MINIMUM_BUFFER_MEMORY_MB = 500
+MAX_RECOMMENDED_FPS = 60
 
-def validate_config(config) -> List[str]:
-    """
-    Valida la configuración del sistema.
+
+def validate_config(config) -> list[str]:
+    """Valida la configuración del sistema.
 
     Args:
         config: Objeto de configuración Pydantic.
@@ -38,26 +39,25 @@ def validate_config(config) -> List[str]:
             except OSError as e:
                 raise ConfigurationError(
                     f"No se pudo crear el directorio '{name}': {e}",
-                    details={"path": str(path), "error": str(e)}
-                )
+                    details={"path": str(path), "error": str(e)},
+                ) from e
 
     model_path = Path(config.model.model_path)
     if not model_path.exists():
-        if model_path.name.endswith('.pt') and model_path.name.startswith('yolo'):
+        if model_path.name.endswith(".pt") and model_path.name.startswith("yolo"):
             try:
-                from ultralytics import YOLO
                 logger.info(f"Descargando modelo {model_path.name}...")
                 YOLO(model_path.name)
                 logger.info(f"Modelo {model_path.name} descargado")
             except Exception as e:
                 raise ConfigurationError(
                     f"Modelo no encontrado y no se pudo descargar: {model_path}",
-                    details={"model_path": str(model_path), "error": str(e)}
-                )
+                    details={"model_path": str(model_path), "error": str(e)},
+                ) from e
         else:
             raise ConfigurationError(
                 f"Archivo de modelo no encontrado: {model_path}",
-                details={"model_path": str(model_path)}
+                details={"model_path": str(model_path)},
             )
 
     if config.model.device == "cpu" and config.tracker.enable_reidentification:
@@ -68,7 +68,8 @@ def validate_config(config) -> List[str]:
 
     memory_per_frame = config.camera.width * config.camera.height * 3
     buffer_memory_mb = (memory_per_frame * config.camera.buffer_size) / (1024 * 1024)
-    if buffer_memory_mb > 500:
+
+    if buffer_memory_mb > MINIMUM_BUFFER_MEMORY_MB:
         warnings.append(
             f"El buffer de {config.camera.buffer_size} frames usa "
             f"~{buffer_memory_mb:.0f} MB de RAM. Considere reducirlo."
@@ -82,11 +83,9 @@ def validate_config(config) -> List[str]:
         )
 
     if not config.counting_lines:
-        warnings.append(
-            "No hay líneas de conteo configuradas. El sistema no contará vehículos."
-        )
+        warnings.append("No hay líneas de conteo configuradas. El sistema no contará vehículos.")
 
-    if config.camera.fps and config.camera.fps > 60:
+    if config.camera.fps and config.camera.fps > MAX_RECOMMENDED_FPS:
         warnings.append(
             f"FPS configurado ({config.camera.fps}) es muy alto. "
             "Considere reducirlo para mejor rendimiento."
@@ -96,8 +95,7 @@ def validate_config(config) -> List[str]:
 
 
 def validate_config_required_fields(config) -> None:
-    """
-    Valida que todos los campos requeridos estén presentes.
+    """Valida que todos los campos requeridos estén presentes.
 
     Args:
         config: Objeto de configuración Pydantic.
@@ -114,13 +112,11 @@ def validate_config_required_fields(config) -> None:
     missing = []
     for section, field in required_fields:
         obj = getattr(config, section, None)
-        if obj is None:
-            missing.append(f"{section}.{field}")
-        elif not hasattr(obj, field) or getattr(obj, field) is None:
+        if obj is None or not hasattr(obj, field) or getattr(obj, field) is None:
             missing.append(f"{section}.{field}")
 
     if missing:
         raise ConfigurationError(
             f"Campos requeridos faltantes: {', '.join(missing)}",
-            details={"missing_fields": missing}
+            details={"missing_fields": missing},
         )

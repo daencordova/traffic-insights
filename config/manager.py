@@ -1,5 +1,4 @@
-"""
-Gestor de configuración mejorado con carga desde YAML y soporte de entorno.
+"""Gestor de configuración mejorado con carga desde YAML y soporte de entorno.
 
 Este módulo proporciona un gestor de configuración singleton que:
 - Carga configuración desde archivos YAML
@@ -11,11 +10,12 @@ Este módulo proporciona un gestor de configuración singleton que:
 
 from __future__ import annotations
 
-import os
-import yaml
 import logging
+import os
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any
+
+import yaml
 
 from config.settings import Config
 from core.exceptions import ConfigurationError
@@ -24,8 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
-    """
-    Gestor de configuración singleton con validación Pydantic.
+    """Gestor de configuración singleton con validación Pydantic.
 
     Esta clase implementa el patrón Singleton para proporcionar
     un único punto de acceso a la configuración del sistema.
@@ -48,8 +47,8 @@ class ConfigManager:
         >>> config_manager.set("model.confidence_threshold", 0.5)
     """
 
-    _instance: Optional["ConfigManager"] = None
-    _config: Optional[Config] = None
+    _instance: ConfigManager | None = None
+    _config: Config | None = None
 
     def __new__(cls):
         """Implementación del patrón Singleton."""
@@ -58,9 +57,8 @@ class ConfigManager:
         return cls._instance
 
     @classmethod
-    def get_instance(cls) -> "ConfigManager":
-        """
-        Obtiene la instancia única del gestor de configuración.
+    def get_instance(cls) -> ConfigManager:
+        """Obtiene la instancia única del gestor de configuración.
 
         Returns:
             ConfigManager: Instancia única del gestor.
@@ -70,8 +68,7 @@ class ConfigManager:
         return cls._instance
 
     def load_default(self) -> Config:
-        """
-        Carga la configuración por defecto.
+        """Carga la configuración por defecto.
 
         Returns:
             Config: Configuración por defecto.
@@ -95,8 +92,7 @@ class ConfigManager:
         return self._config
 
     def load_from_file(self, path: str) -> Config:
-        """
-        Carga configuración desde archivo YAML con logging detallado.
+        """Carga configuración desde archivo YAML con logging detallado.
 
         Args:
             path: Ruta al archivo de configuración.
@@ -119,26 +115,24 @@ class ConfigManager:
         logger.info(f"📄 Cargando configuración desde: {path}")
 
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 raw_data = yaml.safe_load(f)
 
             if raw_data is None:
                 raise ConfigurationError("El archivo de configuración está vacío")
         except yaml.YAMLError as e:
-            raise ConfigurationError(f"Error parseando YAML: {e}")
+            raise ConfigurationError(f"Error parseando YAML: {e}") from e
         except Exception as e:
-            raise ConfigurationError(f"Error leyendo archivo: {e}")
+            raise ConfigurationError(f"Error leyendo archivo: {e}") from e
 
         logger.debug(f"📋 Datos crudos cargados: {list(raw_data.keys())}")
 
-        if 'model' in raw_data:
-            model_conf = raw_data['model']
+        if "model" in raw_data:
+            model_conf = raw_data["model"]
             logger.info(
                 f"   📊 Confianza en YAML: {model_conf.get('confidence_threshold', 'No definida')}"
             )
-            logger.info(
-                f"   📐 IMG Size en YAML: {model_conf.get('imgsz', 'No definido')}"
-            )
+            logger.info(f"   📐 IMG Size en YAML: {model_conf.get('imgsz', 'No definido')}")
 
         try:
             self._config = Config(**raw_data)
@@ -154,12 +148,14 @@ class ConfigManager:
             logger.info(f"   📐 IMG Size: {self._config.model.imgsz}")
             logger.info(f"   🚗 Clases: {self._config.model.vehicle_classes}")
             logger.info(f"   📹 Cámara: {self._config.camera.source}")
-            logger.info(f"   📐 Resolución: {self._config.camera.width}x{self._config.camera.height}")
+            logger.info(
+                f"   📐 Resolución: {self._config.camera.width}x{self._config.camera.height}"
+            )
             logger.info(f"   📏 Líneas de conteo: {len(self._config.counting_lines)}")
 
             for i, line in enumerate(self._config.counting_lines):
                 logger.info(
-                    f"      Línea {i+1}: {line.get('name', 'Sin nombre')} - "
+                    f"      Línea {i + 1}: {line.get('name', 'Sin nombre')} - "
                     f"{line.get('direction', 'N/A')}"
                 )
 
@@ -167,10 +163,10 @@ class ConfigManager:
 
         except ValueError as e:
             logger.error(f"❌ Error de validación Pydantic: {e}")
-            raise ConfigurationError(f"Datos de configuración inválidos: {e}")
+            raise ConfigurationError(f"Datos de configuración inválidos: {e}") from e
         except Exception as e:
             logger.error(f"❌ Error validando configuración: {e}", exc_info=True)
-            raise ConfigurationError(f"Error validando configuración: {e}")
+            raise ConfigurationError(f"Error validando configuración: {e}") from e
 
         self._apply_environment_overrides()
 
@@ -182,8 +178,7 @@ class ConfigManager:
         return self._config
 
     def _apply_environment_overrides(self):
-        """
-        Aplica overrides desde variables de entorno.
+        """Aplica overrides desde variables de entorno.
 
         Variables de entorno soportadas:
             - MODEL_PATH: Ruta al modelo
@@ -217,16 +212,14 @@ class ConfigManager:
             try:
                 self._config.model.confidence_threshold = float(env_confidence)
                 logger.info(
-                    f"🔄 Override CONFIDENCE_THRESHOLD: "
-                    f"{self._config.model.confidence_threshold}"
+                    f"🔄 Override CONFIDENCE_THRESHOLD: {self._config.model.confidence_threshold}"
                 )
             except ValueError as e:
                 logger.warning(f"No se pudo parsear CONFIDENCE_THRESHOLD: {e}")
 
     @property
     def config(self) -> Config:
-        """
-        Obtiene la configuración actual.
+        """Obtiene la configuración actual.
 
         Returns:
             Config: Configuración actual o por defecto si no está cargada.
@@ -240,8 +233,7 @@ class ConfigManager:
         return self._config
 
     def save_to_file(self, path: str):
-        """
-        Guarda la configuración actual a archivo YAML.
+        """Guarda la configuración actual a archivo YAML.
 
         Args:
             path: Ruta donde guardar el archivo.
@@ -254,20 +246,14 @@ class ConfigManager:
         """
         try:
             with open(path, "w", encoding="utf-8") as f:
-                yaml.dump(
-                    self.config.dict(),
-                    f,
-                    default_flow_style=False,
-                    allow_unicode=True
-                )
+                yaml.dump(self.config.dict(), f, default_flow_style=False, allow_unicode=True)
             logger.info(f"💾 Configuración guardada en: {path}")
         except Exception as e:
             logger.error(f"Error guardando configuración: {e}")
-            raise ConfigurationError(f"No se pudo guardar configuración: {e}")
+            raise ConfigurationError(f"No se pudo guardar configuración: {e}") from e
 
     def get(self, key: str, default: Any = None) -> Any:
-        """
-        Obtiene un valor por ruta con notación de puntos.
+        """Obtiene un valor por ruta con notación de puntos.
 
         Args:
             key: Ruta al valor (ej: "model.confidence_threshold").
@@ -294,8 +280,7 @@ class ConfigManager:
         return value
 
     def set(self, key: str, value: Any):
-        """
-        Establece un valor por ruta con notación de puntos.
+        """Establece un valor por ruta con notación de puntos.
 
         Args:
             key: Ruta al valor (ej: "model.confidence_threshold").
