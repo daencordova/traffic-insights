@@ -138,6 +138,7 @@ class PathPredictor(LoggerMixin):
         min_samples: int = PATH_PREDICTION_MIN_SAMPLES,
         motion_model: str = "adaptive",
         uncertainty_threshold: float = PATH_PREDICTION_UNCERTAINTY_THRESHOLD,
+        collision_threshold: float = 30.0,
     ):
         """
         Inicializa el sistema de predicción de trayectoria.

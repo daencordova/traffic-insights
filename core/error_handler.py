@@ -171,6 +171,18 @@ class GlobalErrorHandler:
             "is_recovering": self._is_recovering,
         }
 
+    def attempt_recovery(self, error: Exception) -> bool:
+        """
+        Intenta recuperar el sistema después de un error.
+
+        Args:
+            error: Excepción que causó el error.
+
+        Returns:
+            bool: True si la recuperación fue exitosa.
+        """
+        return self._attempt_recovery(error)
+
 
 global_error_handler = GlobalErrorHandler()
 

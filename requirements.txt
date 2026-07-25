@@ -1,19 +1,27 @@
-# Core
+# Visión por Computador e Inferencia
+onnxruntime>=1.27.0
 opencv-python==5.0.0.93
+scikit-image==0.26.0
+scikit-learn==1.9.0
 ultralytics==8.4.90
+
+# Cálculo Científico y Matemáticas
 numpy==2.4.6
 scipy==1.18.0
-scikit-learn==1.9.0
-scikit-image==0.26.0
 
-# Configuration & Serialization
+# Configuración y Serialización
 pydantic>=2.13.4
 pyyaml>=6.0.3
 
-# Optimization
+# Rendimiento, Aceleración y Monitoreo
+line-profiler>=5.0.2
+memory-profiler>=0.61.0
+numba>=0.66.0
 psutil>=7.2.2
 
-onnxruntime>=1.27.0
-numba>=0.66.0
-line-profiler>=5.0.2
-memory_profiler>=0.61.0
+# Calidad de Código, Linter y Pruebas
+mypy>=2.3.0
+pre-commit>=4.6.1
+pytest>=9.1.1
+pytest-cov>=7.1.0
+ruff>=0.16.0
