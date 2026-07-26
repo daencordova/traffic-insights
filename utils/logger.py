@@ -10,11 +10,11 @@ Este módulo proporciona un sistema de logging avanzado que soporta:
 
 from __future__ import annotations
 
+from datetime import datetime
 import json
 import logging
-import sys
-from datetime import datetime
 from pathlib import Path
+import sys
 from typing import Any
 
 

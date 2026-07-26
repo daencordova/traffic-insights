@@ -1,8 +1,8 @@
 """Funciones utilitarias generales."""
 
 import gc
-import time
 from pathlib import Path
+import time
 from typing import Any
 
 try:

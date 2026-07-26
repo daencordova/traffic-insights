@@ -1,12 +1,11 @@
-"""
-Script de perfilamiento para identificar cuellos de botella en CPU.
-"""
+#!/usr/bin/env python
+"""Script de perfilamiento para identificar cuellos de botella en CPU."""
 
 import cProfile
-import pstats
 import io
-import sys
 from pathlib import Path
+import pstats
+import sys
 
 import cv2
 import numpy as np
@@ -16,13 +15,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.manager import config_manager
 from core.detector.optimized import OptimizedYOLODetector
 from core.tracker.base import MultiObjectTracker
+from utils.logger import setup_logger
+
+logger = setup_logger("profile", level="INFO")
 
 
 def run_profile():
     """Ejecuta perfilamiento del sistema."""
-    print("=" * 60)
-    print("🔍 PERFILAMIENTO DEL SISTEMA (CPU)")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("🔍 PERFILAMIENTO DEL SISTEMA (CPU)")
+    logger.info("=" * 60)
 
     config_manager.load_from_file("config.yaml")
 
@@ -33,45 +35,45 @@ def run_profile():
     cv2.rectangle(frame, (100, 100), (200, 200), (255, 255, 255), -1)
     cv2.rectangle(frame, (300, 150), (400, 250), (255, 255, 255), -1)
 
-    print(f"📹 Frame size: {frame.shape}")
-    print(f"📦 Detector: {type(detector).__name__}")
-    print(f"📦 Tracker: {type(tracker).__name__}")
+    logger.info(f"📹 Frame size: {frame.shape}")
+    logger.info(f"📦 Detector: {type(detector).__name__}")
+    logger.info(f"📦 Tracker: {type(tracker).__name__}")
 
-    print("\n⏳ Ejecutando profiling...")
+    logger.info("\n⏳ Ejecutando profiling...")
 
     profiler = cProfile.Profile()
     profiler.enable()
 
     num_iterations = 50
-    for i in range(num_iterations):
+    for _ in range(num_iterations):
         detections = detector.detect(frame)
-        tracks = tracker.update(detections, frame)
+        _ = tracker.update(detections, frame)
 
     profiler.disable()
 
     stream = io.StringIO()
     stats = pstats.Stats(profiler, stream=stream)
-    stats.sort_stats('cumtime')
+    stats.sort_stats("cumtime")
     stats.print_stats(20)
 
-    print("\n" + "=" * 60)
-    print("📊 ESTADÍSTICAS DE RENDIMIENTO")
-    print("=" * 60)
-    print(stream.getvalue())
+    logger.info("\n" + "=" * 60)
+    logger.info("📊 ESTADÍSTICAS DE RENDIMIENTO")
+    logger.info("=" * 60)
+    logger.info(stream.getvalue())
 
     det_stats = detector.get_performance_stats()
-    print("\n📊 DETECTOR:")
-    print(f"  Avg inference time: {det_stats.get('avg_inference_time_ms', 0):.2f}ms")
-    print(f"  Cache hit ratio: {det_stats.get('cache_hit_ratio', 0):.2%}")
-    print(f"  ONNX available: {det_stats.get('onnx_available', False)}")
-    print(f"  Numba available: {det_stats.get('numba_available', False)}")
+    logger.info("\n📊 DETECTOR:")
+    logger.info(f"  Avg inference time: {det_stats.get('avg_inference_time_ms', 0):.2f}ms")
+    logger.info(f"  Cache hit ratio: {det_stats.get('cache_hit_ratio', 0):.2%}")
+    logger.info(f"  ONNX available: {det_stats.get('onnx_available', False)}")
+    logger.info(f"  Numba available: {det_stats.get('numba_available', False)}")
 
     trk_stats = tracker.get_stats()
-    print("\n📊 TRACKER:")
-    print(f"  Active tracks: {trk_stats.get('active_tracks', 0)}")
-    print(f"  Tracking time: {trk_stats.get('tracking_time_ms', 0):.2f}ms")
+    logger.info("\n📊 TRACKER:")
+    logger.info(f"  Active tracks: {trk_stats.get('active_tracks', 0)}")
+    logger.info(f"  Tracking time: {trk_stats.get('tracking_time_ms', 0):.2f}ms")
 
-    print("\n" + "=" * 60)
+    logger.info("\n" + "=" * 60)
 
 
 if __name__ == "__main__":

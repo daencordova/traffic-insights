@@ -1,6 +1,5 @@
 """Funciones utilitarias para operaciones geométricas."""
 
-
 import numpy as np
 
 Point = tuple[int, int]

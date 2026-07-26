@@ -1,10 +1,10 @@
 """Decoradores utilitarios para manejo de errores y rendimiento."""
 
-import logging
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
+import logging
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)

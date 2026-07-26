@@ -1,9 +1,9 @@
 """Gestión de recursos con context managers y pool."""
 
-import threading
-import time
 from collections.abc import Generator
 from contextlib import contextmanager
+import threading
+import time
 from typing import Any, Generic, TypeVar
 
 T = TypeVar("T")

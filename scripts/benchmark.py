@@ -1,10 +1,9 @@
-"""
-Benchmark para comparar rendimiento entre versiones optimizadas y no optimizadas.
-"""
+#!/usr/bin/env python
+"""Benchmark para comparar rendimiento entre versiones optimizadas y no optimizadas."""
 
-import time
-import sys
 from pathlib import Path
+import sys
+import time
 
 import cv2
 import numpy as np
@@ -14,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config.manager import config_manager
 from core.detector import YOLODetector
 from core.detector.optimized import OptimizedYOLODetector
+from utils.logger import setup_logger
+
+logger = setup_logger("benchmark", level="INFO")
 
 
 def benchmark_detector(detector_class, name: str, frames: list) -> dict:
@@ -46,9 +48,9 @@ def benchmark_detector(detector_class, name: str, frames: list) -> dict:
 
 def run_benchmark():
     """Ejecuta benchmark del sistema."""
-    print("=" * 60)
-    print("⚡ BENCHMARK DE RENDIMIENTO (CPU)")
-    print("=" * 60)
+    logger.info("=" * 60)
+    logger.info("⚡ BENCHMARK DE RENDIMIENTO (CPU)")
+    logger.info("=" * 60)
 
     config_manager.load_from_file("config.yaml")
 
@@ -64,26 +66,28 @@ def run_benchmark():
         cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), -1)
         frames.append(frame)
 
-    print(f"📹 Frames de prueba: {len(frames)}")
+    logger.info(f"📹 Frames de prueba: {len(frames)}")
 
     results = []
 
-    print("\n📊 DETECTORES:")
+    logger.info("\n📊 DETECTORES:")
     results.append(benchmark_detector(YOLODetector, "YOLO (PyTorch)", frames))
-    results.append(benchmark_detector(OptimizedYOLODetector, "YOLO Optimizado (ONNX+Numba)", frames))
+    results.append(
+        benchmark_detector(OptimizedYOLODetector, "YOLO Optimizado (ONNX+Numba)", frames)
+    )
 
-    print("\n" + "=" * 60)
-    print("📊 RESULTADOS")
-    print("=" * 60)
+    logger.info("\n" + "=" * 60)
+    logger.info("📊 RESULTADOS")
+    logger.info("=" * 60)
 
     for result in results:
-        print(f"\n{result['name']}:")
-        print(f"  ⏱️  Tiempo total: {result['total_time']:.2f}s")
-        print(f"  ⏱️  Tiempo promedio: {result['avg_time']:.2f}ms")
-        print(f"  📦 Detecciones: {result['total_detections']}")
-        print(f"  🚀 FPS: {result['fps']:.1f}")
+        logger.info(f"\n{result['name']}:")
+        logger.info(f"  ⏱️ Tiempo total: {result['total_time']:.2f}s")
+        logger.info(f"  ⏱️ Tiempo promedio: {result['avg_time']:.2f}ms")
+        logger.info(f"  📦 Detecciones: {result['total_detections']}")
+        logger.info(f"  🚀 FPS: {result['fps']:.1f}")
 
-    print("\n" + "=" * 60)
+    logger.info("\n" + "=" * 60)
 
 
 if __name__ == "__main__":
