@@ -1,50 +1,50 @@
-"""
-Gestión de recursos con context managers y pool
-"""
+"""Gestión de recursos con context managers y pool."""
 
 import threading
 import time
-from typing import Optional, Dict, Any, Callable, TypeVar, Generic, Generator
+from collections.abc import Generator
 from contextlib import contextmanager
-from collections import deque
+from typing import Any, Generic, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ResourceManager(Generic[T]):
-    """
-    Gestor genérico de recursos con límite de tiempo de vida
-    """
+    """Gestor genérico de recursos con límite de tiempo de vida."""
 
     def __init__(self, max_lifetime: float = 60.0, cleanup_interval: float = 10.0):
+        """Inicializa el gestor de recursos.
+
+        Args:
+            max_lifetime: Tiempo máximo de vida de un recurso en segundos.
+            cleanup_interval: Intervalo entre limpiezas en segundos.
+        """
         self.max_lifetime = max_lifetime
         self.cleanup_interval = cleanup_interval
-        self._resources: Dict[str, T] = {}
-        self._timestamps: Dict[str, float] = {}
+        self._resources: dict[str, T] = {}
+        self._timestamps: dict[str, float] = {}
         self._lock = threading.Lock()
         self._last_cleanup = time.time()
 
     def register(self, key: str, resource: T) -> None:
-        """
-        Registra un recurso con su timestamp
+        """Registra un recurso con su timestamp.
 
         Args:
-            key: Clave única del recurso
-            resource: Recurso a registrar
+            key: Clave única del recurso.
+            resource: Recurso a registrar.
         """
         with self._lock:
             self._resources[key] = resource
             self._timestamps[key] = time.time()
 
-    def get(self, key: str) -> Optional[T]:
-        """
-        Obtiene un recurso por su clave
+    def get(self, key: str) -> T | None:
+        """Obtiene un recurso por su clave.
 
         Args:
-            key: Clave del recurso
+            key: Clave del recurso.
 
         Returns:
-            Recurso o None si no existe o ha expirado
+            Recurso o None si no existe o ha expirado.
         """
         with self._lock:
             if key not in self._resources:
@@ -57,20 +57,19 @@ class ResourceManager(Generic[T]):
             return self._resources[key]
 
     def remove(self, key: str) -> bool:
-        """
-        Elimina un recurso
+        """Elimina un recurso.
 
         Args:
-            key: Clave del recurso
+            key: Clave del recurso.
 
         Returns:
-            True si se eliminó correctamente
+            True si se eliminó correctamente.
         """
         with self._lock:
             return self._remove(key)
 
     def _remove(self, key: str) -> bool:
-        """Método interno para eliminar recurso"""
+        """Método interno para eliminar recurso."""
         if key in self._resources:
             resource = self._resources.pop(key)
             self._timestamps.pop(key, None)
@@ -79,7 +78,7 @@ class ResourceManager(Generic[T]):
         return False
 
     def _is_expired(self, key: str) -> bool:
-        """Verifica si un recurso ha expirado"""
+        """Verifica si un recurso ha expirado."""
         if key not in self._timestamps:
             return True
 
@@ -87,36 +86,37 @@ class ResourceManager(Generic[T]):
         return age > self.max_lifetime
 
     def _cleanup_resource(self, resource: T) -> None:
-        """Limpia un recurso específico"""
+        """Limpia un recurso específico."""
         try:
-            if hasattr(resource, 'close'):
+            if hasattr(resource, "close"):
                 resource.close()
-            elif hasattr(resource, 'release'):
+            elif hasattr(resource, "release"):
                 resource.release()
-            elif hasattr(resource, 'clear'):
+            elif hasattr(resource, "clear"):
                 resource.clear()
         except Exception:
             pass
 
     def cleanup(self) -> None:
-        """Limpia recursos expirados"""
+        """Limpia recursos expirados."""
         current_time = time.time()
         if current_time - self._last_cleanup < self.cleanup_interval:
             return
 
         with self._lock:
-            expired_keys = [
-                key for key in self._resources.keys()
-                if self._is_expired(key)
-            ]
+            expired_keys = [key for key in self._resources if self._is_expired(key)]
 
             for key in expired_keys:
                 self._remove(key)
 
             self._last_cleanup = current_time
 
-    def stats(self) -> Dict[str, Any]:
-        """Obtiene estadísticas del gestor"""
+    def stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del gestor.
+
+        Returns:
+            Diccionario con estadísticas (total_resources, keys, max_lifetime_seconds).
+        """
         with self._lock:
             return {
                 "total_resources": len(self._resources),
@@ -127,16 +127,15 @@ class ResourceManager(Generic[T]):
 
 @contextmanager
 def managed_resource(manager: ResourceManager, key: str, resource: T) -> Generator[T, None, None]:
-    """
-    Context manager para recursos gestionados
+    """Context manager para recursos gestionados.
 
     Args:
-        manager: Gestor de recursos
-        key: Clave del recurso
-        resource: Recurso a gestionar
+        manager: Gestor de recursos.
+        key: Clave del recurso.
+        resource: Recurso a gestionar.
 
     Yields:
-        Recurso gestionado
+        Recurso gestionado.
     """
     try:
         manager.register(key, resource)

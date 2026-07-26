@@ -1,5 +1,4 @@
-"""
-Sistema de logging estructurado con niveles y formato consistente.
+"""Sistema de logging estructurado con niveles y formato consistente.
 
 Este módulo proporciona un sistema de logging avanzado que soporta:
 - Contexto enriquecido para cada mensaje
@@ -11,17 +10,16 @@ Este módulo proporciona un sistema de logging avanzado que soporta:
 
 from __future__ import annotations
 
-import sys
 import json
 import logging
-from pathlib import Path
+import sys
 from datetime import datetime
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Any
 
 
 class StructuredLogger:
-    """
-    Logger estructurado con soporte para formato JSON y contexto.
+    """Logger estructurado con soporte para formato JSON y contexto.
 
     Este logger extiende la funcionalidad estándar de Python logging
     añadiendo contexto enriquecido y formato estructurado.
@@ -41,11 +39,11 @@ class StructuredLogger:
     def __init__(
         self,
         name: str = "vehicle_counter",
-        log_file: Optional[str] = None,
-        json_format: bool = False
+        log_file: str | None = None,
+        *,
+        json_format: bool = False,
     ):
-        """
-        Inicializa el logger estructurado.
+        """Inicializa el logger estructurado.
 
         Args:
             name: Nombre identificador del logger.
@@ -65,12 +63,11 @@ class StructuredLogger:
         if not self.logger.handlers:
             self._setup_handlers(log_file)
 
-        self.context: Dict[str, Any] = {}
-        self._extra_info: Dict[str, Any] = {}
+        self.context: dict[str, Any] = {}
+        self._extra_info: dict[str, Any] = {}
 
-    def _setup_handlers(self, log_file: Optional[str] = None):
-        """
-        Configura los handlers del logger.
+    def _setup_handlers(self, log_file: str | None = None):
+        """Configura los handlers del logger.
 
         Args:
             log_file: Ruta al archivo de log (opcional).
@@ -102,8 +99,7 @@ class StructuredLogger:
             self.logger.addHandler(file_handler)
 
     def set_context(self, **kwargs):
-        """
-        Establece contexto para los logs.
+        """Establece contexto para los logs.
 
         El contexto se añade automáticamente a todos los mensajes subsiguientes.
 
@@ -118,16 +114,14 @@ class StructuredLogger:
         self.context.update(kwargs)
 
     def clear_context(self):
-        """
-        Limpia el contexto actual.
+        """Limpia el contexto actual.
 
         Elimina todo el contexto establecido previamente.
         """
         self.context.clear()
 
     def add_extra(self, **kwargs):
-        """
-        Añade información extra al logger.
+        """Añade información extra al logger.
 
         Similar al contexto pero no se muestra en el mensaje principal,
         solo se incluye en formato JSON.
@@ -138,8 +132,7 @@ class StructuredLogger:
         self._extra_info.update(kwargs)
 
     def _format_message(self, message: str, **kwargs) -> str:
-        """
-        Formatea el mensaje con contexto y kwargs adicionales.
+        """Formatea el mensaje con contexto y kwargs adicionales.
 
         Args:
             message: Mensaje principal.
@@ -167,15 +160,14 @@ class StructuredLogger:
                 "timestamp": datetime.now().isoformat(),
                 "message": message,
                 "context": self.context,
-                "extra": kwargs
+                "extra": kwargs,
             }
             return json.dumps(log_data)
 
         return " ".join(parts)
 
     def debug(self, message: str, **kwargs):
-        """
-        Registra un mensaje de depuración.
+        """Registra un mensaje de depuración.
 
         Args:
             message: Mensaje a registrar.
@@ -184,8 +176,7 @@ class StructuredLogger:
         self.logger.debug(self._format_message(message, **kwargs))
 
     def info(self, message: str, **kwargs):
-        """
-        Registra un mensaje informativo.
+        """Registra un mensaje informativo.
 
         Args:
             message: Mensaje a registrar.
@@ -194,8 +185,7 @@ class StructuredLogger:
         self.logger.info(self._format_message(message, **kwargs))
 
     def warning(self, message: str, **kwargs):
-        """
-        Registra un mensaje de advertencia.
+        """Registra un mensaje de advertencia.
 
         Args:
             message: Mensaje a registrar.
@@ -204,8 +194,7 @@ class StructuredLogger:
         self.logger.warning(self._format_message(message, **kwargs))
 
     def error(self, message: str, **kwargs):
-        """
-        Registra un mensaje de error.
+        """Registra un mensaje de error.
 
         Args:
             message: Mensaje a registrar.
@@ -214,8 +203,7 @@ class StructuredLogger:
         self.logger.error(self._format_message(message, **kwargs))
 
     def critical(self, message: str, **kwargs):
-        """
-        Registra un mensaje de error crítico.
+        """Registra un mensaje de error crítico.
 
         Args:
             message: Mensaje a registrar.
@@ -224,19 +212,20 @@ class StructuredLogger:
         self.logger.critical(self._format_message(message, **kwargs))
 
     def exception(self, message: str, **kwargs):
-        """
-        Registra una excepción con traceback.
+        """Registra una excepción con traceback.
 
         Args:
             message: Mensaje a registrar.
             **kwargs: Argumentos adicionales.
+
+        Note:
+            Este método debe usarse dentro de un bloque except.
         """
-        self.logger.exception(self._format_message(message, **kwargs))
+        self.logger.error(self._format_message(message, **kwargs))
 
 
 class LoggerMixin:
-    """
-    Mixin para agregar logging estructurado a clases.
+    """Mixin para agregar logging estructurado a clases.
 
     Proporciona un logger configurado automáticamente para cada clase
     que hereda de este mixin.
@@ -252,8 +241,7 @@ class LoggerMixin:
 
     @property
     def logger(self) -> StructuredLogger:
-        """
-        Obtiene un logger estructurado para la clase.
+        """Obtiene un logger estructurado para la clase.
 
         El logger se crea automáticamente con el nombre de la clase
         y se configura con contexto básico.
@@ -275,14 +263,12 @@ class LoggerMixin:
                 log_file=log_file,
             )
             self._structured_logger.set_context(
-                class_name=self.__class__.__name__,
-                module=self.__class__.__module__
+                class_name=self.__class__.__name__, module=self.__class__.__module__
             )
         return self._structured_logger
 
     def set_log_context(self, **kwargs):
-        """
-        Establece contexto adicional para los logs de la clase.
+        """Establece contexto adicional para los logs de la clase.
 
         Args:
             **kwargs: Pares clave-valor para el contexto.
@@ -294,8 +280,7 @@ class LoggerMixin:
         self.logger.clear_context()
 
     def log_error_with_context(self, error: Exception, message: str = None, **kwargs):
-        """
-        Registra un error con contexto completo.
+        """Registra un error con contexto completo.
 
         Args:
             error: La excepción capturada.
@@ -306,8 +291,7 @@ class LoggerMixin:
             >>> try:
             ...     risky_operation()
             ... except Exception as e:
-            ...     self.log_error_with_context(e, "Risky operation failed",
-            ...                                 operation="risky_op")
+            ...     self.log_error_with_context(e, "Risky operation failed", operation="risky_op")
         """
         error_type = type(error).__name__
         error_msg = str(error) if str(error) else "No details available"
@@ -315,22 +299,17 @@ class LoggerMixin:
         log_message = f"{message}: " if message else ""
         log_message += f"{error_type}: {error_msg}"
 
-        self.logger.error(
-            log_message,
-            error_type=error_type,
-            error_details=error_msg,
-            **kwargs
-        )
+        self.logger.error(log_message, error_type=error_type, error_details=error_msg, **kwargs)
 
 
 def setup_logger(
     name: str = "vehicle_counter",
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
     level: int = logging.INFO,
+    *,
     json_format: bool = False,
 ) -> logging.Logger:
-    """
-    Configura y retorna un logger estándar.
+    """Configura y retorna un logger estándar.
 
     Esta función mantiene compatibilidad con código existente que usa
     el logger estándar de Python.
