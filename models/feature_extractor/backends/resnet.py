@@ -1,15 +1,12 @@
-"""
-Backend ResNet para extracción de features usando PyTorch.
-"""
+"""Backend ResNet para extracción de features usando PyTorch."""
 
 import numpy as np
-from typing import Optional
 
 try:
     import torch
-    import torch.nn as nn
-    import torchvision.transforms as transforms
-    import torchvision.models as models
+    from torch import nn
+    from torchvision import models, transforms
+
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -20,8 +17,7 @@ from utils.logger import LoggerMixin
 
 
 class ResNetBackend(FeatureBackend, LoggerMixin):
-    """
-    Backend ResNet50 para extracción de features.
+    """Backend ResNet50 para extracción de features.
 
     Utiliza ResNet50 pre-entrenado en ImageNet como extractor
     de features visuales. Requiere PyTorch.
@@ -35,8 +31,7 @@ class ResNetBackend(FeatureBackend, LoggerMixin):
     FEATURE_DIM = 2048
 
     def __init__(self, device: str = "auto"):
-        """
-        Inicializa el backend ResNet.
+        """Inicializa el backend ResNet.
 
         Args:
             device: Dispositivo para inferencia ('cuda', 'mps', 'cpu', 'auto')
@@ -53,7 +48,7 @@ class ResNetBackend(FeatureBackend, LoggerMixin):
             "ResNetBackend inicializado",
             available=self._available,
             device=self._device,
-            feature_dim=self.FEATURE_DIM
+            feature_dim=self.FEATURE_DIM,
         )
 
     def _get_device(self, device: str) -> str:
@@ -64,7 +59,7 @@ class ResNetBackend(FeatureBackend, LoggerMixin):
         if device == "auto":
             if torch.cuda.is_available():
                 return "cuda"
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 return "mps"
             return "cpu"
 
@@ -88,15 +83,14 @@ class ResNetBackend(FeatureBackend, LoggerMixin):
             self._model.to(self._device)
             self._model.eval()
 
-            self._transform = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225]
-                ),
-            ])
+            self._transform = transforms.Compose(
+                [
+                    transforms.ToPILImage(),
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                ]
+            )
 
             self._available = True
             self.logger.info(f"ResNet50 cargado en {self._device}")
@@ -105,9 +99,8 @@ class ResNetBackend(FeatureBackend, LoggerMixin):
             self.logger.error(f"Error inicializando ResNet: {e}")
             self._available = False
 
-    def extract(self, region: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Extrae features usando ResNet50.
+    def extract(self, region: np.ndarray) -> np.ndarray | None:
+        """Extrae features usando ResNet50.
 
         Args:
             region: Región de imagen (recorte del objeto)

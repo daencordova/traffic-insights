@@ -1,40 +1,60 @@
-"""
-Estado de un track para el sistema de tracking
-"""
+"""Estado de un track para el sistema de tracking."""
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Dict, Any, Deque
 from collections import deque
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from models.enums import TrackStatus
 from core.constants import (
-    MIN_HITS_TO_CONFIRM,
-    MAX_FRAMES_MISSED as MAX_LOST_FRAMES,
-    MIN_BOX_SIZE,
     MAX_BOX_SIZE,
+    MAX_FRAMES_MISSED as MAX_LOST_FRAMES,
     MAX_TRACK_HISTORY as MAX_HISTORY_LENGTH,
+    MIN_BOX_SIZE,
+    MIN_HITS_TO_CONFIRM,
 )
-from models.kalman import EnhancedKalmanFilter
 from core.validators import validate_bbox, validate_centroid
+from models.enums import TrackStatus
 
-Point = Tuple[int, int]
-BoundingBox = Tuple[int, int, int, int]
-Velocity = Tuple[float, float]
-Acceleration = Tuple[float, float]
-TrackHistory = Deque[Point]
+if TYPE_CHECKING:
+    from models.kalman import EnhancedKalmanFilter
+
+MIN_HISTORY_FOR_VELOCITY: int = 2
+"""Mínimo de puntos en historial para calcular velocidad."""
+MIN_HISTORY_FOR_ACCELERATION: int = 3
+"""Mínimo de puntos en historial para calcular aceleración."""
+
+Point = tuple[int, int]
+BoundingBox = tuple[int, int, int, int]
+Velocity = tuple[float, float]
+Acceleration = tuple[float, float]
+TrackHistory = deque[Point]
 
 
 class TrackState:
     """Estado completo de un track con optimización de memoria."""
 
     __slots__ = (
-        'track_id', 'bbox', 'centroid', 'features', 'confidence',
-        'class_id', 'label', 'status', 'age', 'hits', 'no_losses',
-        'history', 'velocity', 'acceleration', 'predicted_centroid',
-        'kalman_filter', 'metadata', 'bbox_history', '_history_deque'
+        "track_id",
+        "bbox",
+        "centroid",
+        "features",
+        "confidence",
+        "class_id",
+        "label",
+        "status",
+        "age",
+        "hits",
+        "no_losses",
+        "history",
+        "velocity",
+        "acceleration",
+        "predicted_centroid",
+        "kalman_filter",
+        "metadata",
+        "bbox_history",
+        "_history_deque",
     )
 
     MIN_HITS_TO_CONFIRM: int = MIN_HITS_TO_CONFIRM
@@ -48,11 +68,23 @@ class TrackState:
         track_id: int,
         bbox: BoundingBox,
         centroid: Point,
-        features: Optional[np.ndarray] = None,
+        *,
+        features: np.ndarray | None = None,
         confidence: float = 0.5,
         class_id: int = -1,
         label: str = "unknown",
     ) -> None:
+        """Inicializa un nuevo track.
+
+        Args:
+            track_id: Identificador único del track.
+            bbox: Bounding box (x1, y1, x2, y2).
+            centroid: Centroide del objeto (x, y).
+            features: Features visuales para re-identificación.
+            confidence: Confianza de la detección (0-1).
+            class_id: ID de la clase del objeto.
+            label: Nombre de la clase.
+        """
         if not isinstance(track_id, int) or track_id < 0:
             raise ValueError(f"track_id inválido: {track_id}")
 
@@ -68,7 +100,7 @@ class TrackState:
         self.track_id: int = track_id
         self.bbox: BoundingBox = bbox
         self.centroid: Point = centroid
-        self.features: Optional[np.ndarray] = features
+        self.features: np.ndarray | None = features
         self.confidence: float = confidence
         self.class_id: int = class_id
         self.label: str = label
@@ -85,9 +117,9 @@ class TrackState:
         self.acceleration: Acceleration = (0.0, 0.0)
         self.predicted_centroid: Point = centroid
 
-        self.kalman_filter: Optional[EnhancedKalmanFilter] = None
+        self.kalman_filter: EnhancedKalmanFilter | None = None
 
-        self.metadata: Dict[str, Any] = {}
+        self.metadata: dict[str, Any] = {}
 
     @staticmethod
     def _validate_bbox(bbox: Any) -> bool:
@@ -99,8 +131,8 @@ class TrackState:
         """Valida un centroide usando el validador central."""
         return validate_centroid(centroid)
 
-    def update(self, detection: Dict[str, Any], features: Optional[np.ndarray] = None) -> None:
-        """Actualiza el track con una nueva detección"""
+    def update(self, detection: dict[str, Any], features: np.ndarray | None = None) -> None:
+        """Actualiza el track con una nueva detección."""
         if not isinstance(detection, dict):
             return
 
@@ -139,7 +171,7 @@ class TrackState:
             self._update_kalman()
 
     def predict_position(self) -> Point:
-        """Predice la siguiente posición usando Kalman"""
+        """Predice la siguiente posición usando Kalman."""
         if self.kalman_filter:
             try:
                 pred = self.kalman_filter.predict()
@@ -152,20 +184,20 @@ class TrackState:
         return self.centroid
 
     def mark_lost(self) -> None:
-        """Marca el track como perdido"""
+        """Marca el track como perdido."""
         self.no_losses += 1
         self.age += 1
         self._update_status()
 
     def _update_motion(self) -> None:
-        """Actualiza estimaciones de movimiento"""
-        if len(self.history) >= 2:
+        """Actualiza estimaciones de movimiento."""
+        if len(self.history) >= MIN_HISTORY_FOR_VELOCITY:
             prev = self.history[-2]
             curr = self.history[-1]
 
             self.velocity = (curr[0] - prev[0], curr[1] - prev[1])
 
-            if len(self.history) >= 3:
+            if len(self.history) >= MIN_HISTORY_FOR_ACCELERATION:
                 prev_vel = self._get_previous_velocity()
                 if prev_vel:
                     self.acceleration = (
@@ -173,16 +205,16 @@ class TrackState:
                         self.velocity[1] - prev_vel[1],
                     )
 
-    def _get_previous_velocity(self) -> Optional[Velocity]:
-        """Obtiene la velocidad anterior del historial"""
-        if len(self.history) >= 3:
+    def _get_previous_velocity(self) -> Velocity | None:
+        """Obtiene la velocidad anterior del historial."""
+        if len(self.history) >= MIN_HISTORY_FOR_ACCELERATION:
             p1 = self.history[-3]
             p2 = self.history[-2]
             return (p2[0] - p1[0], p2[1] - p1[1])
         return None
 
     def _update_status(self) -> None:
-        """Actualiza el estado del track"""
+        """Actualiza el estado del track."""
         if self.status == TrackStatus.DEAD:
             return
 
@@ -203,7 +235,7 @@ class TrackState:
                 self.status = TrackStatus.CONFIRMED
 
     def _update_kalman(self) -> None:
-        """Actualiza el filtro de Kalman con la medición"""
+        """Actualiza el filtro de Kalman con la medición."""
         if self.kalman_filter:
             try:
                 measurement = np.array([self.centroid[0], self.centroid[1]])
@@ -212,11 +244,11 @@ class TrackState:
                 self.kalman_filter = None
 
     def is_active(self) -> bool:
-        """Verifica si el track está activo"""
+        """Verifica si el track está activo."""
         return self.status in [TrackStatus.TENTATIVE, TrackStatus.CONFIRMED, TrackStatus.LOST]
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convierte a diccionario para serialización"""
+    def to_dict(self) -> dict[str, Any]:
+        """Convierte a diccionario para serialización."""
         return {
             "track_id": self.track_id,
             "bbox": self.bbox,

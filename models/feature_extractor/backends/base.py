@@ -1,16 +1,12 @@
-"""
-Interfaz abstracta para backends de extracción de features.
-"""
+"""Interfaz abstracta para backends de extracción de features."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import numpy as np
 
 
 class FeatureBackend(ABC):
-    """
-    Interfaz abstracta para backends de extracción de features.
+    """Interfaz abstracta para backends de extracción de features.
 
     Todos los backends deben implementar esta interfaz para ser
     utilizados por el FeatureExtractor.
@@ -21,9 +17,8 @@ class FeatureBackend(ABC):
     """
 
     @abstractmethod
-    def extract(self, region: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Extrae features de una región de imagen.
+    def extract(self, region: np.ndarray) -> np.ndarray | None:
+        """Extrae features de una región de imagen.
 
         Args:
             region: Región de imagen (recorte del objeto)
@@ -31,26 +26,20 @@ class FeatureBackend(ABC):
         Returns:
             Optional[np.ndarray]: Vector de features o None si falla
         """
-        pass
 
     @abstractmethod
     def warmup(self) -> None:
-        """
-        Calienta el backend para reducir latencia inicial.
-        """
-        pass
+        """Calienta el backend para reducir latencia inicial."""
 
     @property
     @abstractmethod
     def feature_dim(self) -> int:
         """Dimensión del vector de features."""
-        pass
 
     @property
     @abstractmethod
     def is_available(self) -> bool:
         """Verifica si el backend está disponible."""
-        pass
 
     @property
     def name(self) -> str:

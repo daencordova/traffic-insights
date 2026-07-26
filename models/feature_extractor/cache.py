@@ -1,36 +1,37 @@
-"""
-Caché para features extraídos.
+"""Caché para features extraídos.
 
 Implementa un caché LRU con gestión de memoria para almacenar
 features y evitar extracciones redundantes.
 """
 
-import time
-import hashlib
-from typing import Optional, Dict, Tuple, Any
 from collections import OrderedDict
+import hashlib
+import time
+from typing import Any
 
 import cv2
 import numpy as np
 
 from utils.logger import LoggerMixin
 
+MIN_CACHE_QUALITY: float = 0.3
+"""Calidad mínima requerida para almacenar en caché."""
+
 
 class FeatureCacheEntry:
-    """
-    Entrada en el caché de features.
+    """Entrada en el caché de features.
 
     Usa __slots__ para optimizar el uso de memoria.
     """
 
-    __slots__ = ('features', 'timestamp', 'confidence', 'quality', 'access_count')
+    __slots__ = ("features", "timestamp", "confidence", "quality", "access_count")
 
     def __init__(
         self,
         features: np.ndarray,
         confidence: float,
-        quality: float
-    ):
+        quality: float,
+    ) -> None:
         self.features = features.copy()
         self.timestamp = time.time()
         self.confidence = confidence
@@ -47,21 +48,20 @@ class FeatureCacheEntry:
         return (time.time() - self.timestamp) < max_age
 
     def get_score(self) -> float:
-        """Calcula una puntuación para evicción."""
+        """Calcula una puntuación para evicción.
+
+        Returns:
+            float: Puntuación donde mayor = más útil
+        """
         access_score = min(1.0, self.access_count / 10.0)
         quality_score = min(1.0, self.quality)
         age_score = min(1.0, (time.time() - self.timestamp) / 30.0)
 
-        return (
-            0.2 * access_score +
-            0.4 * quality_score +
-            0.4 * age_score
-        )
+        return 0.2 * access_score + 0.4 * quality_score + 0.4 * age_score
 
 
 class FeatureCache(LoggerMixin):
-    """
-    Caché LRU para features extraídos.
+    """Caché LRU para features extraídos.
 
     Características:
     - Política LRU (Least Recently Used)
@@ -77,10 +77,9 @@ class FeatureCache(LoggerMixin):
     def __init__(
         self,
         max_size: int = 500,
-        max_age_seconds: float = 3.0
-    ):
-        """
-        Inicializa el caché de features.
+        max_age_seconds: float = 3.0,
+    ) -> None:
+        """Inicializa el caché de features.
 
         Args:
             max_size: Número máximo de entradas
@@ -100,16 +99,15 @@ class FeatureCache(LoggerMixin):
         self.logger.info(
             "FeatureCache inicializado",
             max_size=max_size,
-            max_age_seconds=max_age_seconds
+            max_age_seconds=max_age_seconds,
         )
 
     def compute_key(
         self,
         image: np.ndarray,
-        bbox: Tuple[int, int, int, int]
+        bbox: tuple[int, int, int, int],
     ) -> str:
-        """
-        Calcula una clave única para la región.
+        """Calcula una clave única para la región.
 
         Args:
             image: Imagen completa
@@ -131,9 +129,8 @@ class FeatureCache(LoggerMixin):
 
         return f"{int(time.time() * 1000)}"
 
-    def get(self, key: str) -> Optional[np.ndarray]:
-        """
-        Obtiene features del caché.
+    def get(self, key: str) -> np.ndarray | None:
+        """Obtiene features del caché.
 
         Args:
             key: Clave de la región
@@ -163,10 +160,9 @@ class FeatureCache(LoggerMixin):
         key: str,
         features: np.ndarray,
         confidence: float,
-        quality: float
+        quality: float,
     ) -> None:
-        """
-        Almacena features en el caché.
+        """Almacena features en el caché.
 
         Args:
             key: Clave de la región
@@ -174,7 +170,7 @@ class FeatureCache(LoggerMixin):
             confidence: Confianza de la detección
             quality: Calidad de la región (0-1)
         """
-        if features is None or quality < 0.3:
+        if features is None or quality < MIN_CACHE_QUALITY:
             return
 
         if len(self._cache) >= self.max_size:
@@ -192,7 +188,7 @@ class FeatureCache(LoggerMixin):
             self._evictions += 1
 
     def _evict_oldest(self) -> None:
-        """Elimina la entrada menos útil."""
+        """Elimina la entrada menos útil según puntuación."""
         if not self._cache:
             return
 
@@ -212,8 +208,7 @@ class FeatureCache(LoggerMixin):
         self._last_cleanup = current_time
 
         expired_keys = [
-            key for key, entry in self._cache.items()
-            if not entry.is_valid(self.max_age_seconds)
+            key for key, entry in self._cache.items() if not entry.is_valid(self.max_age_seconds)
         ]
 
         for key in expired_keys:
@@ -222,7 +217,7 @@ class FeatureCache(LoggerMixin):
         if expired_keys:
             self.logger.debug(
                 "Cleaned expired entries",
-                count=len(expired_keys)
+                count=len(expired_keys),
             )
 
     def clear(self) -> None:
@@ -234,7 +229,7 @@ class FeatureCache(LoggerMixin):
         self._evictions = 0
         self.logger.info("Cache cleared", entries=count)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del caché."""
         total_requests = self._hits + self._misses
 
@@ -250,12 +245,15 @@ class FeatureCache(LoggerMixin):
 
     @property
     def size(self) -> int:
+        """Número de entradas en el caché."""
         return len(self._cache)
 
     @property
     def hit_rate(self) -> float:
+        """Tasa de aciertos del caché (0-1)."""
         total = self._hits + self._misses
         return self._hits / max(1, total)
 
     def __len__(self) -> int:
+        """Retorna el número de entradas en el caché."""
         return len(self._cache)

@@ -1,10 +1,9 @@
-"""
-Backend SIFT para extracción de features.
+"""Backend SIFT para extracción de features.
 
 Utiliza SIFT (Scale-Invariant Feature Transform) para extraer
 features locales de la imagen.
 """
-from typing import Optional
+
 
 import cv2
 import numpy as np
@@ -14,8 +13,7 @@ from utils.logger import LoggerMixin
 
 
 class SIFTBackend(FeatureBackend, LoggerMixin):
-    """
-    Backend SIFT para extracción de features.
+    """Backend SIFT para extracción de features.
 
     Características:
     - Features locales invariantes a escala y rotación
@@ -30,8 +28,7 @@ class SIFTBackend(FeatureBackend, LoggerMixin):
     FEATURE_DIM = 128
 
     def __init__(self, n_features: int = 128):
-        """
-        Inicializa el backend SIFT.
+        """Inicializa el backend SIFT.
 
         Args:
             n_features: Número máximo de features a extraer
@@ -44,9 +41,7 @@ class SIFTBackend(FeatureBackend, LoggerMixin):
         self._initialize()
 
         self.logger.info(
-            "SIFTBackend inicializado",
-            available=self._available,
-            n_features=n_features
+            "SIFTBackend inicializado", available=self._available, n_features=n_features
         )
 
     def _initialize(self) -> None:
@@ -59,9 +54,8 @@ class SIFTBackend(FeatureBackend, LoggerMixin):
             self.logger.error(f"Error inicializando SIFT: {e}")
             self._available = False
 
-    def extract(self, region: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Extrae features usando SIFT.
+    def extract(self, region: np.ndarray) -> np.ndarray | None:
+        """Extrae features usando SIFT.
 
         Args:
             region: Región de imagen (recorte del objeto)
@@ -95,9 +89,8 @@ class SIFTBackend(FeatureBackend, LoggerMixin):
             self.logger.debug(f"Error en extracción SIFT: {e}")
             return self._fallback_features(region)
 
-    def _fallback_features(self, region: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Features de fallback usando histograma simple.
+    def _fallback_features(self, region: np.ndarray) -> np.ndarray | None:
+        """Features de fallback usando histograma simple.
 
         Args:
             region: Región de imagen
@@ -114,7 +107,7 @@ class SIFTBackend(FeatureBackend, LoggerMixin):
             if len(hist) < self.FEATURE_DIM:
                 hist = np.pad(hist, (0, self.FEATURE_DIM - len(hist)))
 
-            return hist[:self.FEATURE_DIM].astype(np.float32)
+            return hist[: self.FEATURE_DIM].astype(np.float32)
 
         except Exception:
             return None

@@ -1,68 +1,78 @@
-"""
-Filtro de Kalman optimizado con Numba para CPU.
-"""
+"""Filtro de Kalman optimizado con Numba para CPU."""
 
 import numpy as np
 
 try:
     from numba import jit
+
     NUMBA_AVAILABLE = True
 except ImportError:
     NUMBA_AVAILABLE = False
-    def jit(*args, **kwargs):
+
+    def jit(*args, **kwargs):  # noqa: ARG001
+        """Decorador dummy para cuando Numba no está disponible."""
+
         def decorator(func):
             return func
+
         return decorator if args and callable(args[0]) else decorator
 
 
 @jit(nopython=True, cache=True)
-def kalman_predict(state: np.ndarray, covariance: np.ndarray, F: np.ndarray, Q: np.ndarray) -> tuple:
-    """
-    Predicción del filtro de Kalman optimizada.
+def kalman_predict(
+    state: np.ndarray,
+    covariance: np.ndarray,
+    f_matrix: np.ndarray,
+    q_matrix: np.ndarray,
+) -> tuple:
+    """Predicción del filtro de Kalman optimizada.
 
     Args:
         state: Vector de estado [6]
         covariance: Matriz de covarianza [6, 6]
-        F: Matriz de transición de estado [6, 6]
-        Q: Matriz de ruido del proceso [6, 6]
+        f_matrix: Matriz de transición de estado [6, 6]
+        q_matrix: Matriz de ruido del proceso [6, 6]
 
     Returns:
         tuple: (nuevo_estado, nueva_covarianza)
     """
-    state_pred = F @ state
-    cov_pred = F @ covariance @ F.T + Q
+    state_pred = f_matrix @ state
+    cov_pred = f_matrix @ covariance @ f_matrix.T + q_matrix
     return state_pred, cov_pred
 
 
 @jit(nopython=True, cache=True)
-def kalman_correct(state: np.ndarray, covariance: np.ndarray, measurement: np.ndarray,
-                   H: np.ndarray, R: np.ndarray) -> tuple:
-    """
-    Corrección del filtro de Kalman optimizada.
+def kalman_correct(
+    state: np.ndarray,
+    covariance: np.ndarray,
+    measurement: np.ndarray,
+    h_matrix: np.ndarray,
+    r_matrix: np.ndarray,
+) -> tuple:
+    """Corrección del filtro de Kalman optimizada.
 
     Args:
         state: Vector de estado [6]
         covariance: Matriz de covarianza [6, 6]
         measurement: Medición [2]
-        H: Matriz de observación [2, 6]
-        R: Matriz de ruido de medición [2, 2]
+        h_matrix: Matriz de observación [2, 6]
+        r_matrix: Matriz de ruido de medición [2, 2]
 
     Returns:
         tuple: (nuevo_estado, nueva_covarianza)
     """
-    S = H @ covariance @ H.T + R
-    K = covariance @ H.T @ np.linalg.inv(S)
+    s_matrix = h_matrix @ covariance @ h_matrix.T + r_matrix
+    kalman_gain = covariance @ h_matrix.T @ np.linalg.inv(s_matrix)
 
-    y = measurement - H @ state
-    state_corrected = state + K @ y
-    cov_corrected = (np.eye(6) - K @ H) @ covariance
+    y = measurement - h_matrix @ state
+    state_corrected = state + kalman_gain @ y
+    cov_corrected = (np.eye(6) - kalman_gain @ h_matrix) @ covariance
 
     return state_corrected, cov_corrected
 
 
 class OptimizedKalmanFilter:
-    """
-    Filtro de Kalman optimizado para CPU con Numba.
+    """Filtro de Kalman optimizado para CPU con Numba.
 
     Características:
     - Operaciones vectorizadas con Numba
@@ -71,7 +81,12 @@ class OptimizedKalmanFilter:
     - Inicialización rápida
     """
 
-    def __init__(self, dt: float = 1.0, process_noise: float = 0.03, measurement_noise: float = 0.1):
+    def __init__(
+        self,
+        dt: float = 1.0,
+        process_noise: float = 0.03,
+        measurement_noise: float = 0.1,
+    ) -> None:
         self.dt = dt
         self.process_noise = process_noise
         self.measurement_noise = measurement_noise
@@ -80,30 +95,42 @@ class OptimizedKalmanFilter:
         dt3 = dt2 * dt
         dt4 = dt3 * dt
 
-        self.F = np.array([
-            [1, 0, dt, 0, 0.5 * dt2, 0],
-            [0, 1, 0, dt, 0, 0.5 * dt2],
-            [0, 0, 1, 0, dt, 0],
-            [0, 0, 0, 1, 0, dt],
-            [0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 1],
-        ], dtype=np.float32)
+        self.f_matrix = np.array(
+            [
+                [1, 0, dt, 0, 0.5 * dt2, 0],
+                [0, 1, 0, dt, 0, 0.5 * dt2],
+                [0, 0, 1, 0, dt, 0],
+                [0, 0, 0, 1, 0, dt],
+                [0, 0, 0, 0, 1, 0],
+                [0, 0, 0, 0, 0, 1],
+            ],
+            dtype=np.float32,
+        )
 
-        self.H = np.array([
-            [1, 0, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0],
-        ], dtype=np.float32)
+        self.h_matrix = np.array(
+            [
+                [1, 0, 0, 0, 0, 0],
+                [0, 1, 0, 0, 0, 0],
+            ],
+            dtype=np.float32,
+        )
 
-        self.Q = np.array([
-            [dt4/4, 0, dt3/2, 0, dt2/2, 0],
-            [0, dt4/4, 0, dt3/2, 0, dt2/2],
-            [dt3/2, 0, dt2, 0, dt, 0],
-            [0, dt3/2, 0, dt2, 0, dt],
-            [dt2/2, 0, dt, 0, 1, 0],
-            [0, dt2/2, 0, dt, 0, 1],
-        ], dtype=np.float32) * process_noise
+        self.q_matrix = (
+            np.array(
+                [
+                    [dt4 / 4, 0, dt3 / 2, 0, dt2 / 2, 0],
+                    [0, dt4 / 4, 0, dt3 / 2, 0, dt2 / 2],
+                    [dt3 / 2, 0, dt2, 0, dt, 0],
+                    [0, dt3 / 2, 0, dt2, 0, dt],
+                    [dt2 / 2, 0, dt, 0, 1, 0],
+                    [0, dt2 / 2, 0, dt, 0, 1],
+                ],
+                dtype=np.float32,
+            )
+            * process_noise
+        )
 
-        self.R = np.eye(2, dtype=np.float32) * measurement_noise
+        self.r_matrix = np.eye(2, dtype=np.float32) * measurement_noise
 
         self.state = np.zeros(6, dtype=np.float32)
         self.covariance = np.eye(6, dtype=np.float32) * 0.1
@@ -121,7 +148,10 @@ class OptimizedKalmanFilter:
             return self.state[:2]
 
         self.state, self.covariance = kalman_predict(
-            self.state, self.covariance, self.F, self.Q
+            self.state,
+            self.covariance,
+            self.f_matrix,
+            self.q_matrix,
         )
 
         return self.state[:2]
@@ -136,7 +166,11 @@ class OptimizedKalmanFilter:
             measurement = measurement.flatten()[:2]
 
         self.state, self.covariance = kalman_correct(
-            self.state, self.covariance, measurement, self.H, self.R
+            self.state,
+            self.covariance,
+            measurement,
+            self.h_matrix,
+            self.r_matrix,
         )
 
         return self.state[:2]
@@ -150,7 +184,7 @@ class OptimizedKalmanFilter:
         return self.state[2:4]
 
     def get_state(self) -> dict:
-        """Retorna el estado completo."""
+        """Retorna el estado completo del filtro."""
         if not self.initialized:
             return {"initialized": False}
 
@@ -163,6 +197,7 @@ class OptimizedKalmanFilter:
 
     @property
     def is_initialized(self) -> bool:
+        """Verifica si el filtro está inicializado."""
         return self.initialized
 
     def reset(self) -> None:

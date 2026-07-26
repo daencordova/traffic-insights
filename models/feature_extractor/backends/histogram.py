@@ -1,11 +1,9 @@
-"""
-Backend basado en histogramas para extracción de features.
+"""Backend basado en histogramas para extracción de features.
 
 Este backend es rápido y no requiere GPU, ideal para CPU.
 Combina histogramas de color, textura y momentos.
 """
 
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -15,8 +13,7 @@ from utils.logger import LoggerMixin
 
 
 class HistogramBackend(FeatureBackend, LoggerMixin):
-    """
-    Backend basado en histogramas para extracción de features.
+    """Backend basado en histogramas para extracción de features.
 
     Características:
     - Histogramas HSV y LAB
@@ -37,14 +34,10 @@ class HistogramBackend(FeatureBackend, LoggerMixin):
         self._available = True
         self._warmed_up = False
 
-        self.logger.info(
-            "HistogramBackend inicializado",
-            feature_dim=self.FEATURE_DIM
-        )
+        self.logger.info("HistogramBackend inicializado", feature_dim=self.FEATURE_DIM)
 
-    def extract(self, region: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Extrae features usando histogramas.
+    def extract(self, region: np.ndarray) -> np.ndarray | None:
+        """Extrae features usando histogramas.
 
         Args:
             region: Región de imagen (recorte del objeto)
@@ -59,18 +52,12 @@ class HistogramBackend(FeatureBackend, LoggerMixin):
             features = []
 
             hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
-            hist_hsv = cv2.calcHist(
-                [hsv], [0, 1], None,
-                [8, 8], [0, 180, 0, 256]
-            )
+            hist_hsv = cv2.calcHist([hsv], [0, 1], None, [8, 8], [0, 180, 0, 256])
             hist_hsv = cv2.normalize(hist_hsv, hist_hsv).flatten()
             features.extend(hist_hsv[:64])
 
             lab = cv2.cvtColor(region, cv2.COLOR_BGR2LAB)
-            hist_lab = cv2.calcHist(
-                [lab], [0, 1, 2], None,
-                [4, 4, 4], [0, 256, 0, 256, 0, 256]
-            )
+            hist_lab = cv2.calcHist([lab], [0, 1, 2], None, [4, 4, 4], [0, 256, 0, 256, 0, 256])
             hist_lab = cv2.normalize(hist_lab, hist_lab).flatten()
             features.extend(hist_lab[:32])
 
@@ -79,26 +66,16 @@ class HistogramBackend(FeatureBackend, LoggerMixin):
             sobel_y = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
             magnitude = cv2.magnitude(sobel_x, sobel_y)
 
-            hist_mag, _ = np.histogram(
-                magnitude.flatten(),
-                bins=16,
-                range=(0, 255)
-            )
+            hist_mag, _ = np.histogram(magnitude.flatten(), bins=16, range=(0, 255))
             hist_mag = cv2.normalize(
-                hist_mag.astype(np.float32),
-                hist_mag.astype(np.float32)
+                hist_mag.astype(np.float32), hist_mag.astype(np.float32)
             ).flatten()
             features.extend(hist_mag[:16])
 
             angle = cv2.phase(sobel_x, sobel_y, angleInDegrees=True)
-            hist_angle, _ = np.histogram(
-                angle.flatten(),
-                bins=16,
-                range=(0, 360)
-            )
+            hist_angle, _ = np.histogram(angle.flatten(), bins=16, range=(0, 360))
             hist_angle = cv2.normalize(
-                hist_angle.astype(np.float32),
-                hist_angle.astype(np.float32)
+                hist_angle.astype(np.float32), hist_angle.astype(np.float32)
             ).flatten()
             features.extend(hist_angle[:8])
 
@@ -122,7 +99,7 @@ class HistogramBackend(FeatureBackend, LoggerMixin):
             features_array = np.array(features, dtype=np.float32)
 
             if len(features_array) > self.FEATURE_DIM:
-                features_array = features_array[:self.FEATURE_DIM]
+                features_array = features_array[: self.FEATURE_DIM]
             elif len(features_array) < self.FEATURE_DIM:
                 padding = self.FEATURE_DIM - len(features_array)
                 features_array = np.pad(features_array, (0, padding))

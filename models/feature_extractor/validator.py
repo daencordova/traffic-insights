@@ -1,22 +1,29 @@
-"""
-Validador de calidad para regiones de imagen.
+"""Validador de calidad para regiones de imagen.
 
 Verifica que las regiones extraídas tengan calidad suficiente
 para la extracción de features.
 """
 
-from typing import Tuple, Any, Dict
+from typing import Any
 
 import cv2
 import numpy as np
 
-
 from utils.logger import LoggerMixin
+
+MIN_BBOX_SIZE: int = 10
+"""Tamaño mínimo de un bounding box en píxeles."""
+MAX_BBOX_DIMENSION: int = 4
+"""Número de elementos en un bounding box."""
+MAX_BRIGHTNESS: int = 240
+"""Brillo máximo permitido antes de considerar sobreexpuesto."""
+
+MIN_VALID_SCORE: float = 0.3
+"""Puntuación mínima para considerar una región válida."""
 
 
 class FeatureValidator(LoggerMixin):
-    """
-    Validador de calidad para regiones de imagen.
+    """Validador de calidad para regiones de imagen.
 
     Verifica:
     - Tamaño mínimo
@@ -34,10 +41,9 @@ class FeatureValidator(LoggerMixin):
         self,
         min_area: int = 100,
         min_brightness: int = 10,
-        min_contrast: int = 5
-    ):
-        """
-        Inicializa el validador.
+        min_contrast: int = 5,
+    ) -> None:
+        """Inicializa el validador.
 
         Args:
             min_area: Área mínima de la región
@@ -62,16 +68,15 @@ class FeatureValidator(LoggerMixin):
             "FeatureValidator inicializado",
             min_area=min_area,
             min_brightness=min_brightness,
-            min_contrast=min_contrast
+            min_contrast=min_contrast,
         )
 
     def validate_bbox(
         self,
-        bbox: Tuple[int, int, int, int],
-        image_shape: Tuple[int, int]
+        bbox: tuple[int, int, int, int],
+        image_shape: tuple[int, int],
     ) -> bool:
-        """
-        Valida que el bounding box sea válido.
+        """Valida que el bounding box sea válido.
 
         Args:
             bbox: Bounding box (x1, y1, x2, y2)
@@ -80,28 +85,18 @@ class FeatureValidator(LoggerMixin):
         Returns:
             bool: True si el bbox es válido
         """
-        if not isinstance(bbox, (tuple, list)) or len(bbox) != 4:
+        if not self._is_valid_bbox_structure(bbox):
             return False
 
         try:
             x1, y1, x2, y2 = bbox
-
             h, w = image_shape[:2]
-            if x1 < 0 or y1 < 0 or x2 < 0 or y2 < 0:
-                return False
-            if x1 >= w or y1 >= h or x2 > w or y2 > h:
-                return False
 
-            width = x2 - x1
-            height = y2 - y1
-            if width < 10 or height < 10:
-                self._stats["too_small"] += 1
+            if not self._are_coordinates_valid(x1, y1, x2, y2, w, h):
                 self._stats["invalid"] += 1
                 return False
 
-            area = width * height
-            if area < self.min_area:
-                self._stats["too_small"] += 1
+            if not self._are_dimensions_valid(x1, y1, x2, y2):
                 self._stats["invalid"] += 1
                 return False
 
@@ -110,9 +105,46 @@ class FeatureValidator(LoggerMixin):
         except (TypeError, ValueError):
             return False
 
+    def _is_valid_bbox_structure(self, bbox: Any) -> bool:
+        """Verifica que el bbox tenga la estructura correcta."""
+        return isinstance(bbox, (tuple, list)) and len(bbox) == MAX_BBOX_DIMENSION
+
+    def _are_coordinates_valid(
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        w: int,
+        h: int,
+    ) -> bool:
+        """Verifica que las coordenadas estén dentro de los límites."""
+        if x1 < 0 or y1 < 0 or x2 < 0 or y2 < 0:
+            return False
+
+        if x1 >= w or y1 >= h or x2 > w or y2 > h:
+            return False
+
+        return True
+
+    def _are_dimensions_valid(self, x1: int, y1: int, x2: int, y2: int) -> bool:
+        """Verifica que las dimensiones del bbox sean válidas."""
+        width = x2 - x1
+        height = y2 - y1
+
+        if width < MIN_BBOX_SIZE or height < MIN_BBOX_SIZE:
+            self._stats["too_small"] += 1
+            return False
+
+        area = width * height
+        if area < self.min_area:
+            self._stats["too_small"] += 1
+            return False
+
+        return True
+
     def validate_region(self, region: np.ndarray) -> float:
-        """
-        Valida la calidad de una región de imagen.
+        """Valida la calidad de una región de imagen.
 
         Args:
             region: Región de imagen
@@ -120,7 +152,7 @@ class FeatureValidator(LoggerMixin):
         Returns:
             float: Puntuación de calidad (0-1)
         """
-        if region is None or region.size == 0:
+        if not self._is_valid_region(region):
             self._stats["empty_region"] += 1
             self._stats["invalid"] += 1
             return 0.0
@@ -136,44 +168,20 @@ class FeatureValidator(LoggerMixin):
 
             gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
 
-            mean_brightness = np.mean(gray)
+            brightness_score = self._validate_brightness(gray)
+            if brightness_score <= 0.0:
+                return 0.0
 
-            if mean_brightness < self.min_brightness:
-                self._stats["too_dark"] += 1
-                self._stats["invalid"] += 1
-                return 0.1
-
-            if mean_brightness > 240:
-                self._stats["too_bright"] += 1
-                self._stats["invalid"] += 1
-                return 0.2
-
-            std_brightness = np.std(gray)
-
-            if std_brightness < self.min_contrast:
-                self._stats["low_contrast"] += 1
-                self._stats["invalid"] += 1
-                return 0.2
-
-            brightness_score = 1.0 - abs(mean_brightness - 128) / 128.0
-            brightness_score = max(0, brightness_score)
-
-            contrast_score = min(1.0, std_brightness / 50.0)
+            contrast_score = self._validate_contrast(gray)
+            if contrast_score <= 0.0:
+                return 0.0
 
             area_score = min(1.0, area / 2000.0)
 
-            score = (
-                0.3 * brightness_score +
-                0.4 * contrast_score +
-                0.3 * area_score
-            )
+            score = 0.3 * brightness_score + 0.4 * contrast_score + 0.3 * area_score
 
             score = min(1.0, score)
-
-            if score >= 0.3:
-                self._stats["valid"] += 1
-            else:
-                self._stats["invalid"] += 1
+            self._update_stats(score)
 
             return score
 
@@ -182,7 +190,53 @@ class FeatureValidator(LoggerMixin):
             self._stats["invalid"] += 1
             return 0.0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def _is_valid_region(self, region: np.ndarray) -> bool:
+        """Verifica que la región no sea None o esté vacía."""
+        return region is not None and region.size > 0
+
+    def _validate_brightness(self, gray: np.ndarray) -> float:
+        """Valida el brillo de la región.
+
+        Returns:
+            float: Puntuación de brillo (0-1), 0 si es inválido
+        """
+        mean_brightness = np.mean(gray)
+
+        if mean_brightness < self.min_brightness:
+            self._stats["too_dark"] += 1
+            self._stats["invalid"] += 1
+            return 0.0
+
+        if mean_brightness > MAX_BRIGHTNESS:
+            self._stats["too_bright"] += 1
+            self._stats["invalid"] += 1
+            return 0.0
+
+        return 1.0 - abs(mean_brightness - 128) / 128.0
+
+    def _validate_contrast(self, gray: np.ndarray) -> float:
+        """Valida el contraste de la región.
+
+        Returns:
+            float: Puntuación de contraste (0-1), 0 si es inválido
+        """
+        std_brightness = np.std(gray)
+
+        if std_brightness < self.min_contrast:
+            self._stats["low_contrast"] += 1
+            self._stats["invalid"] += 1
+            return 0.0
+
+        return min(1.0, std_brightness / 50.0)
+
+    def _update_stats(self, score: float) -> None:
+        """Actualiza las estadísticas basado en la puntuación."""
+        if score >= MIN_VALID_SCORE:
+            self._stats["valid"] += 1
+        else:
+            self._stats["invalid"] += 1
+
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del validador."""
         total = self._stats["valid"] + self._stats["invalid"]
 
