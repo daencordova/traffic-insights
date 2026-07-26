@@ -1,17 +1,55 @@
-"""
-Gestor de colores para tracks y visualizaciones.
+"""Gestor de colores para tracks y visualizaciones.
 
 Proporciona una asignación consistente y eficiente de colores
 para elementos visuales en el sistema.
 """
 
-from typing import Dict, Tuple, List, Optional, Any
+import logging
 import threading
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+HUE_SEGMENTS = 6
+HUE_CYCLE = 360
+SATURATION = 200
+VALUE = 200
+MAX_COLOR_INDEX = 255
+COLOR_CHANNEL_MAX = 255
+
+DEFAULT_COLORS = [
+    (0, 255, 0),
+    (255, 165, 0),
+    (255, 0, 0),
+    (255, 255, 0),
+    (0, 255, 255),
+    (255, 0, 255),
+    (0, 128, 255),
+    (128, 0, 255),
+    (255, 128, 0),
+    (0, 255, 128),
+    (255, 0, 128),
+    (128, 255, 0),
+    (0, 128, 128),
+    (128, 128, 0),
+    (128, 0, 128),
+    (0, 0, 255),
+]
+
+HIGH_CONTRAST_COLORS = [
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (255, 128, 0),
+    (128, 0, 255),
+]
 
 
 class ColorManager:
-    """
-    Gestor de colores con caché para tracks.
+    """Gestor de colores con caché para tracks.
 
     Características:
     - Asignación consistente de colores por ID
@@ -27,46 +65,15 @@ class ColorManager:
         _stats: Estadísticas de uso del gestor
     """
 
-    DEFAULT_COLORS = [
-        (0, 255, 0),
-        (255, 165, 0),
-        (255, 0, 0),
-        (255, 255, 0),
-        (0, 255, 255),
-        (255, 0, 255),
-        (0, 128, 255),
-        (128, 0, 255),
-        (255, 128, 0),
-        (0, 255, 128),
-        (255, 0, 128),
-        (128, 255, 0),
-        (0, 128, 128),
-        (128, 128, 0),
-        (128, 0, 128),
-        (0, 0, 255),
-    ]
-
-    HIGH_CONTRAST_COLORS = [
-        (255, 0, 0),
-        (0, 255, 0),
-        (0, 0, 255),
-        (255, 255, 0),
-        (255, 0, 255),
-        (0, 255, 255),
-        (255, 128, 0),
-        (128, 0, 255),
-    ]
-
-    def __init__(self, colors: Optional[List[Tuple[int, int, int]]] = None):
-        """
-        Inicializa el gestor de colores.
+    def __init__(self, colors: list[tuple[int, int, int]] | None = None):
+        """Inicializa el gestor de colores.
 
         Args:
             colors: Lista de colores personalizada (opcional).
                    Si no se proporciona, usa DEFAULT_COLORS.
         """
-        self._color_pool = colors or self.DEFAULT_COLORS
-        self._color_cache: Dict[int, Tuple[int, int, int]] = {}
+        self._color_pool = colors or DEFAULT_COLORS
+        self._color_cache: dict[int, tuple[int, int, int]] = {}
         self._lock = threading.RLock()
         self._next_color_index = 0
 
@@ -78,9 +85,8 @@ class ColorManager:
             "pool_size": len(self._color_pool),
         }
 
-    def get_color(self, track_id: int) -> Tuple[int, int, int]:
-        """
-        Obtiene un color para un track.
+    def get_color(self, track_id: int) -> tuple[int, int, int]:
+        """Obtiene un color para un track.
 
         Args:
             track_id: ID del track.
@@ -107,9 +113,8 @@ class ColorManager:
 
             return color
 
-    def _assign_color(self, track_id: int) -> Tuple[int, int, int]:
-        """
-        Asigna un color a un track.
+    def _assign_color(self, track_id: int) -> tuple[int, int, int]:
+        """Asigna un color a un track.
 
         Args:
             track_id: ID del track.
@@ -125,47 +130,51 @@ class ColorManager:
 
         return self._color_pool[index]
 
-    def _generate_color_from_id(self, track_id: int) -> Tuple[int, int, int]:
-        """
-        Genera un color a partir del ID del track.
+    def _generate_color_from_id(self, track_id: int) -> tuple[int, int, int]:
+        """Genera un color a partir del ID del track.
 
         Args:
             track_id: ID del track.
 
         Returns:
             Tuple[int, int, int]: Color generado en formato BGR.
+
+        Note:
+            Utiliza el modelo de color HSV para generar colores
+            distribuidos uniformemente en el espectro.
         """
-        hue = (track_id * 137) % 360
-        saturation = 200
-        value = 200
+        hue = (track_id * 137) % HUE_CYCLE
+        saturation = SATURATION
+        value = VALUE
 
         h = hue / 60.0
-        c = value * saturation / 255.0
+        c = value * saturation / COLOR_CHANNEL_MAX
         x = c * (1 - abs(h % 2 - 1))
         m = value - c
 
-        if 0 <= h < 1:
+        segment = int(h) % HUE_SEGMENTS
+
+        if segment == 0:
             r, g, b = c, x, 0
-        elif 1 <= h < 2:
+        elif segment == 1:
             r, g, b = x, c, 0
-        elif 2 <= h < 3:
+        elif segment == 2:
             r, g, b = 0, c, x
-        elif 3 <= h < 4:
+        elif segment == 3:
             r, g, b = 0, x, c
-        elif 4 <= h < 5:
+        elif segment == 4:
             r, g, b = x, 0, c
         else:
             r, g, b = c, 0, x
 
-        b = int((b + m) * 255)
-        g = int((g + m) * 255)
-        r = int((r + m) * 255)
+        b = int((b + m) * COLOR_CHANNEL_MAX)
+        g = int((g + m) * COLOR_CHANNEL_MAX)
+        r = int((r + m) * COLOR_CHANNEL_MAX)
 
         return (b, g, r)
 
-    def get_color_palette(self, count: int) -> List[Tuple[int, int, int]]:
-        """
-        Obtiene una paleta de colores para múltiples elementos.
+    def get_color_palette(self, count: int) -> list[tuple[int, int, int]]:
+        """Obtiene una paleta de colores para múltiples elementos.
 
         Args:
             count: Número de colores a obtener.
@@ -185,12 +194,8 @@ class ColorManager:
                 palette.append(self.get_color(temp_id))
             return palette
 
-    def get_colors_for_tracks(
-        self,
-        track_ids: List[int]
-    ) -> Dict[int, Tuple[int, int, int]]:
-        """
-        Obtiene colores para una lista de tracks de forma eficiente.
+    def get_colors_for_tracks(self, track_ids: list[int]) -> dict[int, tuple[int, int, int]]:
+        """Obtiene colores para una lista de tracks de forma eficiente.
 
         Args:
             track_ids: Lista de IDs de tracks.
@@ -210,12 +215,9 @@ class ColorManager:
         return result
 
     def get_color_with_alpha(
-        self,
-        track_id: int,
-        alpha: float = 0.5
-    ) -> Tuple[int, int, int, float]:
-        """
-        Obtiene un color con transparencia para un track.
+        self, track_id: int, alpha: float = 0.5
+    ) -> tuple[int, int, int, float]:
+        """Obtiene un color con transparencia para un track.
 
         Args:
             track_id: ID del track.
@@ -231,9 +233,8 @@ class ColorManager:
         b, g, r = self.get_color(track_id)
         return (b, g, r, alpha)
 
-    def get_brighter_color(self, track_id: int, factor: float = 1.3) -> Tuple[int, int, int]:
-        """
-        Obtiene una versión más brillante del color de un track.
+    def get_brighter_color(self, track_id: int, factor: float = 1.3) -> tuple[int, int, int]:
+        """Obtiene una versión más brillante del color de un track.
 
         Args:
             track_id: ID del track.
@@ -244,15 +245,14 @@ class ColorManager:
         """
         b, g, r = self.get_color(track_id)
 
-        b = min(255, int(b * factor))
-        g = min(255, int(g * factor))
-        r = min(255, int(r * factor))
+        b = min(COLOR_CHANNEL_MAX, int(b * factor))
+        g = min(COLOR_CHANNEL_MAX, int(g * factor))
+        r = min(COLOR_CHANNEL_MAX, int(r * factor))
 
         return (b, g, r)
 
-    def get_darker_color(self, track_id: int, factor: float = 0.7) -> Tuple[int, int, int]:
-        """
-        Obtiene una versión más oscura del color de un track.
+    def get_darker_color(self, track_id: int, factor: float = 0.7) -> tuple[int, int, int]:
+        """Obtiene una versión más oscura del color de un track.
 
         Args:
             track_id: ID del track.
@@ -279,11 +279,11 @@ class ColorManager:
             self._stats["cache_hits"] = 0
             self._stats["cache_misses"] = 0
             self._stats["total_assignments"] = 0
-            print(f"🧹 Caché de colores limpiado: {count} colores eliminados")
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del gestor de colores.
+            logger.info(f"Caché de colores limpiado: {count} colores eliminados")
+
+    def get_stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del gestor de colores.
 
         Returns:
             Dict[str, any]: Estadísticas de uso.
@@ -309,12 +309,11 @@ class ColorManager:
             return len(self._color_cache)
 
 
-_default_color_manager = None
+_default_color_manager: ColorManager | None = None
 
 
 def get_color_manager() -> ColorManager:
-    """
-    Obtiene la instancia global del gestor de colores.
+    """Obtiene la instancia global del gestor de colores.
 
     Returns:
         ColorManager: Instancia global del gestor.
@@ -329,9 +328,8 @@ def get_color_manager() -> ColorManager:
     return _default_color_manager
 
 
-def get_color(index: int) -> Tuple[int, int, int]:
-    """
-    Función de compatibilidad para el código existente.
+def get_color(index: int) -> tuple[int, int, int]:
+    """Función de compatibilidad para el código existente.
 
     Args:
         index: Índice o ID para obtener color.

@@ -53,7 +53,8 @@ class ModelConfig(BaseModel):
     max_det: int = 100
 
     @field_validator("imgsz")
-    def validate_imgsz(self, v: int) -> int:
+    @classmethod
+    def validate_imgsz(cls, v: int) -> int:
         """Valida que imgsz sea un múltiplo de 32."""
         valid_sizes = [320, 416, 512, 640, 768, 832, 1024]
         if v not in valid_sizes:
@@ -169,7 +170,8 @@ class TrackerConfig(BaseModel):
     )
 
     @field_validator("mht_max_depth")
-    def validate_mht_depth(self, v: int, info) -> int:
+    @classmethod
+    def validate_mht_depth(cls, v: int, info) -> int:
         """Valida que mht_max_depth sea >= MIN_MHT_DEPTH si MHT está activo."""
         enable_mht = info.data.get("enable_mht", False)
         if enable_mht and v < MIN_MHT_DEPTH:
@@ -179,7 +181,8 @@ class TrackerConfig(BaseModel):
         return v
 
     @field_validator("fusion_particle_count")
-    def validate_particle_count(self, v: int, info) -> int:
+    @classmethod
+    def validate_particle_count(cls, v: int, info) -> int:
         """Valida que fusion_particle_count sea >= MIN_PARTICLE_COUNT para particle filter."""
         enable_sensor_fusion = info.data.get("enable_sensor_fusion", False)
         fusion_method = info.data.get("fusion_method", "weighted_average")
@@ -191,7 +194,8 @@ class TrackerConfig(BaseModel):
         return v
 
     @field_validator("prediction_horizon")
-    def validate_prediction_horizon(self, v: float, info) -> float:
+    @classmethod
+    def validate_prediction_horizon(cls, v: float, info) -> float:
         """Valida que prediction_horizon sea >= MIN_PREDICTION_HORIZON si path_prediction está activo."""
         enable_path_prediction = info.data.get("enable_path_prediction", False)
         if enable_path_prediction and v < MIN_PREDICTION_HORIZON:
@@ -202,7 +206,8 @@ class TrackerConfig(BaseModel):
         return v
 
     @field_validator("reid_cache_size")
-    def validate_reid_cache(self, v: int, info) -> int:
+    @classmethod
+    def validate_reid_cache(cls, v: int, info) -> int:
         """Valida que reid_cache_size sea >= MIN_REID_CACHE_SIZE si re-identificación está activa."""
         enable_reidentification = info.data.get("enable_reidentification", False)
         if enable_reidentification and v < MIN_REID_CACHE_SIZE:

@@ -1,32 +1,35 @@
-"""
-Operaciones geométricas optimizadas con Numba para CPU.
-"""
+"""Operaciones geométricas optimizadas con Numba para CPU."""
 
 import numpy as np
 
 try:
     from numba import jit, prange
+
     NUMBA_AVAILABLE = True
 except ImportError:
     NUMBA_AVAILABLE = False
-    def jit(*args, **kwargs):
+
+    def jit(*args, **kwargs):  # noqa: ARG001
+        """Decorador dummy para cuando Numba no está disponible."""
+
         def decorator(func):
             return func
+
         return decorator if args and callable(args[0]) else decorator
+
     prange = range
 
 
 @jit(nopython=True, cache=True, parallel=True)
 def calculate_iou_batch(boxes1: np.ndarray, boxes2: np.ndarray) -> np.ndarray:
-    """
-    Calcula IoU entre dos conjuntos de bounding boxes (vectorizado).
+    """Calcula IoU entre dos conjuntos de bounding boxes (vectorizado).
 
     Args:
-        boxes1: Array de boxes [N, 4] en formato [x1, y1, x2, y2]
-        boxes2: Array de boxes [M, 4] en formato [x1, y1, x2, y2]
+        boxes1: Array de boxes [N, 4] en formato [x1, y1, x2, y2].
+        boxes2: Array de boxes [M, 4] en formato [x1, y1, x2, y2].
 
     Returns:
-        np.ndarray: Matriz de IoU [N, M]
+        np.ndarray: Matriz de IoU [N, M].
     """
     n = boxes1.shape[0]
     m = boxes2.shape[0]
@@ -65,15 +68,14 @@ def calculate_iou_batch(boxes1: np.ndarray, boxes2: np.ndarray) -> np.ndarray:
 
 @jit(nopython=True, cache=True)
 def euclidean_distance_batch(points1: np.ndarray, points2: np.ndarray) -> np.ndarray:
-    """
-    Calcula distancias euclidianas entre dos conjuntos de puntos.
+    """Calcula distancias euclidianas entre dos conjuntos de puntos.
 
     Args:
-        points1: Array de puntos [N, 2]
-        points2: Array de puntos [M, 2]
+        points1: Array de puntos [N, 2].
+        points2: Array de puntos [M, 2].
 
     Returns:
-        np.ndarray: Matriz de distancias [N, M]
+        np.ndarray: Matriz de distancias [N, M].
     """
     n = points1.shape[0]
     m = points2.shape[0]
@@ -90,15 +92,14 @@ def euclidean_distance_batch(points1: np.ndarray, points2: np.ndarray) -> np.nda
 
 @jit(nopython=True, cache=True)
 def centroid_to_box(centroids: np.ndarray, sizes: np.ndarray) -> np.ndarray:
-    """
-    Convierte centroides y tamaños a bounding boxes.
+    """Convierte centroides y tamaños a bounding boxes.
 
     Args:
-        centroids: Array de centroides [N, 2]
-        sizes: Array de tamaños [N, 2] (width, height)
+        centroids: Array de centroides [N, 2].
+        sizes: Array de tamaños [N, 2] (width, height).
 
     Returns:
-        np.ndarray: Bounding boxes [N, 4] en formato [x1, y1, x2, y2]
+        np.ndarray: Bounding boxes [N, 4] en formato [x1, y1, x2, y2].
     """
     n = centroids.shape[0]
     boxes = np.zeros((n, 4), dtype=np.float32)
@@ -116,15 +117,14 @@ def centroid_to_box(centroids: np.ndarray, sizes: np.ndarray) -> np.ndarray:
 
 @jit(nopython=True, cache=True)
 def check_crossing_batch(prev_y: np.ndarray, curr_y: np.ndarray, line_y: float) -> np.ndarray:
-    """
-    Verifica cruce de línea para múltiples objetos.
+    """Verifica cruce de línea para múltiples objetos.
 
     Args:
-        prev_y: Array de posiciones Y anteriores
-        curr_y: Array de posiciones Y actuales
-        line_y: Posición Y de la línea
+        prev_y: Array de posiciones Y anteriores.
+        curr_y: Array de posiciones Y actuales.
+        line_y: Posición Y de la línea.
 
     Returns:
-        np.ndarray: Array booleano de cruces
+        np.ndarray: Array booleano de cruces.
     """
     return (prev_y < line_y) & (curr_y >= line_y)

@@ -15,7 +15,7 @@ from core.frame_buffer import FrameBuffer, FrameMetadata
 from core.validators import validate_frame
 from core.circuit_breaker import CircuitBreaker, circuit_breaker_registry
 from core.exceptions import CameraError
-from utils.decorators import retry_on_failure
+from utils.decorators import RetryConfig, retry_on_failure
 from utils.logger import LoggerMixin
 
 
@@ -195,13 +195,15 @@ class CaptureService(LoggerMixin):
 
         return self._connect()
 
-    @retry_on_failure(
+    retry_config = RetryConfig(
         exceptions=(CameraError, ConnectionError, TimeoutError),
         max_attempts=3,
         delay=0.5,
         backoff=2.0,
         on_retry=lambda attempt, e: logging.warning(f"Reintentando conexión {attempt}: {e}")
     )
+
+    @retry_on_failure(retry_config)
     def _connect(self) -> bool:
         """Conecta a la fuente de video con reintentos."""
         try:

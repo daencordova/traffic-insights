@@ -2,8 +2,7 @@
 Módulo de utilidades generales
 """
 
-from utils.logger import setup_logger, LoggerMixin
-from utils.color_manager import ColorManager, get_color_manager, get_color
+from utils.color_manager import ColorManager, get_color, get_color_manager
 from utils.geometry import (
     calculate_centroid,
     calculate_iou,
@@ -13,9 +12,10 @@ from utils.geometry import (
 )
 from utils.helpers import (
     ensure_directory_exists,
-    get_timestamp_filename,
     format_time,
+    get_timestamp_filename,
 )
+from utils.logger import LoggerMixin, setup_logger
 
 __all__ = [
     "calculate_centroid",

@@ -1,53 +1,49 @@
-"""
-Funciones utilitarias generales
-"""
+"""Funciones utilitarias generales."""
 
-import time
 import gc
+import time
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Union
+from typing import Any
 
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
 
 
 def ensure_directory_exists(path: str) -> None:
-    """
-    Asegura que un directorio existe, creándolo si es necesario
+    """Asegura que un directorio existe, creándolo si es necesario.
 
     Args:
-        path: Ruta del directorio
+        path: Ruta del directorio.
     """
     Path(path).mkdir(parents=True, exist_ok=True)
 
 
 def get_timestamp_filename(prefix: str = "", extension: str = "jpg") -> str:
-    """
-    Genera un nombre de archivo con timestamp
+    """Genera un nombre de archivo con timestamp.
 
     Args:
-        prefix: Prefijo para el nombre
-        extension: Extensión del archivo
+        prefix: Prefijo para el nombre.
+        extension: Extensión del archivo.
 
     Returns:
-        Nombre de archivo con timestamp
+        Nombre de archivo con timestamp.
     """
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     return f"{prefix}_{timestamp}.{extension}" if prefix else f"{timestamp}.{extension}"
 
 
 def format_time(seconds: float) -> str:
-    """
-    Formatea segundos en formato HH:MM:SS
+    """Formatea segundos en formato HH:MM:SS.
 
     Args:
-        seconds: Segundos a formatear
+        seconds: Segundos a formatear.
 
     Returns:
-        String formateado
+        String formateado en formato HH:MM:SS o MM:SS.
     """
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
@@ -55,16 +51,14 @@ def format_time(seconds: float) -> str:
 
     if hours > 0:
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-    else:
-        return f"{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
 
 
-def get_memory_usage() -> Dict[str, float]:
-    """
-    Obtiene información de uso de memoria del proceso actual
+def get_memory_usage() -> dict[str, float]:
+    """Obtiene información de uso de memoria del proceso actual.
 
     Returns:
-        Diccionario con información de memoria
+        Diccionario con información de memoria (rss_mb, vms_mb, percent, etc.).
     """
     if not PSUTIL_AVAILABLE:
         return {
@@ -96,12 +90,11 @@ def get_memory_usage() -> Dict[str, float]:
         }
 
 
-def force_garbage_collection() -> Dict[str, Union[int, bool]]:
-    """
-    Fuerza la recolección de basura y retorna estadísticas
+def force_garbage_collection() -> dict[str, int | bool]:
+    """Fuerza la recolección de basura y retorna estadísticas.
 
     Returns:
-        Diccionario con estadísticas de GC
+        Diccionario con estadísticas de GC (collected_objects, gc_enabled, garbage_count).
     """
     collected = gc.collect()
     return {
@@ -112,23 +105,27 @@ def force_garbage_collection() -> Dict[str, Union[int, bool]]:
 
 
 class MemoryTracker:
-    """Tracker simple de uso de memoria"""
+    """Tracker simple de uso de memoria."""
 
     def __init__(self, name: str = "memory_tracker") -> None:
-        self.name: str = name
-        self._snapshots: List[Dict[str, Any]] = []
-        self._max_snapshots: int = 100
-        self._start_memory: Optional[float] = None
-
-    def snapshot(self, label: str = "") -> Dict[str, Any]:
-        """
-        Toma una instantánea del uso de memoria
+        """Inicializa el tracker de memoria.
 
         Args:
-            label: Etiqueta para identificar la instantánea
+            name: Nombre identificador del tracker.
+        """
+        self.name: str = name
+        self._snapshots: list[dict[str, Any]] = []
+        self._max_snapshots: int = 100
+        self._start_memory: float | None = None
+
+    def snapshot(self, label: str = "") -> dict[str, Any]:
+        """Toma una instantánea del uso de memoria.
+
+        Args:
+            label: Etiqueta para identificar la instantánea.
 
         Returns:
-            Diccionario con información de memoria
+            Diccionario con información de memoria (timestamp, label, delta_mb, etc.).
         """
         memory = get_memory_usage()
         memory["timestamp"] = time.time()
@@ -141,12 +138,16 @@ class MemoryTracker:
 
         self._snapshots.append(memory)
         if len(self._snapshots) > self._max_snapshots:
-            self._snapshots = self._snapshots[-self._max_snapshots:]
+            self._snapshots = self._snapshots[-self._max_snapshots :]
 
         return memory
 
-    def get_stats(self) -> Dict[str, float]:
-        """Obtiene estadísticas de las instantáneas"""
+    def get_stats(self) -> dict[str, float]:
+        """Obtiene estadísticas de las instantáneas.
+
+        Returns:
+            Diccionario con estadísticas (count, current_mb, peak_mb, delta_mb, start_mb).
+        """
         if not self._snapshots:
             return {"count": 0.0}
 
@@ -162,6 +163,6 @@ class MemoryTracker:
         }
 
     def clear(self) -> None:
-        """Limpia las instantáneas"""
+        """Limpia las instantáneas almacenadas."""
         self._snapshots.clear()
         self._start_memory = None
