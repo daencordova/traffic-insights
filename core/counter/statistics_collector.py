@@ -1,21 +1,30 @@
-"""
-Recolector de estadísticas de conteo.
+"""Recolector de estadísticas de conteo.
 
 Maneja la recolección y cálculo de estadísticas de vehículos.
 """
 
 from __future__ import annotations
 
-import time
-from typing import Dict, Any, List
 from collections import defaultdict
+import time
+from typing import Any
 
 
 class VehicleEvent:
     """Evento de conteo de un vehículo."""
-    __slots__ = ('timestamp', 'object_id', 'line_id', 'line_name',
-                     'label', 'class_id', 'centroid', 'velocity',
-                     'confidence', 'metadata')
+
+    __slots__ = (
+        "timestamp",
+        "object_id",
+        "line_id",
+        "line_name",
+        "label",
+        "class_id",
+        "centroid",
+        "velocity",
+        "confidence",
+        "metadata",
+    )
 
     def __init__(
         self,
@@ -28,7 +37,7 @@ class VehicleEvent:
         centroid: tuple,
         velocity: tuple,
         confidence: float = 0.0,
-        metadata: Dict[str, Any] = None
+        metadata: dict[str, Any] | None = None,
     ):
         self.timestamp = timestamp
         self.object_id = object_id
@@ -43,8 +52,7 @@ class VehicleEvent:
 
 
 class StatisticsCollector:
-    """
-    Recolector de estadísticas de conteo.
+    """Recolector de estadísticas de conteo.
 
     Responsabilidades:
     - Mantener conteos por línea
@@ -60,20 +68,19 @@ class StatisticsCollector:
     """
 
     def __init__(self, max_history: int = 1000):
-        """
-        Inicializa el recolector de estadísticas.
+        """Inicializa el recolector de estadísticas.
 
         Args:
             max_history: Número máximo de eventos en el historial
         """
-        self.line_counts: Dict[str, int] = defaultdict(int)
-        self.class_counts: Dict[str, int] = defaultdict(int)
-        self.speed_history: Dict[int, List[float]] = defaultdict(list)
-        self.events: List[VehicleEvent] = []
+        self.line_counts: dict[str, int] = defaultdict(int)
+        self.class_counts: dict[str, int] = defaultdict(int)
+        self.speed_history: dict[int, list[float]] = defaultdict(list)
+        self.events: list[VehicleEvent] = []
         self.max_history = max_history
 
         self._start_time = time.time()
-        self._counts_per_minute: List[int] = []
+        self._counts_per_minute: list[int] = []
         self._last_count_time = time.time()
         self._last_stats_time = time.time()
         self._stats_window = 60.0
@@ -83,11 +90,10 @@ class StatisticsCollector:
         object_id: int,
         line_id: str,
         line_name: str,
-        track_data: Dict[str, Any],
-        centroid: tuple
+        track_data: dict[str, Any],
+        centroid: tuple,
     ) -> None:
-        """
-        Registra un cruce de línea.
+        """Registra un cruce de línea.
 
         Args:
             object_id: ID del objeto
@@ -116,15 +122,10 @@ class StatisticsCollector:
         self.events.append(event)
 
         if len(self.events) > self.max_history:
-            self.events = self.events[-self.max_history:]
+            self.events = self.events[-self.max_history :]
 
-    def record_speed(
-        self,
-        object_id: int,
-        velocity: tuple
-    ) -> None:
-        """
-        Registra la velocidad de un objeto.
+    def record_speed(self, object_id: int, velocity: tuple) -> None:
+        """Registra la velocidad de un objeto.
 
         Args:
             object_id: ID del objeto
@@ -186,8 +187,7 @@ class StatisticsCollector:
         return float(min(all_speeds))
 
     def get_speed_percentile(self, percentile: float = 50.0) -> float:
-        """
-        Obtiene un percentil de las velocidades.
+        """Obtiene un percentil de las velocidades.
 
         Args:
             percentile: Percentil a calcular (0-100)
@@ -223,7 +223,7 @@ class StatisticsCollector:
             return 0.0
         return self.get_total_count() / runtime
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene todas las estadísticas."""
         return {
             "total": self.get_total_count(),
@@ -242,9 +242,8 @@ class StatisticsCollector:
             "class_count": len(self.class_counts),
         }
 
-    def get_recent_events(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """
-        Obtiene los eventos recientes.
+    def get_recent_events(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Obtiene los eventos recientes.
 
         Args:
             limit: Número máximo de eventos
@@ -266,8 +265,7 @@ class StatisticsCollector:
         ]
 
     def get_line_count(self, line_id: str) -> int:
-        """
-        Obtiene el conteo de una línea específica.
+        """Obtiene el conteo de una línea específica.
 
         Args:
             line_id: ID de la línea
@@ -278,8 +276,7 @@ class StatisticsCollector:
         return self.line_counts.get(line_id, 0)
 
     def get_class_count(self, class_name: str) -> int:
-        """
-        Obtiene el conteo de una clase específica.
+        """Obtiene el conteo de una clase específica.
 
         Args:
             class_name: Nombre de la clase
@@ -299,9 +296,8 @@ class StatisticsCollector:
         self._start_time = time.time()
         self._last_count_time = time.time()
 
-    def merge(self, other: 'StatisticsCollector') -> None:
-        """
-        Fusiona las estadísticas de otro recolector.
+    def merge(self, other: StatisticsCollector) -> None:
+        """Fusiona las estadísticas de otro recolector.
 
         Args:
             other: Otro recolector de estadísticas
@@ -314,7 +310,7 @@ class StatisticsCollector:
 
         self.events.extend(other.events)
         if len(self.events) > self.max_history:
-            self.events = self.events[-self.max_history:]
+            self.events = self.events[-self.max_history :]
 
         for obj_id, speeds in other.speed_history.items():
             if obj_id in self.speed_history:

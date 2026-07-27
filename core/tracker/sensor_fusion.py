@@ -1,5 +1,4 @@
-"""
-Sistema de fusión de sensores para tracking multi-modal robusto.
+"""Sistema de fusión de sensores para tracking multi-modal robusto.
 
 Este módulo implementa un sistema de fusión de múltiples fuentes de información
 para mejorar la robustez del tracking, combinando observaciones visuales,
@@ -14,28 +13,27 @@ La fusión de sensores permite:
 
 from __future__ import annotations
 
-import time
-from enum import Enum
-from typing import Dict, List, Optional, Tuple, Any, Set
 from collections import deque
+from enum import Enum
+import time
+from typing import Any
 
 import numpy as np
 
-from utils.logger import LoggerMixin
 from core.constants import (
-    SENSOR_FUSION_VISUAL_WEIGHT,
     SENSOR_FUSION_DEPTH_WEIGHT,
-    SENSOR_FUSION_THERMAL_WEIGHT,
-    SENSOR_FUSION_MOTION_WEIGHT,
-    SENSOR_FUSION_MIN_OBSERVATIONS,
     SENSOR_FUSION_MAX_HISTORY,
+    SENSOR_FUSION_MIN_OBSERVATIONS,
+    SENSOR_FUSION_MOTION_WEIGHT,
     SENSOR_FUSION_PARTICLE_COUNT,
+    SENSOR_FUSION_THERMAL_WEIGHT,
+    SENSOR_FUSION_VISUAL_WEIGHT,
 )
+from utils.logger import LoggerMixin
 
 
 class SensorType(Enum):
-    """
-    Tipos de sensores soportados por el sistema de fusión.
+    """Tipos de sensores soportados por el sistema de fusión.
 
     Attributes:
         VISUAL: Cámara RGB estándar
@@ -46,6 +44,7 @@ class SensorType(Enum):
         LIDAR: Sensor LIDAR
         GPS: Sistema de posicionamiento global
     """
+
     VISUAL = "visual"
     DEPTH = "depth"
     THERMAL = "thermal"
@@ -56,8 +55,7 @@ class SensorType(Enum):
 
 
 class SensorFusionMethod(Enum):
-    """
-    Métodos de fusión de sensores disponibles.
+    """Métodos de fusión de sensores disponibles.
 
     Attributes:
         WEIGHTED_AVERAGE: Promedio ponderado por confianza
@@ -66,6 +64,7 @@ class SensorFusionMethod(Enum):
         BAYESIAN: Fusión bayesiana
         DEMPSTER_SHAFER: Teoría de evidencia de Dempster-Shafer
     """
+
     WEIGHTED_AVERAGE = "weighted_average"
     KALMAN = "kalman"
     PARTICLE_FILTER = "particle_filter"
@@ -74,8 +73,7 @@ class SensorFusionMethod(Enum):
 
 
 class SensorObservation:
-    """
-    Representa una observación de un sensor.
+    """Representa una observación de un sensor.
 
     Attributes:
         sensor_type: Tipo de sensor que generó la observación.
@@ -88,22 +86,30 @@ class SensorObservation:
         sensor_id: Identificador único del sensor.
         calibration_matrix: Matriz de calibración para este sensor.
     """
+
     __slots__ = (
-        'sensor_type', 'bbox', 'centroid', 'confidence', 'timestamp',
-        'metadata', 'track_id', 'sensor_id', 'calibration_matrix'
+        "sensor_type",
+        "bbox",
+        "centroid",
+        "confidence",
+        "timestamp",
+        "metadata",
+        "track_id",
+        "sensor_id",
+        "calibration_matrix",
     )
 
     def __init__(
         self,
         sensor_type: SensorType,
-        bbox: Tuple[int, int, int, int],
-        centroid: Tuple[int, int],
+        bbox: tuple[int, int, int, int],
+        centroid: tuple[int, int],
         confidence: float,
-        timestamp: float = None,
-        metadata: Dict[str, Any] = None,
-        track_id: Optional[int] = None,
+        timestamp: float | None = None,
+        metadata: dict[str, Any] | None = None,
+        track_id: int | None = None,
         sensor_id: str = "",
-        calibration_matrix: Optional[np.ndarray] = None
+        calibration_matrix: np.ndarray | None = None,
     ):
         self.sensor_type = sensor_type
         self.bbox = bbox
@@ -117,8 +123,7 @@ class SensorObservation:
 
 
 class FusedState:
-    """
-    Estado fusionado de un track.
+    """Estado fusionado de un track.
 
     Attributes:
         track_id: ID del track.
@@ -132,23 +137,32 @@ class FusedState:
         history: Historial de estados fusionados.
         method: Método de fusión utilizado.
     """
+
     __slots__ = (
-        'track_id', 'centroid', 'bbox', 'confidence', 'velocity',
-        'uncertainty', 'timestamp', 'sensor_contributions', 'history', 'method'
+        "track_id",
+        "centroid",
+        "bbox",
+        "confidence",
+        "velocity",
+        "uncertainty",
+        "timestamp",
+        "sensor_contributions",
+        "history",
+        "method",
     )
 
     def __init__(
         self,
         track_id: int,
-        centroid: Tuple[float, float],
-        bbox: Tuple[int, int, int, int],
+        centroid: tuple[float, float],
+        bbox: tuple[int, int, int, int],
         confidence: float,
-        velocity: Tuple[float, float] = (0.0, 0.0),
+        velocity: tuple[float, float] = (0.0, 0.0),
         uncertainty: float = 0.0,
-        timestamp: float = None,
-        sensor_contributions: Dict[SensorType, float] = None,
-        history: deque = None,
-        method: str = "weighted_average"
+        timestamp: float | None = None,
+        sensor_contributions: dict[SensorType, float] | None = None,
+        history: deque | None = None,
+        method: str = "weighted_average",
     ):
         self.track_id = track_id
         self.centroid = centroid
@@ -163,8 +177,7 @@ class FusedState:
 
 
 class ParticleFilter(LoggerMixin):
-    """
-    Filtro de partículas para fusión de sensores.
+    """Filtro de partículas para fusión de sensores.
 
     Implementa un filtro de partículas para estimar el estado de un objeto
     combinando observaciones de múltiples sensores.
@@ -197,10 +210,9 @@ class ParticleFilter(LoggerMixin):
         num_particles: int = 500,
         process_noise: float = 0.1,
         measurement_noise: float = 0.3,
-        resampling_threshold: float = 0.5
+        resampling_threshold: float = 0.5,
     ) -> None:
-        """
-        Inicializa el filtro de partículas.
+        """Inicializa el filtro de partículas.
 
         Args:
             num_particles: Número de partículas (mayor = más preciso pero más lento).
@@ -213,20 +225,19 @@ class ParticleFilter(LoggerMixin):
         self.measurement_noise = measurement_noise
         self.resampling_threshold = resampling_threshold
 
-        self.particles: Optional[np.ndarray] = None
-        self.weights: Optional[np.ndarray] = None
+        self.particles: np.ndarray | None = None
+        self.weights: np.ndarray | None = None
         self._initialized = False
 
         self.logger.info(
             "ParticleFilter inicializado",
             num_particles=num_particles,
             process_noise=process_noise,
-            measurement_noise=measurement_noise
+            measurement_noise=measurement_noise,
         )
 
-    def init(self, centroid: Tuple[float, float], spread: float = 50.0) -> None:
-        """
-        Inicializa las partículas alrededor de una posición.
+    def init(self, centroid: tuple[float, float], spread: float = 50.0) -> None:
+        """Inicializa las partículas alrededor de una posición.
 
         Args:
             centroid: Posición inicial (x, y).
@@ -242,8 +253,7 @@ class ParticleFilter(LoggerMixin):
         self._initialized = True
 
     def predict(self, dt: float = 0.1) -> None:
-        """
-        Predice el siguiente estado de las partículas.
+        """Predice el siguiente estado de las partículas.
 
         Args:
             dt: Delta de tiempo para la predicción en segundos.
@@ -251,14 +261,17 @@ class ParticleFilter(LoggerMixin):
         if not self._initialized or self.particles is None:
             return
 
-        self.particles[:, 0] += self.particles[:, 2] * dt + np.random.randn(self.num_particles) * self.process_noise
-        self.particles[:, 1] += self.particles[:, 3] * dt + np.random.randn(self.num_particles) * self.process_noise
+        self.particles[:, 0] += (
+            self.particles[:, 2] * dt + np.random.randn(self.num_particles) * self.process_noise
+        )
+        self.particles[:, 1] += (
+            self.particles[:, 3] * dt + np.random.randn(self.num_particles) * self.process_noise
+        )
         self.particles[:, 2] += np.random.randn(self.num_particles) * self.process_noise * 0.1
         self.particles[:, 3] += np.random.randn(self.num_particles) * self.process_noise * 0.1
 
-    def update(self, observations: List[SensorObservation]) -> None:
-        """
-        Actualiza los pesos de las partículas con las observaciones.
+    def update(self, observations: list[SensorObservation]) -> None:
+        """Actualiza los pesos de las partículas con las observaciones.
 
         Args:
             observations: Lista de observaciones de sensores.
@@ -275,11 +288,11 @@ class ParticleFilter(LoggerMixin):
             obs_confidence = obs.confidence
 
             distances = np.sqrt(
-                (self.particles[:, 0] - obs_centroid[0]) ** 2 +
-                (self.particles[:, 1] - obs_centroid[1]) ** 2
+                (self.particles[:, 0] - obs_centroid[0]) ** 2
+                + (self.particles[:, 1] - obs_centroid[1]) ** 2
             )
 
-            likelihood = np.exp(-distances ** 2 / (2 * self.measurement_noise ** 2))
+            likelihood = np.exp(-(distances**2) / (2 * self.measurement_noise**2))
             likelihood *= obs_confidence
 
             self.weights *= likelihood + 1e-8
@@ -290,8 +303,7 @@ class ParticleFilter(LoggerMixin):
             self._resample()
 
     def _needs_resampling(self) -> bool:
-        """
-        Verifica si es necesario resamplear las partículas.
+        """Verifica si es necesario resamplear las partículas.
 
         Returns:
             bool: True si se debe resamplear.
@@ -302,13 +314,11 @@ class ParticleFilter(LoggerMixin):
         if self.weights is None:
             return True
 
-        n_eff = 1.0 / np.sum(self.weights ** 2 + 1e-8)
+        n_eff = 1.0 / np.sum(self.weights**2 + 1e-8)
         return n_eff < self.num_particles * self.resampling_threshold
 
     def _resample(self) -> None:
-        """
-        Resamplea las partículas usando el método de muestreo sistemático.
-        """
+        """Resamplea las partículas usando el método de muestreo sistemático."""
         if self.particles is None or self.weights is None:
             return
 
@@ -329,9 +339,8 @@ class ParticleFilter(LoggerMixin):
         self.particles = self.particles[indices]
         self.weights = np.ones(n) / n
 
-    def get_estimate(self) -> Dict[str, Any]:
-        """
-        Obtiene la estimación del estado.
+    def get_estimate(self) -> dict[str, Any]:
+        """Obtiene la estimación del estado.
 
         Returns:
             Dict[str, Any]: Estimación del estado incluyendo:
@@ -353,9 +362,7 @@ class ParticleFilter(LoggerMixin):
 
         centered = self.particles[:, :2] - weighted_centroid
         covariance = np.average(
-            centered[:, :, None] * centered[:, None, :],
-            weights=self.weights,
-            axis=0
+            centered[:, :, None] * centered[:, None, :], weights=self.weights, axis=0
         )
         uncertainty = np.trace(covariance)
 
@@ -373,8 +380,7 @@ class ParticleFilter(LoggerMixin):
 
 
 class SensorFusion(LoggerMixin):
-    """
-    Sistema de fusión de sensores para tracking multi-modal robusto.
+    """Sistema de fusión de sensores para tracking multi-modal robusto.
 
     Este sistema combina observaciones de múltiples sensores para obtener
     un tracking más robusto y preciso, especialmente en condiciones adversas.
@@ -399,7 +405,7 @@ class SensorFusion(LoggerMixin):
     Example:
         >>> fusion = SensorFusion(
         ...     sensor_weights={SensorType.VISUAL: 0.7, SensorType.DEPTH: 0.5},
-        ...     fusion_method="particle_filter"
+        ...     fusion_method="particle_filter",
         ... )
         >>> obs = SensorObservation(SensorType.VISUAL, bbox, centroid, 0.9)
         >>> fusion.add_observation(5, obs)
@@ -409,14 +415,13 @@ class SensorFusion(LoggerMixin):
 
     def __init__(
         self,
-        sensor_weights: Optional[Dict[SensorType, float]] = None,
+        sensor_weights: dict[SensorType, float] | None = None,
         fusion_method: str = "weighted_average",
         min_observations: int = SENSOR_FUSION_MIN_OBSERVATIONS,
         max_history: int = SENSOR_FUSION_MAX_HISTORY,
         particle_count: int = SENSOR_FUSION_PARTICLE_COUNT,
     ) -> None:
-        """
-        Inicializa el sistema de fusión de sensores.
+        """Inicializa el sistema de fusión de sensores.
 
         Args:
             sensor_weights: Pesos de confianza por tipo de sensor.
@@ -440,11 +445,11 @@ class SensorFusion(LoggerMixin):
         self.max_history = max_history
         self.particle_count = particle_count
 
-        self._states: Dict[int, FusedState] = {}
-        self._particle_filters: Dict[int, ParticleFilter] = {}
-        self._observations: Dict[int, List[SensorObservation]] = {}
-        self._calibration_matrices: Dict[str, np.ndarray] = {}
-        self._recently_fused: Set[int] = set()
+        self._states: dict[int, FusedState] = {}
+        self._particle_filters: dict[int, ParticleFilter] = {}
+        self._observations: dict[int, list[SensorObservation]] = {}
+        self._calibration_matrices: dict[str, np.ndarray] = {}
+        self._recently_fused: set[int] = set()
 
         self._stats = {
             "total_fusions": 0,
@@ -463,16 +468,11 @@ class SensorFusion(LoggerMixin):
             fusion_method=self.fusion_method.value,
             min_observations=min_observations,
             particle_count=particle_count,
-            sensor_weights=len(self.sensor_weights)
+            sensor_weights=len(self.sensor_weights),
         )
 
-    def add_observation(
-        self,
-        track_id: int,
-        observation: SensorObservation
-    ) -> None:
-        """
-        Añade una observación de un sensor para un track.
+    def add_observation(self, track_id: int, observation: SensorObservation) -> None:
+        """Añade una observación de un sensor para un track.
 
         Args:
             track_id: ID del track.
@@ -489,7 +489,7 @@ class SensorFusion(LoggerMixin):
                 centroid=(0.0, 0.0),
                 bbox=(0, 0, 0, 0),
                 confidence=0.0,
-                method=self.fusion_method.value
+                method=self.fusion_method.value,
             )
 
         self._observations[track_id].append(observation)
@@ -499,18 +499,17 @@ class SensorFusion(LoggerMixin):
         if len(self._observations[track_id]) > 50:
             self._observations[track_id] = self._observations[track_id][-50:]
 
-        if self.fusion_method == SensorFusionMethod.PARTICLE_FILTER:
-            if track_id not in self._particle_filters:
-                self._particle_filters[track_id] = ParticleFilter(
-                    num_particles=self.particle_count
-                )
-                self._particle_filters[track_id].init(observation.centroid)
+        if (
+            self.fusion_method == SensorFusionMethod.PARTICLE_FILTER
+            and track_id not in self._particle_filters
+        ):
+            self._particle_filters[track_id] = ParticleFilter(num_particles=self.particle_count)
+            self._particle_filters[track_id].init(observation.centroid)
 
         self._fuse_observations(track_id)
 
     def _fuse_observations(self, track_id: int) -> None:
-        """
-        Fusiona observaciones de múltiples sensores para un track.
+        """Fusiona observaciones de múltiples sensores para un track.
 
         Args:
             track_id: ID del track.
@@ -519,7 +518,6 @@ class SensorFusion(LoggerMixin):
             Realiza la fusión según el método configurado y actualiza
             el estado fusionado del track.
         """
-        import time
         start_time = time.perf_counter()
 
         observations = self._observations.get(track_id, [])
@@ -538,16 +536,13 @@ class SensorFusion(LoggerMixin):
             self._states[track_id].history.append(fused_state)
 
             self._stats["total_fusions"] += 1
-            self._stats["total_tracks"] = max(
-                self._stats["total_tracks"],
-                len(self._states)
-            )
+            self._stats["total_tracks"] = max(self._stats["total_tracks"], len(self._states))
             self._stats["active_tracks"] = len(self._states)
 
             elapsed_ms = (time.perf_counter() - start_time) * 1000
             self._stats["fusion_times"].append(elapsed_ms)
-            self._stats["avg_fusion_time_ms"] = (
-                sum(self._stats["fusion_times"]) / len(self._stats["fusion_times"])
+            self._stats["avg_fusion_time_ms"] = sum(self._stats["fusion_times"]) / len(
+                self._stats["fusion_times"]
             )
 
             self._recently_fused.add(track_id)
@@ -558,16 +553,13 @@ class SensorFusion(LoggerMixin):
                 confidence=fused_state.confidence,
                 method=self.fusion_method.value,
                 sensors=len(fused_state.sensor_contributions),
-                time_ms=f"{elapsed_ms:.1f}"
+                time_ms=f"{elapsed_ms:.1f}",
             )
 
     def _fuse_weighted_average(
-        self,
-        track_id: int,
-        observations: List[SensorObservation]
-    ) -> Optional[FusedState]:
-        """
-        Fusión por promedio ponderado de observaciones.
+        self, track_id: int, observations: list[SensorObservation]
+    ) -> FusedState | None:
+        """Fusión por promedio ponderado de observaciones.
 
         Args:
             track_id: ID del track.
@@ -622,16 +614,13 @@ class SensorFusion(LoggerMixin):
             confidence=fused_confidence,
             sensor_contributions=sensor_contributions,
             timestamp=time.time(),
-            method="weighted_average"
+            method="weighted_average",
         )
 
     def _fuse_with_particle_filter(
-        self,
-        track_id: int,
-        observations: List[SensorObservation]
-    ) -> Optional[FusedState]:
-        """
-        Fusión usando filtro de partículas.
+        self, track_id: int, observations: list[SensorObservation]
+    ) -> FusedState | None:
+        """Fusión usando filtro de partículas.
 
         Args:
             track_id: ID del track.
@@ -670,12 +659,11 @@ class SensorFusion(LoggerMixin):
             uncertainty=estimate["uncertainty"],
             sensor_contributions=sensor_contributions,
             timestamp=time.time(),
-            method="particle_filter"
+            method="particle_filter",
         )
 
-    def get_fused_state(self, track_id: int) -> Optional[FusedState]:
-        """
-        Obtiene el estado fusionado de un track.
+    def get_fused_state(self, track_id: int) -> FusedState | None:
+        """Obtiene el estado fusionado de un track.
 
         Args:
             track_id: ID del track.
@@ -685,9 +673,8 @@ class SensorFusion(LoggerMixin):
         """
         return self._states.get(track_id)
 
-    def get_sensor_contribution(self, track_id: int) -> Dict[SensorType, float]:
-        """
-        Obtiene la contribución de cada sensor al estado fusionado.
+    def get_sensor_contribution(self, track_id: int) -> dict[SensorType, float]:
+        """Obtiene la contribución de cada sensor al estado fusionado.
 
         Args:
             track_id: ID del track.
@@ -701,8 +688,7 @@ class SensorFusion(LoggerMixin):
         return state.sensor_contributions
 
     def get_track_uncertainty(self, track_id: int) -> float:
-        """
-        Obtiene la incertidumbre del estado fusionado.
+        """Obtiene la incertidumbre del estado fusionado.
 
         Args:
             track_id: ID del track.
@@ -715,13 +701,8 @@ class SensorFusion(LoggerMixin):
             return 1.0
         return state.uncertainty
 
-    def calibrate_sensor(
-        self,
-        sensor_id: str,
-        calibration_matrix: np.ndarray
-    ) -> None:
-        """
-        Calibra un sensor con una matriz de transformación.
+    def calibrate_sensor(self, sensor_id: str, calibration_matrix: np.ndarray) -> None:
+        """Calibra un sensor con una matriz de transformación.
 
         Args:
             sensor_id: Identificador del sensor.
@@ -734,17 +715,11 @@ class SensorFusion(LoggerMixin):
         self._calibration_matrices[sensor_id] = calibration_matrix
         self._stats["calibrated_sensors"].add(sensor_id)
         self.logger.info(
-            "Sensor calibrado",
-            sensor_id=sensor_id,
-            matrix_shape=calibration_matrix.shape
+            "Sensor calibrado", sensor_id=sensor_id, matrix_shape=calibration_matrix.shape
         )
 
-    def transform_observation(
-        self,
-        observation: SensorObservation
-    ) -> SensorObservation:
-        """
-        Transforma una observación usando la calibración del sensor.
+    def transform_observation(self, observation: SensorObservation) -> SensorObservation:
+        """Transforma una observación usando la calibración del sensor.
 
         Args:
             observation: Observación a transformar.
@@ -769,12 +744,11 @@ class SensorFusion(LoggerMixin):
             metadata=observation.metadata,
             track_id=observation.track_id,
             sensor_id=observation.sensor_id,
-            calibration_matrix=matrix
+            calibration_matrix=matrix,
         )
 
-    def get_sensor_health(self) -> Dict[SensorType, float]:
-        """
-        Obtiene la salud de cada sensor basado en observaciones recientes.
+    def get_sensor_health(self) -> dict[SensorType, float]:
+        """Obtiene la salud de cada sensor basado en observaciones recientes.
 
         Returns:
             Dict[SensorType, float]: Puntuación de salud por sensor (0-1).
@@ -800,8 +774,7 @@ class SensorFusion(LoggerMixin):
         return health
 
     def clear_track(self, track_id: int) -> None:
-        """
-        Elimina todas las observaciones de un track.
+        """Elimina todas las observaciones de un track.
 
         Args:
             track_id: ID del track.
@@ -829,9 +802,8 @@ class SensorFusion(LoggerMixin):
 
         self.logger.info("SensorFusion limpiado")
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del sistema de fusión.
+    def get_stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del sistema de fusión.
 
         Returns:
             Dict[str, Any]: Estadísticas del sistema.
@@ -841,8 +813,7 @@ class SensorFusion(LoggerMixin):
             "active_tracks": len(self._states),
             "total_tracks": len(self._states),
             "observations_per_track": {
-                tid: len(obs_list)
-                for tid, obs_list in list(self._observations.items())[:10]
+                tid: len(obs_list) for tid, obs_list in list(self._observations.items())[:10]
             },
             "calibrated_sensors_count": len(self._stats["calibrated_sensors"]),
             "sensor_health": self.get_sensor_health(),
@@ -850,9 +821,8 @@ class SensorFusion(LoggerMixin):
             "recently_fused": len(self._recently_fused),
         }
 
-    def get_state_history(self, track_id: int, limit: int = 20) -> List[Dict[str, Any]]:
-        """
-        Obtiene el historial de estados fusionados de un track.
+    def get_state_history(self, track_id: int, limit: int = 20) -> list[dict[str, Any]]:
+        """Obtiene el historial de estados fusionados de un track.
 
         Args:
             track_id: ID del track.
@@ -876,28 +846,18 @@ class SensorFusion(LoggerMixin):
             for s in history[-limit:]
         ]
 
-    def update_sensor_weight(
-        self,
-        sensor_type: SensorType,
-        weight: float
-    ) -> None:
-        """
-        Actualiza el peso de un sensor.
+    def update_sensor_weight(self, sensor_type: SensorType, weight: float) -> None:
+        """Actualiza el peso de un sensor.
 
         Args:
             sensor_type: Tipo de sensor.
             weight: Nuevo peso (0-1).
         """
         self.sensor_weights[sensor_type] = max(0.0, min(1.0, weight))
-        self.logger.info(
-            "Peso de sensor actualizado",
-            sensor_type=sensor_type.value,
-            weight=weight
-        )
+        self.logger.info("Peso de sensor actualizado", sensor_type=sensor_type.value, weight=weight)
 
-    def get_recommended_weights(self) -> Dict[SensorType, float]:
-        """
-        Calcula pesos recomendados basados en el rendimiento de los sensores.
+    def get_recommended_weights(self) -> dict[SensorType, float]:
+        """Calcula pesos recomendados basados en el rendimiento de los sensores.
 
         Returns:
             Dict[SensorType, float]: Pesos recomendados.

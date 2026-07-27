@@ -1,5 +1,4 @@
-"""
-Detector YOLO optimizado para CPU con ONNX Runtime y Numba.
+"""Detector YOLO optimizado para CPU con ONNX Runtime y Numba.
 
 Orquesta los componentes de gestión de modelos, inferencia,
 post-procesamiento y caché.
@@ -7,26 +6,22 @@ post-procesamiento y caché.
 
 import os
 import time
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 import numpy as np
 
 from core.detector.base import YOLODetector
-from core.detector.model_manager import ModelManager, ModelLoadError
-from core.detector.model_exporter import ModelExporter
-from core.detector.inference_engine import (
-    InferenceEngine,
-    InferenceEngineFactory
-)
-from core.detector.post_processor import PostProcessor
 from core.detector.cache import DetectionCache
-from core.detector.preprocessor import ImagePreprocessor
 from core.detector.config import DetectorConfig
+from core.detector.inference_engine import InferenceEngine, InferenceEngineFactory
+from core.detector.model_exporter import ModelExporter
+from core.detector.model_manager import ModelLoadError, ModelManager
+from core.detector.post_processor import PostProcessor
+from core.detector.preprocessor import ImagePreprocessor
 
 
 class OptimizedYOLODetector(YOLODetector):
-    """
-    Detector YOLO optimizado para CPU con ONNX Runtime y Numba.
+    """Detector YOLO optimizado para CPU con ONNX Runtime y Numba.
 
     Orquesta los componentes de gestión de modelos, inferencia,
     post-procesamiento y caché para máxima eficiencia en CPU.
@@ -39,7 +34,7 @@ class OptimizedYOLODetector(YOLODetector):
     - Fallback a PyTorch si ONNX no está disponible
     """
 
-    def __init__(self, config: Optional[DetectorConfig] = None):
+    def __init__(self, config: DetectorConfig | None = None):
         """Inicializa el detector optimizado."""
         self.config = config or DetectorConfig.from_global_config()
         self.logger.info("Inicializando OptimizedYOLODetector")
@@ -58,7 +53,7 @@ class OptimizedYOLODetector(YOLODetector):
             confidence=self.confidence_threshold,
             iou=self.iou_threshold,
             imgsz=self.imgsz,
-            classes=self.vehicle_classes
+            classes=self.vehicle_classes,
         )
 
         self._init_components()
@@ -69,7 +64,7 @@ class OptimizedYOLODetector(YOLODetector):
             "OptimizedYOLODetector inicializado",
             onnx_available=self._onnx_available,
             numba_available=self._numba_available,
-            warmed_up=self._warmed_up
+            warmed_up=self._warmed_up,
         )
 
     def _init_components(self) -> None:
@@ -87,8 +82,8 @@ class OptimizedYOLODetector(YOLODetector):
             imgsz=self.imgsz,
         )
 
-        self._pytorch_engine: Optional[InferenceEngine] = None
-        self._onnx_engine: Optional[InferenceEngine] = None
+        self._pytorch_engine: InferenceEngine | None = None
+        self._onnx_engine: InferenceEngine | None = None
 
         self.post_processor = PostProcessor(
             confidence_threshold=self.confidence_threshold,
@@ -97,25 +92,32 @@ class OptimizedYOLODetector(YOLODetector):
             imgsz=self.imgsz,
         )
 
-        self.cache = DetectionCache(
-            max_size=self._calculate_cache_size(),
-            max_age_seconds=3.0
-        )
+        self.cache = DetectionCache(max_size=self._calculate_cache_size(), max_age_seconds=3.0)
 
         self.preprocessor = ImagePreprocessor(enabled=False)
 
         self._warmed_up = False
         self._onnx_available = False
-        self._numba_available = self._check_numba()
-        self._inference_times: List[float] = []
+        self._numba_available = self._check_numba_availability()
+        self._inference_times: list[float] = []
         self._total_detections = 0
 
         self.logger.info("Componentes inicializados")
 
-    def _check_numba(self) -> bool:
-        """Verifica si Numba está disponible."""
+    def _check_onnx_availability(self) -> bool:
+        """Verifica disponibilidad de ONNX Runtime (importación perezosa)."""
+        try:
+            import onnxruntime as ort
+
+            return True
+        except ImportError:
+            return False
+
+    def _check_numba_availability(self) -> bool:
+        """Verifica disponibilidad de Numba (importación perezosa)."""
         try:
             import numba
+
             return True
         except ImportError:
             return False
@@ -174,9 +176,8 @@ class OptimizedYOLODetector(YOLODetector):
         except Exception as e:
             self.logger.warning(f"Error en warmup: {e}")
 
-    def detect(self, frame: np.ndarray) -> List[Dict[str, Any]]:
-        """
-        Detecta objetos en un frame.
+    def detect(self, frame: np.ndarray) -> list[dict[str, Any]]:
+        """Detecta objetos en un frame.
 
         Args:
             frame: Imagen a procesar
@@ -210,7 +211,7 @@ class OptimizedYOLODetector(YOLODetector):
 
         return detections
 
-    def _check_cache(self, frame: np.ndarray) -> Optional[List[Dict[str, Any]]]:
+    def _check_cache(self, frame: np.ndarray) -> list[dict[str, Any]] | None:
         """Verifica el caché de detecciones."""
         try:
             key = self.cache.compute_key(frame)
@@ -222,7 +223,7 @@ class OptimizedYOLODetector(YOLODetector):
             self.logger.debug(f"Error en caché: {e}")
         return None
 
-    def _cache_detections(self, frame: np.ndarray, detections: List[Dict[str, Any]]) -> None:
+    def _cache_detections(self, frame: np.ndarray, detections: list[dict[str, Any]]) -> None:
         """Almacena detecciones en caché."""
         try:
             key = self.cache.compute_key(frame)
@@ -238,9 +239,8 @@ class OptimizedYOLODetector(YOLODetector):
             self.logger.warning(f"Error en preprocesamiento: {e}")
             return frame
 
-    def _infer(self, frame: np.ndarray, original_shape: tuple) -> List[Dict[str, Any]]:
-        """
-        Realiza inferencia usando el motor disponible.
+    def _infer(self, frame: np.ndarray, original_shape: tuple) -> list[dict[str, Any]]:
+        """Realiza inferencia usando el motor disponible.
 
         Args:
             frame: Frame preprocesado
@@ -253,10 +253,7 @@ class OptimizedYOLODetector(YOLODetector):
             try:
                 output = self._onnx_engine.infer(frame)
                 if output is not None and len(output) > 0:
-                    return self.post_processor.process_onnx_output(
-                        output,
-                        original_shape[:2]
-                    )
+                    return self.post_processor.process_onnx_output(output, original_shape[:2])
             except Exception as e:
                 self.logger.warning(f"Error en ONNX: {e}, usando PyTorch")
 
@@ -264,10 +261,7 @@ class OptimizedYOLODetector(YOLODetector):
             try:
                 results = self._pytorch_engine.infer(frame)
                 if results is not None:
-                    return self.post_processor.process_pytorch_results(
-                        results,
-                        original_shape[:2]
-                    )
+                    return self.post_processor.process_pytorch_results(results, original_shape[:2])
             except Exception as e:
                 self.logger.error(f"Error en PyTorch: {e}")
 
@@ -277,6 +271,7 @@ class OptimizedYOLODetector(YOLODetector):
         """Calcula el tamaño óptimo del caché."""
         try:
             from utils.helpers import get_memory_usage
+
             mem = get_memory_usage()
             available_mb = mem.get("system_available_mb", 4096)
             max_mb = min(available_mb * 0.1, 250)
@@ -285,7 +280,7 @@ class OptimizedYOLODetector(YOLODetector):
         except Exception:
             return 16
 
-    def get_performance_stats(self) -> Dict[str, Any]:
+    def get_performance_stats(self) -> dict[str, Any]:
         """Retorna estadísticas de rendimiento."""
         avg_time = np.mean(self._inference_times) if self._inference_times else 0
 

@@ -1,5 +1,4 @@
-"""
-Buffer circular optimizado para almacenamiento de frames con bajo overhead.
+"""Buffer circular optimizado para almacenamiento de frames con bajo overhead.
 
 Este módulo proporciona un buffer circular eficiente para almacenar
 frames de video con metadatos asociados, optimizado para uso en
@@ -8,18 +7,16 @@ pipelines de visión por computador.
 
 from __future__ import annotations
 
-import time
-import threading
-from enum import Enum, auto
 from collections import deque
-from typing import Optional, Deque, Tuple
+from enum import Enum, auto
+import threading
+import time
 
 import numpy as np
 
 
 class BufferStatus(Enum):
-    """
-    Estados posibles del buffer circular.
+    """Estados posibles del buffer circular.
 
     Attributes:
         EMPTY: Buffer vacío sin frames.
@@ -28,6 +25,7 @@ class BufferStatus(Enum):
         OVERFLOW: Buffer en riesgo de overflow (>90% de capacidad).
         DRAINING: Buffer en proceso de vaciado.
     """
+
     EMPTY = auto()
     PARTIAL = auto()
     FULL = auto()
@@ -36,8 +34,7 @@ class BufferStatus(Enum):
 
 
 class FrameMetadata:
-    """
-    Metadatos asociados a un frame almacenado.
+    """Metadatos asociados a un frame almacenado.
 
     Attributes:
         timestamp: Timestamp de captura del frame (time.time()).
@@ -47,8 +44,15 @@ class FrameMetadata:
         processing_time_ms: Tiempo de procesamiento en milisegundos.
         dropped: Indica si el frame fue descartado.
     """
-    __slots__ = ('timestamp', 'frame_number', 'source_fps',
-                     'capture_time_ms', 'processing_time_ms', 'dropped')
+
+    __slots__ = (
+        "timestamp",
+        "frame_number",
+        "source_fps",
+        "capture_time_ms",
+        "processing_time_ms",
+        "dropped",
+    )
 
     def __init__(
         self,
@@ -57,7 +61,7 @@ class FrameMetadata:
         source_fps: float,
         capture_time_ms: float,
         processing_time_ms: float = 0.0,
-        dropped: bool = False
+        dropped: bool = False,
     ):
         self.timestamp = timestamp or time.time()
         self.frame_number = frame_number
@@ -68,8 +72,7 @@ class FrameMetadata:
 
 
 class FrameBuffer:
-    """
-    Buffer circular optimizado con memoria preasignada para frames.
+    """Buffer circular optimizado con memoria preasignada para frames.
 
     Este buffer está diseñado para minimizar asignaciones de memoria
     y proporcionar acceso rápido a frames en un pipeline de procesamiento
@@ -90,15 +93,36 @@ class FrameBuffer:
         status: Estado actual del buffer.
     """
 
+    __slots__ = (
+        "max_size",
+        "drop_policy",
+        "dtype",
+        "_preallocated",
+        "_buffer",
+        "_metadata",
+        "_lock",
+        "_total_frames_received",
+        "_total_frames_dropped",
+        "_total_frames_processed",
+        "_buffer_overflow_count",
+        "_head",
+        "_tail",
+        "_count",
+        "_status",
+        "_last_watermark_time",
+        "_watermark_history",
+        "_memory_freed",
+        "_total_memory_allocated",
+    )
+
     def __init__(
         self,
         max_size: int = 30,
-        frame_shape: Optional[Tuple[int, int, int]] = None,
+        frame_shape: tuple[int, int, int] | None = None,
         dtype: np.dtype = np.uint8,
-        drop_policy: str = "oldest"
+        drop_policy: str = "oldest",
     ):
-        """
-        Inicializa el buffer circular.
+        """Inicializa el buffer circular.
 
         Args:
             max_size: Tamaño máximo del buffer.
@@ -127,9 +151,9 @@ class FrameBuffer:
         if self._preallocated:
             self._buffer = np.zeros((max_size, *frame_shape), dtype=dtype)
         else:
-            self._buffer: Deque[np.ndarray] = deque(maxlen=max_size)
+            self._buffer: deque[np.ndarray] = deque(maxlen=max_size)
 
-        self._metadata: Deque[FrameMetadata] = deque(maxlen=max_size)
+        self._metadata: deque[FrameMetadata] = deque(maxlen=max_size)
         self._lock = threading.RLock()
 
         self._total_frames_received = 0
@@ -144,14 +168,13 @@ class FrameBuffer:
         self._status = BufferStatus.EMPTY
 
         self._last_watermark_time = time.time()
-        self._watermark_history: Deque[float] = deque(maxlen=60)
+        self._watermark_history: deque[float] = deque(maxlen=60)
 
         self._memory_freed = 0
         self._total_memory_allocated = 0
 
-    def put(self, frame: np.ndarray, metadata: Optional[FrameMetadata] = None) -> bool:
-        """
-        Inserta un frame en el buffer.
+    def put(self, frame: np.ndarray, metadata: FrameMetadata | None = None) -> bool:
+        """Inserta un frame en el buffer.
 
         Args:
             frame: Frame a insertar en formato numpy array.
@@ -175,7 +198,7 @@ class FrameBuffer:
                     timestamp=time.time(),
                     frame_number=self._total_frames_received,
                     source_fps=0.0,
-                    capture_time_ms=0.0
+                    capture_time_ms=0.0,
                 )
 
             if self._is_full():
@@ -199,9 +222,10 @@ class FrameBuffer:
 
             return True
 
-    def get(self, block: bool = True, timeout: float = 0.1) -> Optional[Tuple[np.ndarray, FrameMetadata]]:
-        """
-        Obtiene el siguiente frame del buffer y libera la memoria inmediatamente.
+    def get(
+        self, block: bool = True, timeout: float = 0.1
+    ) -> tuple[np.ndarray, FrameMetadata] | None:
+        """Obtiene el siguiente frame del buffer y libera la memoria inmediatamente.
 
         Args:
             block: Si debe bloquear esperando un frame.
@@ -241,8 +265,7 @@ class FrameBuffer:
             time.sleep(0.001)
 
     def get_batch(self, batch_size: int, timeout: float = 0.05) -> list:
-        """
-        Obtiene un lote de frames liberando memoria inmediatamente.
+        """Obtiene un lote de frames liberando memoria inmediatamente.
 
         Args:
             batch_size: Tamaño máximo del lote.
@@ -263,9 +286,8 @@ class FrameBuffer:
 
         return batch
 
-    def peek(self) -> Optional[Tuple[np.ndarray, FrameMetadata]]:
-        """
-        Mira el siguiente frame sin removerlo del buffer.
+    def peek(self) -> tuple[np.ndarray, FrameMetadata] | None:
+        """Mira el siguiente frame sin removerlo del buffer.
 
         Returns:
             Optional[Tuple[np.ndarray, FrameMetadata]]: Tupla (frame, metadata)
@@ -284,8 +306,7 @@ class FrameBuffer:
             return frame, metadata
 
     def clear(self) -> int:
-        """
-        Limpia el buffer y retorna el número de frames eliminados.
+        """Limpia el buffer y retorna el número de frames eliminados.
 
         Returns:
             int: Número de frames eliminados del buffer.
@@ -309,8 +330,7 @@ class FrameBuffer:
         return self._count >= self.max_size
 
     def _handle_overflow(self):
-        """
-        Maneja el overflow según la política configurada.
+        """Maneja el overflow según la política configurada.
 
         Si drop_policy es 'oldest', elimina el frame más antiguo.
         Si drop_policy es 'newest', no hace nada (descarta el nuevo).
@@ -347,8 +367,7 @@ class FrameBuffer:
             self._last_watermark_time = current_time
 
     def get_stats(self) -> dict:
-        """
-        Obtiene estadísticas detalladas del buffer.
+        """Obtiene estadísticas detalladas del buffer.
 
         Returns:
             dict: Diccionario con estadísticas del buffer incluyendo:
@@ -377,7 +396,8 @@ class FrameBuffer:
                 "total_frames_processed": self._total_frames_processed,
                 "drop_rate": self._total_frames_dropped / max(1, self._total_frames_received),
                 "overflow_count": self._buffer_overflow_count,
-                "avg_watermark": sum(self._watermark_history) / max(1, len(self._watermark_history)),
+                "avg_watermark": sum(self._watermark_history)
+                / max(1, len(self._watermark_history)),
                 "preallocated": self._preallocated,
                 "drop_policy": self.drop_policy,
                 "memory_freed_mb": self._memory_freed / (1024 * 1024),

@@ -1,5 +1,4 @@
-"""
-Tracker avanzado con re-identificación robusta.
+"""Tracker avanzado con re-identificación robusta.
 
 Este módulo implementa el tracker principal del sistema que orquesta
 todos los subsistemas de tracking:
@@ -18,37 +17,36 @@ todos los subsistemas de tracking:
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
-from models.enums import TrackStatus
-from utils.logger import LoggerMixin
-from utils.helpers import get_memory_usage, force_garbage_collection
-from core.validators import validate_detection
-from core.tracker.services.matcher_service import TrackMatcher, MatchResult
-from core.tracker.managers.track_manager import TrackManager
-from core.tracker.state.state_machine import TrackStateMachine
-from core.tracker.state.track_updater import TrackUpdater
-from core.tracker.reidentifier import ReIDSystem
-from core.tracker.sensor_fusion import SensorFusion
-from core.tracker.path_predictor import PathPredictor
-from core.tracker.online_learner import OnlineLearner
-from core.tracker.mht_integration import MHTIntegration
-from core.tracker.managers.feature_manager import FeatureManager
-from core.interfaces import ITracker
 from core.constants import (
+    CLEANUP_INTERVAL,
     MAX_ACTIVE_TRACKS,
-    MIN_HITS_TO_CONFIRM,
     MAX_FRAMES_MISSED,
     MEMORY_CHECK_INTERVAL,
-    CLEANUP_INTERVAL
+    MIN_HITS_TO_CONFIRM,
 )
+from core.interfaces import ITracker
+from core.tracker.managers.feature_manager import FeatureManager
+from core.tracker.managers.track_manager import TrackManager
+from core.tracker.mht_integration import MHTIntegration
+from core.tracker.online_learner import OnlineLearner
+from core.tracker.path_predictor import PathPredictor
+from core.tracker.reidentifier import ReIDSystem
+from core.tracker.sensor_fusion import SensorFusion
+from core.tracker.services.matcher_service import MatchResult, TrackMatcher
+from core.tracker.state.state_machine import TrackStateMachine
+from core.tracker.state.track_updater import TrackUpdater
+from core.validators import validate_detection
+from models.enums import TrackStatus
+from utils.helpers import force_garbage_collection, get_memory_usage
+from utils.logger import LoggerMixin
 
 
 class MultiObjectTracker(ITracker, LoggerMixin):
-    """
-    Tracker avanzado con re-identificación robusta.
+    """Tracker avanzado con re-identificación robusta.
 
     Este tracker orquesta todos los subsistemas de tracking para
     proporcionar un seguimiento robusto de objetos en video.
@@ -114,7 +112,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             features_enabled=self.feature_manager.is_available,
             reid_enabled=self.reid_system is not None,
             mht_enabled=self.mht_integration.enabled,
-            active_tracks_limit=self.track_manager.max_active_tracks
+            active_tracks_limit=self.track_manager.max_active_tracks,
         )
 
     def _init_managers(self) -> None:
@@ -124,14 +122,12 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         )
 
         use_optimized_kalman = getattr(
-            self.global_config.optimization,
-            "use_optimized_kalman",
-            True
+            self.global_config.optimization, "use_optimized_kalman", True
         )
         self.track_updater = TrackUpdater(
             use_kalman=self.config.use_kalman,
             use_optimized_kalman=use_optimized_kalman,
-            max_speed_change=50.0
+            max_speed_change=50.0,
         )
 
         self.feature_manager = self._init_feature_manager()
@@ -140,11 +136,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         """Inicializa los sistemas de matching."""
         self.reid_system = self._init_reid_system()
 
-        max_search_radius = getattr(
-            self.config,
-            "max_search_radius",
-            150.0
-        )
+        max_search_radius = getattr(self.config, "max_search_radius", 150.0)
 
         self.track_matcher = TrackMatcher(
             matcher=None,
@@ -166,12 +158,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         """Inicializa la máquina de estados para los tracks."""
         self.state_machine = TrackStateMachine(
             min_hits_to_confirm=self.config.min_hits_to_confirm or MIN_HITS_TO_CONFIRM,
-            max_frames_missed=self.config.max_frames_missed or MAX_FRAMES_MISSED
+            max_frames_missed=self.config.max_frames_missed or MAX_FRAMES_MISSED,
         )
 
     def _init_feature_manager(self) -> FeatureManager:
-        """
-        Inicializa el gestor de features.
+        """Inicializa el gestor de features.
 
         Returns:
             FeatureManager: Gestor de features configurado.
@@ -182,6 +173,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         if use_features:
             try:
                 from models.feature_extractor.factory import FeatureExtractorFactory
+
                 feature_extractor = FeatureExtractorFactory.create_best_available()
                 self.logger.info("Feature extractor activado")
             except Exception as e:
@@ -192,12 +184,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             max_cache_size=self.config.reid_cache_size,
             max_age_seconds=self.config.reid_max_age_seconds,
             similarity_threshold=self.config.reid_similarity_threshold,
-            spatial_threshold=self.config.reid_spatial_threshold
+            spatial_threshold=self.config.reid_spatial_threshold,
         )
 
-    def _init_reid_system(self) -> Optional[ReIDSystem]:
-        """
-        Inicializa el sistema de re-identificación.
+    def _init_reid_system(self) -> ReIDSystem | None:
+        """Inicializa el sistema de re-identificación.
 
         Returns:
             Optional[ReIDSystem]: Sistema de re-identificación
@@ -213,7 +204,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 max_age_seconds=self.config.reid_max_age_seconds,
                 similarity_threshold=self.config.reid_similarity_threshold,
                 spatial_threshold=self.config.reid_spatial_threshold,
-                min_features_for_reid=self.config.reid_min_features
+                min_features_for_reid=self.config.reid_min_features,
             )
             self.logger.info("Sistema de re-identificación activado")
             return reid
@@ -227,12 +218,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             max_depth=getattr(self.config, "mht_max_depth", 10),
             pruning_threshold=getattr(self.config, "mht_pruning_threshold", 0.01),
             max_hypotheses_per_track=getattr(self.config, "mht_max_hypotheses", 5),
-            enable_mht=getattr(self.config, "enable_mht", False)
+            enable_mht=getattr(self.config, "enable_mht", False),
         )
 
-    def _init_online_learner(self) -> Optional[OnlineLearner]:
-        """
-        Inicializa el sistema de aprendizaje en línea.
+    def _init_online_learner(self) -> OnlineLearner | None:
+        """Inicializa el sistema de aprendizaje en línea.
 
         Returns:
             Optional[OnlineLearner]: Sistema de aprendizaje
@@ -248,7 +238,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 min_samples=getattr(self.config, "online_learning_min_samples", 5),
                 drift_threshold=getattr(self.config, "online_learning_drift_threshold", 0.35),
                 max_history=getattr(self.config, "online_learning_max_history", 50),
-                strategy=getattr(self.config, "online_learning_strategy", "adaptive")
+                strategy=getattr(self.config, "online_learning_strategy", "adaptive"),
             )
             self.logger.info("Sistema de aprendizaje en línea activado")
             return learner
@@ -256,9 +246,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self.logger.warning("Aprendizaje en línea desactivado", error=str(e))
             return None
 
-    def _init_sensor_fusion(self) -> Optional[SensorFusion]:
-        """
-        Inicializa el sistema de fusión de sensores.
+    def _init_sensor_fusion(self) -> SensorFusion | None:
+        """Inicializa el sistema de fusión de sensores.
 
         Returns:
             Optional[SensorFusion]: Sistema de fusión
@@ -269,6 +258,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         try:
             from core.tracker.sensor_fusion import SensorType
+
             fusion = SensorFusion(
                 sensor_weights={
                     SensorType.VISUAL: getattr(self.config, "fusion_visual_weight", 0.7),
@@ -279,7 +269,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 fusion_method=getattr(self.config, "fusion_method", "weighted_average"),
                 min_observations=getattr(self.config, "fusion_min_observations", 2),
                 max_history=getattr(self.config, "fusion_max_history", 50),
-                particle_count=getattr(self.config, "fusion_particle_count", 500)
+                particle_count=getattr(self.config, "fusion_particle_count", 500),
             )
             self.logger.info("Sistema de fusión de sensores activado")
             return fusion
@@ -287,9 +277,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self.logger.warning("Fusión de sensores desactivada", error=str(e))
             return None
 
-    def _init_path_predictor(self) -> Optional[PathPredictor]:
-        """
-        Inicializa el sistema de predicción de trayectoria.
+    def _init_path_predictor(self) -> PathPredictor | None:
+        """Inicializa el sistema de predicción de trayectoria.
 
         Returns:
             Optional[PathPredictor]: Sistema de predicción
@@ -305,7 +294,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 prediction_steps=getattr(self.config, "prediction_steps", 20),
                 min_samples=getattr(self.config, "prediction_min_samples", 5),
                 motion_model=getattr(self.config, "prediction_motion_model", "adaptive"),
-                uncertainty_threshold=getattr(self.config, "prediction_uncertainty_threshold", 0.7)
+                uncertainty_threshold=getattr(self.config, "prediction_uncertainty_threshold", 0.7),
             )
             self.logger.info("Sistema de predicción de trayectoria activado")
             return predictor
@@ -313,9 +302,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self.logger.warning("Predicción de trayectoria desactivada", error=str(e))
             return None
 
-    def _init_stats(self) -> Dict[str, Any]:
-        """
-        Inicializa las estadísticas del tracker.
+    def _init_stats(self) -> dict[str, Any]:
+        """Inicializa las estadísticas del tracker.
 
         Returns:
             Dict[str, Any]: Diccionario de estadísticas iniciales.
@@ -330,29 +318,27 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         }
 
     def _should_use_features(self) -> bool:
-        """
-        Determina si se deben usar features visuales.
+        """Determina si se deben usar features visuales.
 
         Returns:
             bool: True si se deben usar features.
         """
         from models.enums import DeviceType
+
         if self.global_config.model.device == DeviceType.CPU:
             return False
 
         try:
             import torch
+
             return torch.cuda.is_available()
         except ImportError:
             return False
 
     def update(
-        self,
-        detections: List[Dict[str, Any]],
-        frame: np.ndarray
-    ) -> Dict[int, Dict[str, Any]]:
-        """
-        Actualiza el tracker con nuevas detecciones.
+        self, detections: list[dict[str, Any]], frame: np.ndarray
+    ) -> dict[int, dict[str, Any]]:
+        """Actualiza el tracker con nuevas detecciones.
 
         Args:
             detections: Lista de detecciones del frame actual.
@@ -390,9 +376,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         if self.reid_system and match_result.unmatched_detections:
             self._perform_reidentification(
-                valid_detections,
-                match_result.unmatched_detections,
-                frame
+                valid_detections, match_result.unmatched_detections, frame
             )
 
         self._perform_cleanup()
@@ -403,12 +387,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         return self.get_tracking_info()
 
-    def _validate_detections(
-        self,
-        detections: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """
-        Valida y filtra detecciones.
+    def _validate_detections(self, detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Valida y filtra detecciones.
 
         Args:
             detections: Lista de detecciones a validar.
@@ -419,22 +399,15 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         if not detections:
             return []
 
-        valid = []
-        for det in detections:
-            if validate_detection(det, require_all_fields=True).is_valid:
-                valid.append(det)
-                if len(valid) >= self.MAX_DETECTIONS_PER_FRAME:
-                    break
+        valid = [
+            det for det in detections
+            if validate_detection(det, require_all_fields=True).is_valid
+        ]
 
-        return valid
+        return valid[:self.MAX_DETECTIONS_PER_FRAME]
 
-    def _extract_features(
-        self,
-        detections: List[Dict[str, Any]],
-        frame: np.ndarray
-    ) -> None:
-        """
-        Extrae features para todas las detecciones.
+    def _extract_features(self, detections: list[dict[str, Any]], frame: np.ndarray) -> None:
+        """Extrae features para todas las detecciones.
 
         Args:
             detections: Lista de detecciones.
@@ -453,13 +426,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         for track in self.track_manager.get_all_tracks().values():
             self.track_updater.predict_position(track)
 
-    def _perform_matching(
-        self,
-        detections: List[Dict[str, Any]],
-        frame: np.ndarray
-    ) -> MatchResult:
-        """
-        Realiza matching entre detecciones y tracks existentes.
+    def _perform_matching(self, detections: list[dict[str, Any]], frame: np.ndarray) -> MatchResult:
+        """Realiza matching entre detecciones y tracks existentes.
 
         Args:
             detections: Lista de detecciones.
@@ -477,18 +445,13 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 unmatched_tracks=list(range(len(tracks))),
                 match_scores={},
                 reidentified=[],
-                time_ms=0.0
+                time_ms=0.0,
             )
 
         return self.track_matcher.match(detections, tracks, frame)
 
-    def _update_tracks(
-        self,
-        detections: List[Dict[str, Any]],
-        match_result: MatchResult
-    ) -> None:
-        """
-        Actualiza tracks con nuevas detecciones asociadas.
+    def _update_tracks(self, detections: list[dict[str, Any]], match_result: MatchResult) -> None:
+        """Actualiza tracks con nuevas detecciones asociadas.
 
         Args:
             detections: Lista de detecciones.
@@ -510,12 +473,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
     def _update_single_track(
         self,
         track_id: int,
-        detection: Dict[str, Any],
-        features: Optional[np.ndarray],
-        match_result: MatchResult
+        detection: dict[str, Any],
+        features: np.ndarray | None,
+        match_result: MatchResult,
     ) -> None:
-        """
-        Actualiza un track individual.
+        """Actualiza un track individual.
 
         Args:
             track_id: ID del track.
@@ -530,11 +492,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self.track_updater.correct_position(track, detection)
             self.track_updater.update_motion_metrics(track)
 
-            new_status = self.state_machine.transition(
-                track.status,
-                track.hits,
-                track.no_losses
-            )
+            new_status = self.state_machine.transition(track.status, track.hits, track.no_losses)
             track.status = new_status
 
             if features is not None:
@@ -542,18 +500,13 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
             if track_id in match_result.reidentified:
                 self.logger.info(
-                    "Track recuperado y actualizado",
-                    track_id=track_id,
-                    confidence=track.confidence
+                    "Track recuperado y actualizado", track_id=track_id, confidence=track.confidence
                 )
 
     def _update_advanced_systems(
-        self,
-        detections: List[Dict[str, Any]],
-        match_result: MatchResult
+        self, detections: list[dict[str, Any]], match_result: MatchResult
     ) -> None:
-        """
-        Actualiza todos los sistemas avanzados.
+        """Actualiza todos los sistemas avanzados.
 
         Args:
             detections: Lista de detecciones.
@@ -569,12 +522,9 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self._update_path_prediction()
 
     def _update_online_learning(
-        self,
-        detections: List[Dict[str, Any]],
-        match_result: MatchResult
+        self, detections: list[dict[str, Any]], match_result: MatchResult
     ) -> None:
-        """
-        Actualiza el aprendizaje en línea con nuevas observaciones.
+        """Actualiza el aprendizaje en línea con nuevas observaciones.
 
         Args:
             detections: Lista de detecciones.
@@ -599,22 +549,17 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                     self.online_learner.update(
                         track_id=track_id,
                         features=features,
-                        confidence=detection.get("confidence", 0.5)
+                        confidence=detection.get("confidence", 0.5),
                     )
                 except Exception as e:
                     self.logger.debug(
-                        "Error en aprendizaje en línea",
-                        track_id=track_id,
-                        error=str(e)
+                        "Error en aprendizaje en línea", track_id=track_id, error=str(e)
                     )
 
     def _update_sensor_fusion(
-        self,
-        detections: List[Dict[str, Any]],
-        match_result: MatchResult
+        self, detections: list[dict[str, Any]], match_result: MatchResult
     ) -> None:
-        """
-        Actualiza la fusión de sensores con nuevas observaciones.
+        """Actualiza la fusión de sensores con nuevas observaciones.
 
         Args:
             detections: Lista de detecciones.
@@ -646,15 +591,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                         "class_id": detection.get("class_id", -1),
                         "label": detection.get("label", "unknown"),
                         "frame": self._frame_counter,
-                    }
+                    },
                 )
                 self.sensor_fusion.add_observation(track_id, observation)
             except Exception as e:
-                self.logger.debug(
-                    "Error en fusión de sensores",
-                    track_id=track_id,
-                    error=str(e)
-                )
+                self.logger.debug("Error en fusión de sensores", track_id=track_id, error=str(e))
 
     def _update_path_prediction(self) -> None:
         """Actualiza la predicción de trayectoria para todos los tracks."""
@@ -667,7 +608,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                     track_id=track_id,
                     position=track.centroid,
                     velocity=track.velocity,
-                    confidence=track.confidence
+                    confidence=track.confidence,
                 )
 
                 if prediction:
@@ -679,14 +620,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                     }
             except Exception as e:
                 self.logger.debug(
-                    "Error en predicción de trayectoria",
-                    track_id=track_id,
-                    error=str(e)
+                    "Error en predicción de trayectoria", track_id=track_id, error=str(e)
                 )
 
     def _handle_unmatched(self, match_result: MatchResult) -> None:
-        """
-        Maneja tracks no asociados (pérdidas).
+        """Maneja tracks no asociados (pérdidas).
 
         Args:
             match_result: Resultado del matching con tracks no asociados.
@@ -705,9 +643,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 track.mark_lost()
 
                 new_status = self.state_machine.transition(
-                    track.status,
-                    track.hits,
-                    track.no_losses
+                    track.status, track.hits, track.no_losses
                 )
                 track.status = new_status
 
@@ -715,8 +651,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                     self._handle_dead_track(track_id)
 
     def _handle_dead_track(self, track_id: int) -> None:
-        """
-        Maneja un track que ha muerto (no recuperable).
+        """Maneja un track que ha muerto (no recuperable).
 
         Args:
             track_id: ID del track muerto.
@@ -728,11 +663,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         self.track_manager.mark_as_lost(track_id)
 
         if self.reid_system and track.features is not None:
-            self.reid_system.add_lost_track(
-                track_id,
-                track.features,
-                track.confidence
-            )
+            self.reid_system.add_lost_track(track_id, track.features, track.confidence)
 
         if self.online_learner:
             self.online_learner.clear_track(track_id)
@@ -742,12 +673,9 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self.path_predictor.clear_track(track_id)
 
     def _create_new_tracks(
-        self,
-        detections: List[Dict[str, Any]],
-        match_result: MatchResult
+        self, detections: list[dict[str, Any]], match_result: MatchResult
     ) -> None:
-        """
-        Crea nuevos tracks a partir de detecciones no asociadas.
+        """Crea nuevos tracks a partir de detecciones no asociadas.
 
         Args:
             detections: Lista de detecciones.
@@ -765,10 +693,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 continue
 
             features = detection.get("features")
-            track = self.track_manager.create_track(
-                detection=detection,
-                features=features
-            )
+            track = self.track_manager.create_track(detection=detection, features=features)
 
             if track:
                 self.track_updater.init_kalman(track)
@@ -781,12 +706,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self.logger.debug(
                 "Nuevos tracks creados",
                 count=tracks_created,
-                active=self.track_manager.get_active_count()
+                active=self.track_manager.get_active_count(),
             )
 
-    def _is_valid_new_track(self, detection: Dict[str, Any]) -> bool:
-        """
-        Verifica si una detección es válida para crear un nuevo track.
+    def _is_valid_new_track(self, detection: dict[str, Any]) -> bool:
+        """Verifica si una detección es válida para crear un nuevo track.
 
         Args:
             detection: Detección a verificar.
@@ -806,12 +730,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
     def _init_advanced_features_for_track(
         self,
         track: Any,
-        detection: Dict[str, Any],
+        detection: dict[str, Any],
         confidence: float,
-        features: Optional[np.ndarray]
+        features: np.ndarray | None,
     ) -> None:
-        """
-        Inicializa características avanzadas para un nuevo track.
+        """Inicializa características avanzadas para un nuevo track.
 
         Args:
             track: Track a inicializar.
@@ -824,20 +747,17 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         if self.online_learner and features is not None:
             try:
                 self.online_learner.update(
-                    track_id=track_id,
-                    features=features,
-                    confidence=confidence
+                    track_id=track_id, features=features, confidence=confidence
                 )
             except Exception as e:
                 self.logger.debug(
-                    "Error iniciando aprendizaje en línea",
-                    track_id=track_id,
-                    error=str(e)
+                    "Error iniciando aprendizaje en línea", track_id=track_id, error=str(e)
                 )
 
         if self.sensor_fusion:
             try:
                 from core.tracker.sensor_fusion import SensorObservation, SensorType
+
                 observation = SensorObservation(
                     sensor_type=SensorType.VISUAL,
                     bbox=track.bbox,
@@ -848,38 +768,28 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                         "class_id": track.class_id,
                         "label": track.label,
                         "frame": self._frame_counter,
-                    }
+                    },
                 )
                 self.sensor_fusion.add_observation(track_id, observation)
             except Exception as e:
                 self.logger.debug(
-                    "Error iniciando fusión de sensores",
-                    track_id=track_id,
-                    error=str(e)
+                    "Error iniciando fusión de sensores", track_id=track_id, error=str(e)
                 )
 
         if self.path_predictor:
             try:
                 self.path_predictor.update(
-                    track_id=track_id,
-                    position=track.centroid,
-                    confidence=confidence
+                    track_id=track_id, position=track.centroid, confidence=confidence
                 )
             except Exception as e:
                 self.logger.debug(
-                    "Error iniciando predicción de trayectoria",
-                    track_id=track_id,
-                    error=str(e)
+                    "Error iniciando predicción de trayectoria", track_id=track_id, error=str(e)
                 )
 
     def _perform_reidentification(
-        self,
-        detections: List[Dict[str, Any]],
-        unmatched_dets: List[int],
-        frame: np.ndarray
+        self, detections: list[dict[str, Any]], unmatched_dets: list[int], frame: np.ndarray
     ) -> int:
-        """
-        Realiza re-identificación de objetos perdidos.
+        """Realiza re-identificación de objetos perdidos.
 
         Args:
             detections: Lista de detecciones.
@@ -900,9 +810,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
             detection = detections[det_idx]
             track_id = self.reid_system.attempt_reidentification(
-                detection=detection,
-                frame=frame,
-                current_tracks=self.track_manager.get_all_tracks()
+                detection=detection, frame=frame, current_tracks=self.track_manager.get_all_tracks()
             )
 
             if track_id is not None:
@@ -911,9 +819,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         return reidentified
 
-    def _recover_track(self, track_id: int, detection: Dict[str, Any]) -> bool:
-        """
-        Recupera un track re-identificado.
+    def _recover_track(self, track_id: int, detection: dict[str, Any]) -> bool:
+        """Recupera un track re-identificado.
 
         Args:
             track_id: ID del track a recuperar.
@@ -933,11 +840,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         self.track_updater.init_kalman(track)
         self._stats["reidentified_tracks"] += 1
 
-        self.logger.info(
-            "Track re-identificado",
-            track_id=track_id,
-            confidence=track.confidence
-        )
+        self.logger.info("Track re-identificado", track_id=track_id, confidence=track.confidence)
 
         return True
 
@@ -957,7 +860,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                 self.logger.warning(
                     "Memoria alta, limpiando",
                     memory_percent=f"{mem_percent:.1f}",
-                    active_tracks=self.track_manager.get_active_count()
+                    active_tracks=self.track_manager.get_active_count(),
                 )
                 self.feature_manager.clear_cache()
                 force_garbage_collection()
@@ -976,21 +879,21 @@ class MultiObjectTracker(ITracker, LoggerMixin):
                     "Limpieza de tracks completada",
                     removed=removed,
                     active=self.track_manager.get_active_count(),
-                    lost=self.track_manager.get_lost_count()
+                    lost=self.track_manager.get_lost_count(),
                 )
 
     def _update_stats(self) -> None:
         """Actualiza estadísticas del tracker."""
         self._stats["total_tracks"] = self.track_manager.get_active_count()
         self._stats["confirmed_tracks"] = sum(
-            1 for t in self.track_manager.get_all_tracks().values()
+            1
+            for t in self.track_manager.get_all_tracks().values()
             if t.status == TrackStatus.CONFIRMED
         )
         self._stats["lost_tracks"] = self.track_manager.get_lost_count()
 
-    def get_tracking_info(self) -> Dict[int, Dict[str, Any]]:
-        """
-        Retorna información de tracking actual.
+    def get_tracking_info(self) -> dict[int, dict[str, Any]]:
+        """Retorna información de tracking actual.
 
         Returns:
             Dict[int, Dict[str, Any]]: Información de tracking.
@@ -1018,9 +921,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         return result
 
-    def _enrich_track_data(self, track_id: int, track_data: Dict[str, Any]) -> None:
-        """
-        Enriquece los datos del track con información de subsistemas.
+    def _enrich_track_data(self, track_id: int, track_data: dict[str, Any]) -> None:
+        """Enriquece los datos del track con información de subsistemas.
 
         Args:
             track_id: ID del track.
@@ -1056,9 +958,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         if self.mht_integration and self.mht_integration.enabled:
             track_data["mht_confidence"] = self.mht_integration.get_hypothesis_confidence(track_id)
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Retorna estadísticas del tracker.
+    def get_stats(self) -> dict[str, Any]:
+        """Retorna estadísticas del tracker.
 
         Returns:
             Dict[str, Any]: Estadísticas detalladas del tracker.
@@ -1075,9 +976,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             "frame_counter": self._frame_counter,
         }
 
-    def get_track(self, track_id: int) -> Optional[Any]:
-        """
-        Obtiene un track por su ID.
+    def get_track(self, track_id: int) -> Any | None:
+        """Obtiene un track por su ID.
 
         Args:
             track_id: ID del track a obtener.

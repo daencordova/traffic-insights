@@ -19,10 +19,7 @@ MIN_CACHE_QUALITY: float = 0.3
 
 
 class FeatureCacheEntry:
-    """Entrada en el caché de features.
-
-    Usa __slots__ para optimizar el uso de memoria.
-    """
+    """Entrada en el caché de features optimizada."""
 
     __slots__ = ("features", "timestamp", "confidence", "quality", "access_count")
 

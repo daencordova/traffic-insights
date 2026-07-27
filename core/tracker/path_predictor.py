@@ -1,5 +1,4 @@
-"""
-Sistema de predicción de trayectoria para tracking avanzado.
+"""Sistema de predicción de trayectoria para tracking avanzado.
 
 Este módulo implementa un sistema completo de predicción de trayectoria
 que permite anticipar el movimiento futuro de los objetos en seguimiento.
@@ -16,26 +15,26 @@ El sistema combina:
 from __future__ import annotations
 
 import time
-from typing import List, Tuple, Dict, Any, Optional
+from typing import Any
 
 import numpy as np
 
-from utils.logger import LoggerMixin
-from core.tracker.prediction.history import TrajectoryHistory
-from core.tracker.prediction.model_selector import ModelSelector
-from core.tracker.prediction.state_detector import StateDetector, TrajectoryState
-from core.tracker.prediction.collision_detector import CollisionDetector
 from core.constants import (
     PATH_PREDICTION_HISTORY_LENGTH,
     PATH_PREDICTION_HORIZON,
-    PATH_PREDICTION_STEPS,
     PATH_PREDICTION_MIN_SAMPLES,
+    PATH_PREDICTION_STEPS,
     PATH_PREDICTION_UNCERTAINTY_THRESHOLD,
 )
+from core.tracker.prediction.collision_detector import CollisionDetector
+from core.tracker.prediction.history import TrajectoryHistory
+from core.tracker.prediction.model_selector import ModelSelector
+from core.tracker.prediction.state_detector import StateDetector, TrajectoryState
+from utils.logger import LoggerMixin
+
 
 class TrajectoryPrediction:
-    """
-    Representa una predicción de trayectoria.
+    """Representa una predicción de trayectoria.
 
     Attributes:
         track_id: ID del track.
@@ -52,27 +51,38 @@ class TrajectoryPrediction:
         trajectory_type: Tipo de trayectoria.
         metadata: Metadatos adicionales.
     """
+
     __slots__ = (
-        'track_id', 'positions', 'confidences', 'timestamps', 'horizon_seconds',
-        'state', 'motion_model', 'predicted_velocity', 'predicted_acceleration',
-        'uncertainty', 'collision_risk', 'trajectory_type', 'metadata'
+        "track_id",
+        "positions",
+        "confidences",
+        "timestamps",
+        "horizon_seconds",
+        "state",
+        "motion_model",
+        "predicted_velocity",
+        "predicted_acceleration",
+        "uncertainty",
+        "collision_risk",
+        "trajectory_type",
+        "metadata",
     )
 
     def __init__(
         self,
         track_id: int,
-        positions: List[Tuple[float, float]],
-        confidences: List[float],
-        timestamps: List[float],
+        positions: list[tuple[float, float]],
+        confidences: list[float],
+        timestamps: list[float],
         horizon_seconds: float,
         state: TrajectoryState,
         motion_model: str,
-        predicted_velocity: Tuple[float, float],
-        predicted_acceleration: Tuple[float, float],
+        predicted_velocity: tuple[float, float],
+        predicted_acceleration: tuple[float, float],
         uncertainty: float,
         collision_risk: float,
         trajectory_type: str,
-        metadata: Dict[str, Any] = None
+        metadata: dict[str, Any] | None = None,
     ):
         self.track_id = track_id
         self.positions = positions
@@ -90,8 +100,7 @@ class TrajectoryPrediction:
 
 
 class PathPredictor(LoggerMixin):
-    """
-    Sistema avanzado de predicción de trayectoria.
+    """Sistema avanzado de predicción de trayectoria.
 
     Este sistema orquesta todos los componentes de predicción para
     proporcionar estimaciones precisas del movimiento futuro de los objetos.
@@ -116,16 +125,10 @@ class PathPredictor(LoggerMixin):
 
     Example:
         >>> predictor = PathPredictor(
-        ...     history_length=30,
-        ...     prediction_horizon=2.0,
-        ...     prediction_steps=20
+        ...     history_length=30, prediction_horizon=2.0, prediction_steps=20
         ... )
         >>> for track_id, track in tracks.items():
-        ...     prediction = predictor.update(
-        ...         track_id,
-        ...         track.centroid,
-        ...         track.velocity
-        ...     )
+        ...     prediction = predictor.update(track_id, track.centroid, track.velocity)
         ...     if prediction and prediction.collision_risk > 0.5:
         ...         print(f"⚠️ Colisión potencial para track {track_id}")
     """
@@ -140,8 +143,7 @@ class PathPredictor(LoggerMixin):
         uncertainty_threshold: float = PATH_PREDICTION_UNCERTAINTY_THRESHOLD,
         collision_threshold: float = 30.0,
     ):
-        """
-        Inicializa el sistema de predicción de trayectoria.
+        """Inicializa el sistema de predicción de trayectoria.
 
         Args:
             history_length: Longitud del historial de posiciones.
@@ -162,7 +164,7 @@ class PathPredictor(LoggerMixin):
         self.state_detector = StateDetector()
         self.collision_detector = CollisionDetector(collision_threshold)
 
-        self._predictions: Dict[int, TrajectoryPrediction] = {}
+        self._predictions: dict[int, TrajectoryPrediction] = {}
 
         self._stats = {
             "total_predictions": 0,
@@ -178,20 +180,19 @@ class PathPredictor(LoggerMixin):
             history_length=history_length,
             prediction_horizon=prediction_horizon,
             prediction_steps=prediction_steps,
-            motion_model=motion_model
+            motion_model=motion_model,
         )
 
     def update(
         self,
         track_id: int,
-        position: Tuple[float, float],
-        velocity: Optional[Tuple[float, float]] = None,
-        acceleration: Optional[Tuple[float, float]] = None,
+        position: tuple[float, float],
+        velocity: tuple[float, float] | None = None,
+        acceleration: tuple[float, float] | None = None,
         confidence: float = 1.0,
-        timestamp: Optional[float] = None
-    ) -> Optional[TrajectoryPrediction]:
-        """
-        Actualiza el historial de un track y genera predicción.
+        timestamp: float | None = None,
+    ) -> TrajectoryPrediction | None:
+        """Actualiza el historial de un track y genera predicción.
 
         Args:
             track_id: ID del track.
@@ -215,14 +216,13 @@ class PathPredictor(LoggerMixin):
             acceleration=acceleration,
             confidence=confidence,
             timestamp=timestamp,
-            metadata={"track_id": track_id}
+            metadata={"track_id": track_id},
         )
 
         if not self.history.is_valid_for_prediction(track_id, self.min_samples):
             self._stats["failed_predictions"] += 1
             return None
 
-        import time
         start_time = time.perf_counter()
 
         prediction = self._predict_trajectory(track_id)
@@ -234,16 +234,14 @@ class PathPredictor(LoggerMixin):
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         self._stats["avg_prediction_time_ms"] = (
-            (self._stats["avg_prediction_time_ms"] * self._stats["total_predictions"] + elapsed_ms) /
-            (self._stats["total_predictions"] + 1)
-        )
+            self._stats["avg_prediction_time_ms"] * self._stats["total_predictions"] + elapsed_ms
+        ) / (self._stats["total_predictions"] + 1)
         self._stats["total_predictions"] += 1
 
         return prediction
 
-    def _predict_trajectory(self, track_id: int) -> Optional[TrajectoryPrediction]:
-        """
-        Predice la trayectoria futura de un track.
+    def _predict_trajectory(self, track_id: int) -> TrajectoryPrediction | None:
+        """Predice la trayectoria futura de un track.
 
         Args:
             track_id: ID del track.
@@ -268,20 +266,12 @@ class PathPredictor(LoggerMixin):
         timestamps = np.array([s.timestamp for s in samples])
         confidences = np.array([s.confidence for s in samples])
 
-        state = self.state_detector.detect_state(
-            track_id, positions, velocities, timestamps
-        )
+        state = self.state_detector.detect_state(track_id, positions, velocities, timestamps)
 
-        model = self.model_selector.select_model(
-            track_id, positions, velocities
-        )
+        model = self.model_selector.select_model(track_id, positions, velocities)
 
         predictions, uncertainties = model.predict(
-            positions,
-            velocities,
-            timestamps,
-            self.prediction_horizon,
-            self.prediction_steps
+            positions, velocities, timestamps, self.prediction_horizon, self.prediction_steps
         )
 
         if not predictions:
@@ -300,11 +290,11 @@ class PathPredictor(LoggerMixin):
         if len(predictions) > 2:
             pred_vel = (
                 (predictions[-1][0] - predictions[0][0]) / self.prediction_horizon,
-                (predictions[-1][1] - predictions[0][1]) / self.prediction_horizon
+                (predictions[-1][1] - predictions[0][1]) / self.prediction_horizon,
             )
             pred_acc = (
                 pred_vel[0] / self.prediction_horizon,
-                pred_vel[1] / self.prediction_horizon
+                pred_vel[1] / self.prediction_horizon,
             )
         else:
             pred_vel = (0.0, 0.0)
@@ -312,26 +302,19 @@ class PathPredictor(LoggerMixin):
 
         avg_uncertainty = np.mean(uncertainties) if uncertainties else 0.5
         self._stats["avg_uncertainty"] = (
-            (self._stats["avg_uncertainty"] * self._stats["total_predictions"] + avg_uncertainty) /
-            (self._stats["total_predictions"] + 1)
-        )
+            self._stats["avg_uncertainty"] * self._stats["total_predictions"] + avg_uncertainty
+        ) / (self._stats["total_predictions"] + 1)
 
-        all_predictions = {
-            tid: pred.positions
-            for tid, pred in self._predictions.items()
-        }
+        all_predictions = {tid: pred.positions for tid, pred in self._predictions.items()}
         all_predictions[track_id] = predictions
 
         collision_risk = self.collision_detector.detect_collisions(
-            track_id,
-            predictions,
-            all_predictions
+            track_id, predictions, all_predictions
         )
 
         self._stats["avg_collision_risk"] = (
-            (self._stats["avg_collision_risk"] * self._stats["total_predictions"] + collision_risk) /
-            (self._stats["total_predictions"] + 1)
-        )
+            self._stats["avg_collision_risk"] * self._stats["total_predictions"] + collision_risk
+        ) / (self._stats["total_predictions"] + 1)
 
         trajectory_type = self._classify_trajectory(positions)
 
@@ -353,35 +336,23 @@ class PathPredictor(LoggerMixin):
                 "avg_confidence": float(np.mean(confidences)),
                 "timestamp": time.time(),
                 "model_confidence": self.model_selector._stats["model_usage"].get(model.name, 0),
-            }
+            },
         )
 
         return prediction
 
     def _classify_trajectory(self, positions: np.ndarray) -> str:
-        """
-        Clasifica el tipo de trayectoria.
-
-        Args:
-            positions: Array de posiciones [N, 2].
-
-        Returns:
-            str: Tipo de trayectoria ('straight', 'slightly_curved',
-                'highly_curved', 'stationary', 'unknown').
-        """
+        """Clasifica el tipo de trayectoria usando NumPy vectorizado."""
         if len(positions) < 3:
             return "unknown"
 
-        total_distance = 0
-        straight_distance = np.sqrt(
-            (positions[-1][0] - positions[0][0])**2 +
-            (positions[-1][1] - positions[0][1])**2
-        )
+        diffs = np.diff(positions, axis=0)
+        segment_distances = np.sqrt(np.sum(diffs**2, axis=1))
+        total_distance = np.sum(segment_distances)
 
-        for i in range(1, len(positions)):
-            dx = positions[i][0] - positions[i-1][0]
-            dy = positions[i][1] - positions[i-1][1]
-            total_distance += np.sqrt(dx**2 + dy**2)
+        straight_distance = np.sqrt(
+            (positions[-1][0] - positions[0][0]) ** 2 + (positions[-1][1] - positions[0][1]) ** 2
+        )
 
         if total_distance < 1.0:
             return "stationary"
@@ -390,14 +361,12 @@ class PathPredictor(LoggerMixin):
 
         if straightness > 0.85:
             return "straight"
-        elif straightness > 0.5:
+        if straightness > 0.5:
             return "slightly_curved"
-        else:
-            return "highly_curved"
+        return "highly_curved"
 
-    def get_prediction(self, track_id: int) -> Optional[TrajectoryPrediction]:
-        """
-        Obtiene la última predicción de un track.
+    def get_prediction(self, track_id: int) -> TrajectoryPrediction | None:
+        """Obtiene la última predicción de un track.
 
         Args:
             track_id: ID del track.
@@ -408,8 +377,7 @@ class PathPredictor(LoggerMixin):
         return self._predictions.get(track_id)
 
     def get_state(self, track_id: int) -> TrajectoryState:
-        """
-        Obtiene el estado de trayectoria de un track.
+        """Obtiene el estado de trayectoria de un track.
 
         Args:
             track_id: ID del track.
@@ -420,8 +388,7 @@ class PathPredictor(LoggerMixin):
         return self.state_detector.get_last_state(track_id) or TrajectoryState.UNKNOWN
 
     def get_collision_risk(self, track_id: int) -> float:
-        """
-        Obtiene el riesgo de colisión de un track.
+        """Obtiene el riesgo de colisión de un track.
 
         Args:
             track_id: ID del track.
@@ -431,9 +398,8 @@ class PathPredictor(LoggerMixin):
         """
         return self.collision_detector.get_risk(track_id)
 
-    def get_high_risk_tracks(self, threshold: float = 0.5) -> List[int]:
-        """
-        Obtiene tracks con alto riesgo de colisión.
+    def get_high_risk_tracks(self, threshold: float = 0.5) -> list[int]:
+        """Obtiene tracks con alto riesgo de colisión.
 
         Args:
             threshold: Umbral de riesgo (0-1).
@@ -443,9 +409,8 @@ class PathPredictor(LoggerMixin):
         """
         return self.collision_detector.get_high_risk_tracks(threshold)
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del sistema.
+    def get_stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del sistema.
 
         Returns:
             Dict[str, Any]: Estadísticas del sistema.
@@ -458,10 +423,9 @@ class PathPredictor(LoggerMixin):
             "model_selector_stats": self.model_selector.get_stats(),
             "state_detector_stats": self.state_detector.get_stats(),
             "collision_detector_stats": self.collision_detector.get_stats(),
-            "predictions_with_risk": len([
-                p for p in self._predictions.values()
-                if p.collision_risk > 0.3
-            ]),
+            "predictions_with_risk": len(
+                [p for p in self._predictions.values() if p.collision_risk > 0.3]
+            ),
         }
 
     def clear_track(self, track_id: int) -> None:

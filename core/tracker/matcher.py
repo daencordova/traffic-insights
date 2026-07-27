@@ -1,5 +1,4 @@
-"""
-Sistema de matching jerárquico para re-identificación robusta.
+"""Sistema de matching jerárquico para re-identificación robusta.
 
 Este módulo implementa un sistema de matching jerárquico que combina
 múltiples estrategias para asociar detecciones con tracks existentes.
@@ -14,30 +13,28 @@ El matching jerárquico utiliza:
 
 from __future__ import annotations
 
-import time
-from enum import Enum
-from typing import List, Tuple, Dict, Any, Optional
 from dataclasses import dataclass
+from enum import Enum
+import time
+from typing import Any
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import KDTree
 
-from utils.geometry import calculate_iou
-from utils.logger import LoggerMixin
-from utils.geometry import euclidean_distance
 from core.constants import (
-    TRACK_VALIDATION_IOU_THRESHOLD,
+    MAX_MATCH_DISTANCE,
     TRACK_VALIDATION_FEATURE_THRESHOLD,
+    TRACK_VALIDATION_IOU_THRESHOLD,
     TRACK_VALIDATION_MOTION_THRESHOLD,
     TRACK_VALIDATION_SHAPE_THRESHOLD,
-    MAX_MATCH_DISTANCE,
 )
+from utils.geometry import calculate_iou, euclidean_distance
+from utils.logger import LoggerMixin
 
 
 class MatchLevel(Enum):
-    """
-    Niveles de matching en orden de prioridad.
+    """Niveles de matching en orden de prioridad.
 
     Attributes:
         IOU: Matching por IoU (más preciso)
@@ -46,6 +43,7 @@ class MatchLevel(Enum):
         SHAPE: Matching por forma (aspect ratio)
         SPATIAL: Matching por distancia espacial (fallback)
     """
+
     IOU = "iou"
     FEATURE = "feature"
     MOTION = "motion"
@@ -53,10 +51,9 @@ class MatchLevel(Enum):
     SPATIAL = "spatial"
 
 
-@dataclass
+@dataclass(slots=True)
 class MatchResult:
-    """
-    Resultado de una operación de matching.
+    """Resultado de una operación de matching.
 
     Attributes:
         matches: Lista de tuplas (detection_idx, track_idx) asociadas.
@@ -66,17 +63,17 @@ class MatchResult:
         level_used: Nivel de matching utilizado.
         time_ms: Tiempo de ejecución en milisegundos.
     """
-    matches: List[Tuple[int, int]]
-    unmatched_detections: List[int]
-    unmatched_tracks: List[int]
-    match_scores: Dict[Tuple[int, int], float]
+
+    matches: list[tuple[int, int]]
+    unmatched_detections: list[int]
+    unmatched_tracks: list[int]
+    match_scores: dict[tuple[int, int], float]
     level_used: MatchLevel
     time_ms: float
 
 
 class TrackMatcher(LoggerMixin):
-    """
-    Matcher jerárquico que combina múltiples estrategias de matching.
+    """Matcher jerárquico que combina múltiples estrategias de matching.
 
     Este matcher intenta asociar detecciones con tracks usando
     diferentes criterios en orden de prioridad. Si un criterio no
@@ -99,9 +96,7 @@ class TrackMatcher(LoggerMixin):
 
     Example:
         >>> matcher = TrackMatcher(
-        ...     iou_threshold=0.3,
-        ...     feature_threshold=0.6,
-        ...     enable_adaptive_thresholds=True
+        ...     iou_threshold=0.3, feature_threshold=0.6, enable_adaptive_thresholds=True
         ... )
         >>> result = matcher.match(detections, tracks)
         >>> for det_idx, trk_idx in result.matches:
@@ -118,8 +113,7 @@ class TrackMatcher(LoggerMixin):
         enable_adaptive_thresholds: bool = True,
         max_search_radius: float = 150.0,
     ):
-        """
-        Inicializa el matcher jerárquico con poda espacial.
+        """Inicializa el matcher jerárquico con poda espacial.
 
         Args:
             iou_threshold: Umbral de IoU (0-1).
@@ -155,16 +149,13 @@ class TrackMatcher(LoggerMixin):
             "TrackMatcher optimizado inicializado",
             iou_threshold=iou_threshold,
             max_search_radius=max_search_radius,
-            adaptive_thresholds=enable_adaptive_thresholds
+            adaptive_thresholds=enable_adaptive_thresholds,
         )
 
     def _iou_matching(
-        self,
-        detections: List[Dict[str, Any]],
-        tracks: List[Any]
-    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        """
-        Matching basado en IoU con poda espacial usando KD-Tree.
+        self, detections: list[dict[str, Any]], tracks: list[Any]
+    ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
+        """Matching basado en IoU con poda espacial usando KD-Tree.
 
         Esta versión optimizada reduce drásticamente el número de cálculos
         de IoU al filtrar tracks que están demasiado lejos de cada detección.
@@ -198,10 +189,7 @@ class TrackMatcher(LoggerMixin):
             if self._kd_tree is None:
                 continue
 
-            indices = self._kd_tree.query_ball_point(
-                det_centroid,
-                self.max_search_radius
-            )
+            indices = self._kd_tree.query_ball_point(det_centroid, self.max_search_radius)
 
             if not indices:
                 self._match_stats[MatchLevel.IOU]["filtered_by_distance"] += 1
@@ -234,7 +222,7 @@ class TrackMatcher(LoggerMixin):
                 total_pairs=total_pairs,
                 candidates=candidates_count,
                 reduction=f"{reduction:.1f}%",
-                avg_candidates=f"{avg_candidates:.1f}"
+                avg_candidates=f"{avg_candidates:.1f}",
             )
 
         row_indices, col_indices = linear_sum_assignment(-iou_matrix)
@@ -256,9 +244,8 @@ class TrackMatcher(LoggerMixin):
 
         return matches, unmatched_dets, unmatched_trks
 
-    def _update_kd_tree(self, tracks: List[Any], centroids: List[Tuple[float, float]]) -> None:
-        """
-        Actualiza el KD-Tree con los centroides actuales de los tracks.
+    def _update_kd_tree(self, tracks: list[Any], centroids: list[tuple[float, float]]) -> None:
+        """Actualiza el KD-Tree con los centroides actuales de los tracks.
 
         Args:
             tracks: Lista de tracks.
@@ -292,7 +279,7 @@ class TrackMatcher(LoggerMixin):
             self.logger.debug(
                 "KD-Tree actualizado",
                 tracks=len(centroids),
-                update_interval=self._tree_update_interval
+                update_interval=self._tree_update_interval,
             )
 
         except Exception as e:
@@ -301,11 +288,9 @@ class TrackMatcher(LoggerMixin):
             self._track_centroids = None
 
     def _extract_detection_centroids(
-        self,
-        detections: List[Dict[str, Any]]
-    ) -> List[Tuple[float, float]]:
-        """
-        Extrae centroides de detecciones de forma segura.
+        self, detections: list[dict[str, Any]]
+    ) -> list[tuple[float, float]]:
+        """Extrae centroides de detecciones de forma segura.
 
         Args:
             detections: Lista de detecciones.
@@ -335,12 +320,8 @@ class TrackMatcher(LoggerMixin):
 
         return centroids
 
-    def _extract_track_centroids(
-        self,
-        tracks: List[Any]
-    ) -> List[Tuple[float, float]]:
-        """
-        Extrae centroides de tracks de forma segura.
+    def _extract_track_centroids(self, tracks: list[Any]) -> list[tuple[float, float]]:
+        """Extrae centroides de tracks de forma segura.
 
         Args:
             tracks: Lista de tracks.
@@ -351,7 +332,7 @@ class TrackMatcher(LoggerMixin):
         centroids = []
 
         for track in tracks:
-            if hasattr(track, 'centroid') and track.centroid is not None:
+            if hasattr(track, "centroid") and track.centroid is not None:
                 try:
                     x, y = track.centroid
                     if isinstance(x, (int, float)) and isinstance(y, (int, float)):
@@ -361,9 +342,8 @@ class TrackMatcher(LoggerMixin):
 
         return centroids
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del matcher incluyendo métricas de optimización.
+    def get_stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del matcher incluyendo métricas de optimización.
 
         Returns:
             Dict[str, Any]: Estadísticas por nivel de matching.
@@ -381,22 +361,26 @@ class TrackMatcher(LoggerMixin):
                 "filter_rate": filtered / max(1, total_iou_pairs) * 100,
             },
             MatchLevel.FEATURE.value: {
-                "success_rate": self._match_stats[MatchLevel.FEATURE]["success"] / max(1, self._match_stats[MatchLevel.FEATURE]["total"]),
+                "success_rate": self._match_stats[MatchLevel.FEATURE]["success"]
+                / max(1, self._match_stats[MatchLevel.FEATURE]["total"]),
                 "total_attempts": self._match_stats[MatchLevel.FEATURE]["total"],
                 "successful_matches": self._match_stats[MatchLevel.FEATURE]["success"],
             },
             MatchLevel.MOTION.value: {
-                "success_rate": self._match_stats[MatchLevel.MOTION]["success"] / max(1, self._match_stats[MatchLevel.MOTION]["total"]),
+                "success_rate": self._match_stats[MatchLevel.MOTION]["success"]
+                / max(1, self._match_stats[MatchLevel.MOTION]["total"]),
                 "total_attempts": self._match_stats[MatchLevel.MOTION]["total"],
                 "successful_matches": self._match_stats[MatchLevel.MOTION]["success"],
             },
             MatchLevel.SHAPE.value: {
-                "success_rate": self._match_stats[MatchLevel.SHAPE]["success"] / max(1, self._match_stats[MatchLevel.SHAPE]["total"]),
+                "success_rate": self._match_stats[MatchLevel.SHAPE]["success"]
+                / max(1, self._match_stats[MatchLevel.SHAPE]["total"]),
                 "total_attempts": self._match_stats[MatchLevel.SHAPE]["total"],
                 "successful_matches": self._match_stats[MatchLevel.SHAPE]["success"],
             },
             MatchLevel.SPATIAL.value: {
-                "success_rate": self._match_stats[MatchLevel.SPATIAL]["success"] / max(1, self._match_stats[MatchLevel.SPATIAL]["total"]),
+                "success_rate": self._match_stats[MatchLevel.SPATIAL]["success"]
+                / max(1, self._match_stats[MatchLevel.SPATIAL]["total"]),
                 "total_attempts": self._match_stats[MatchLevel.SPATIAL]["total"],
                 "successful_matches": self._match_stats[MatchLevel.SPATIAL]["success"],
             },
@@ -404,8 +388,10 @@ class TrackMatcher(LoggerMixin):
                 "max_search_radius": self.max_search_radius,
                 "tree_update_interval": self._tree_update_interval,
                 "tree_active": self._kd_tree is not None,
-                "track_centroids_cached": len(self._track_centroids) if self._track_centroids is not None else 0,
-            }
+                "track_centroids_cached": len(self._track_centroids)
+                if self._track_centroids is not None
+                else 0,
+            },
         }
 
     def reset_stats(self) -> None:
@@ -416,12 +402,11 @@ class TrackMatcher(LoggerMixin):
 
     def match(
         self,
-        detections: List[Dict[str, Any]],
-        tracks: List[Any],
-        frame_info: Optional[Dict[str, Any]] = None,
+        detections: list[dict[str, Any]],
+        tracks: list[Any],
+        frame_info: dict[str, Any] | None = None,
     ) -> MatchResult:
-        """
-        Realiza matching jerárquico entre detecciones y tracks.
+        """Realiza matching jerárquico entre detecciones y tracks.
 
         Args:
             detections: Lista de detecciones.
@@ -448,7 +433,7 @@ class TrackMatcher(LoggerMixin):
                 unmatched_tracks=list(range(len(tracks))),
                 match_scores={},
                 level_used=MatchLevel.IOU,
-                time_ms=0.0
+                time_ms=0.0,
             )
 
         unmatched_dets = set(range(len(detections)))
@@ -476,17 +461,12 @@ class TrackMatcher(LoggerMixin):
             thresholds = self._get_adaptive_thresholds(level, dets_subset, trks_subset)
 
             try:
-                matches, scores = match_func(
-                    dets_subset,
-                    trks_subset,
-                    thresholds,
-                    frame_info
-                )
+                matches, scores = match_func(dets_subset, trks_subset, thresholds, frame_info)
             except Exception as e:
                 self.logger.warning(
                     f"Error en matching {level.value}: {e}",
                     dets=len(dets_subset),
-                    trks=len(trks_subset)
+                    trks=len(trks_subset),
                 )
                 continue
 
@@ -497,9 +477,7 @@ class TrackMatcher(LoggerMixin):
                     orig_trk_idx = list(unmatched_trks)[trk_idx]
                     mapped_matches.append((orig_det_idx, orig_trk_idx))
 
-                    all_scores[(orig_det_idx, orig_trk_idx)] = scores.get(
-                        (det_idx, trk_idx), 0.0
-                    )
+                    all_scores[(orig_det_idx, orig_trk_idx)] = scores.get((det_idx, trk_idx), 0.0)
 
                 all_matches.extend(mapped_matches)
                 last_used_level = level
@@ -521,17 +499,13 @@ class TrackMatcher(LoggerMixin):
             unmatched_tracks=list(unmatched_trks),
             match_scores=all_scores,
             level_used=last_used_level,
-            time_ms=elapsed_ms
+            time_ms=elapsed_ms,
         )
 
     def _compute_cost_matrix_safe(
-        self,
-        similarity_matrix: np.ndarray,
-        threshold: float,
-        matrix_name: str = "matrix"
-    ) -> Tuple[np.ndarray, bool]:
-        """
-        Procesa una matriz de similitud de forma segura.
+        self, similarity_matrix: np.ndarray, threshold: float, matrix_name: str = "matrix"
+    ) -> tuple[np.ndarray, bool]:
+        """Procesa una matriz de similitud de forma segura.
 
         Args:
             similarity_matrix: Matriz de similitud a procesar.
@@ -545,14 +519,9 @@ class TrackMatcher(LoggerMixin):
             self.logger.debug(
                 f"Matriz {matrix_name} contiene valores inválidos",
                 nan_count=np.sum(np.isnan(similarity_matrix)),
-                inf_count=np.sum(np.isinf(similarity_matrix))
+                inf_count=np.sum(np.isinf(similarity_matrix)),
             )
-            similarity_matrix = np.nan_to_num(
-                similarity_matrix,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0
-            )
+            similarity_matrix = np.nan_to_num(similarity_matrix, nan=0.0, posinf=0.0, neginf=0.0)
 
         similarity_matrix[similarity_matrix < threshold] = 0.0
 
@@ -562,22 +531,14 @@ class TrackMatcher(LoggerMixin):
         cost_matrix = -similarity_matrix
 
         if np.any(np.isnan(cost_matrix)) or np.any(np.isinf(cost_matrix)):
-            cost_matrix = np.nan_to_num(
-                cost_matrix,
-                nan=0.0,
-                posinf=0.0,
-                neginf=0.0
-            )
+            cost_matrix = np.nan_to_num(cost_matrix, nan=0.0, posinf=0.0, neginf=0.0)
 
         return cost_matrix, True
 
     def _solve_assignment_safe(
-        self,
-        cost_matrix: np.ndarray,
-        matrix_name: str = "cost"
-    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """
-        Resuelve el problema de asignación de forma segura.
+        self, cost_matrix: np.ndarray, matrix_name: str = "cost"
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """Resuelve el problema de asignación de forma segura.
 
         Args:
             cost_matrix: Matriz de costos.
@@ -594,12 +555,7 @@ class TrackMatcher(LoggerMixin):
                 self.logger.debug(
                     f"Matriz {matrix_name} tiene valores inválidos después de limpieza"
                 )
-                cost_matrix = np.nan_to_num(
-                    cost_matrix,
-                    nan=0.0,
-                    posinf=0.0,
-                    neginf=0.0
-                )
+                cost_matrix = np.nan_to_num(cost_matrix, nan=0.0, posinf=0.0, neginf=0.0)
 
             if cost_matrix.shape[0] > 50 or cost_matrix.shape[1] > 50:
                 return self._greedy_assignment(cost_matrix)
@@ -609,17 +565,14 @@ class TrackMatcher(LoggerMixin):
 
         except Exception as e:
             self.logger.debug(
-                f"Error en assignment para {matrix_name}: {e}",
-                shape=cost_matrix.shape
+                f"Error en assignment para {matrix_name}: {e}", shape=cost_matrix.shape
             )
             return self._greedy_assignment(cost_matrix)
 
     def _greedy_assignment(
-        self,
-        cost_matrix: np.ndarray
-    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """
-        Asignación greedy para matrices problemáticas.
+        self, cost_matrix: np.ndarray
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """Asignación greedy para matrices problemáticas.
 
         Args:
             cost_matrix: Matriz de costos.
@@ -638,7 +591,7 @@ class TrackMatcher(LoggerMixin):
 
         for i in range(n_rows):
             best_col = -1
-            best_cost = float('inf')
+            best_cost = float("inf")
 
             for j in range(n_cols):
                 if j in used_cols:
@@ -656,13 +609,12 @@ class TrackMatcher(LoggerMixin):
 
     def _match_iou_safe(
         self,
-        detections: List[Dict],
-        tracks: List[Any],
-        thresholds: Dict[str, float],
-        frame_info: Optional[Dict] = None,
-    ) -> Tuple[List[Tuple[int, int]], Dict[Tuple[int, int], float]]:
-        """
-        Matching basado en IoU con manejo seguro de errores.
+        detections: list[dict],
+        tracks: list[Any],
+        thresholds: dict[str, float],
+        frame_info: dict | None = None,
+    ) -> tuple[list[tuple[int, int]], dict[tuple[int, int], float]]:
+        """Matching basado en IoU con manejo seguro de errores.
 
         Args:
             detections: Lista de detecciones.
@@ -695,7 +647,7 @@ class TrackMatcher(LoggerMixin):
                 continue
 
             for j, track in enumerate(tracks):
-                if not hasattr(track, 'bbox') or not track.bbox:
+                if not hasattr(track, "bbox") or not track.bbox:
                     continue
 
                 trk_box = track.bbox
@@ -720,7 +672,7 @@ class TrackMatcher(LoggerMixin):
         if valid_pairs == 0:
             return [], {}
 
-        threshold = thresholds.get('iou', self.iou_threshold)
+        threshold = thresholds.get("iou", self.iou_threshold)
         cost_matrix, success = self._compute_cost_matrix_safe(iou_matrix, threshold, "iou")
 
         if not success:
@@ -745,11 +697,11 @@ class TrackMatcher(LoggerMixin):
 
     def _match_features_safe(
         self,
-        detections: List[Dict],
-        tracks: List[Any],
-        thresholds: Dict[str, float],
-        frame_info: Optional[Dict] = None,
-    ) -> Tuple[List[Tuple[int, int]], Dict[Tuple[int, int], float]]:
+        detections: list[dict],
+        tracks: list[Any],
+        thresholds: dict[str, float],
+        frame_info: dict | None = None,
+    ) -> tuple[list[tuple[int, int]], dict[tuple[int, int], float]]:
         """Matching basado en features con manejo seguro de errores."""
         if not detections or not tracks:
             return [], {}
@@ -773,7 +725,7 @@ class TrackMatcher(LoggerMixin):
                 continue
 
             for j, track in enumerate(tracks):
-                if not hasattr(track, 'features') or track.features is None:
+                if not hasattr(track, "features") or track.features is None:
                     continue
 
                 try:
@@ -790,8 +742,10 @@ class TrackMatcher(LoggerMixin):
         if valid_pairs == 0:
             return [], {}
 
-        threshold = thresholds.get('feature', self.feature_threshold)
-        cost_matrix, success = self._compute_cost_matrix_safe(similarity_matrix, threshold, "feature")
+        threshold = thresholds.get("feature", self.feature_threshold)
+        cost_matrix, success = self._compute_cost_matrix_safe(
+            similarity_matrix, threshold, "feature"
+        )
 
         if not success:
             return [], {}
@@ -815,11 +769,11 @@ class TrackMatcher(LoggerMixin):
 
     def _match_motion_safe(
         self,
-        detections: List[Dict],
-        tracks: List[Any],
-        thresholds: Dict[str, float],
-        frame_info: Optional[Dict] = None,
-    ) -> Tuple[List[Tuple[int, int]], Dict[Tuple[int, int], float]]:
+        detections: list[dict],
+        tracks: list[Any],
+        thresholds: dict[str, float],
+        frame_info: dict | None = None,
+    ) -> tuple[list[tuple[int, int]], dict[tuple[int, int], float]]:
         """Matching basado en movimiento con manejo seguro de errores."""
         if not detections or not tracks:
             return [], {}
@@ -836,9 +790,9 @@ class TrackMatcher(LoggerMixin):
                 continue
 
             for j, track in enumerate(tracks):
-                if hasattr(track, 'predicted_centroid'):
+                if hasattr(track, "predicted_centroid"):
                     track_pos = track.predicted_centroid
-                elif hasattr(track, 'centroid'):
+                elif hasattr(track, "centroid"):
                     track_pos = track.centroid
                 else:
                     continue
@@ -856,7 +810,7 @@ class TrackMatcher(LoggerMixin):
         if valid_pairs == 0:
             return [], {}
 
-        threshold = thresholds.get('motion', self.motion_threshold)
+        threshold = thresholds.get("motion", self.motion_threshold)
         cost_matrix, success = self._compute_cost_matrix_safe(distance_matrix, threshold, "motion")
 
         if not success:
@@ -881,11 +835,11 @@ class TrackMatcher(LoggerMixin):
 
     def _match_shape_safe(
         self,
-        detections: List[Dict],
-        tracks: List[Any],
-        thresholds: Dict[str, float],
-        frame_info: Optional[Dict] = None,
-    ) -> Tuple[List[Tuple[int, int]], Dict[Tuple[int, int], float]]:
+        detections: list[dict],
+        tracks: list[Any],
+        thresholds: dict[str, float],
+        frame_info: dict | None = None,
+    ) -> tuple[list[tuple[int, int]], dict[tuple[int, int], float]]:
         """Matching basado en forma con manejo seguro de errores."""
         if not detections or not tracks:
             return [], {}
@@ -912,7 +866,7 @@ class TrackMatcher(LoggerMixin):
                 continue
 
             for j, track in enumerate(tracks):
-                if not hasattr(track, 'bbox') or not track.bbox:
+                if not hasattr(track, "bbox") or not track.bbox:
                     continue
 
                 trk_box = track.bbox
@@ -942,7 +896,7 @@ class TrackMatcher(LoggerMixin):
         if valid_pairs == 0:
             return [], {}
 
-        threshold = thresholds.get('shape', self.shape_threshold)
+        threshold = thresholds.get("shape", self.shape_threshold)
         cost_matrix, success = self._compute_cost_matrix_safe(shape_matrix, threshold, "shape")
 
         if not success:
@@ -967,11 +921,11 @@ class TrackMatcher(LoggerMixin):
 
     def _match_spatial_safe(
         self,
-        detections: List[Dict],
-        tracks: List[Any],
-        thresholds: Dict[str, float],
-        frame_info: Optional[Dict] = None,
-    ) -> Tuple[List[Tuple[int, int]], Dict[Tuple[int, int], float]]:
+        detections: list[dict],
+        tracks: list[Any],
+        thresholds: dict[str, float],
+        frame_info: dict | None = None,
+    ) -> tuple[list[tuple[int, int]], dict[tuple[int, int], float]]:
         """Matching basado en distancia espacial con manejo seguro de errores."""
         if not detections or not tracks:
             return [], {}
@@ -988,7 +942,7 @@ class TrackMatcher(LoggerMixin):
                 continue
 
             for j, track in enumerate(tracks):
-                if not hasattr(track, 'centroid'):
+                if not hasattr(track, "centroid"):
                     continue
 
                 try:
@@ -1004,7 +958,7 @@ class TrackMatcher(LoggerMixin):
         if valid_pairs == 0:
             return [], {}
 
-        threshold = thresholds.get('spatial', self.spatial_threshold) / 100.0
+        threshold = thresholds.get("spatial", self.spatial_threshold) / 100.0
         cost_matrix, success = self._compute_cost_matrix_safe(distance_matrix, threshold, "spatial")
 
         if not success:
@@ -1030,11 +984,10 @@ class TrackMatcher(LoggerMixin):
     def _get_adaptive_thresholds(
         self,
         level: MatchLevel,
-        detections: List[Dict],
-        tracks: List[Any],
-    ) -> Dict[str, float]:
-        """
-        Obtiene thresholds adaptativos según el contexto.
+        detections: list[dict],
+        tracks: list[Any],
+    ) -> dict[str, float]:
+        """Obtiene thresholds adaptativos según el contexto.
 
         Args:
             level: Nivel de matching.
@@ -1056,25 +1009,24 @@ class TrackMatcher(LoggerMixin):
         thresholds = {}
 
         if level == MatchLevel.IOU:
-            avg_confidence = np.mean([d.get('confidence', 0.5) for d in detections])
-            thresholds['iou'] = self.iou_threshold * (0.8 + 0.4 * (1 - avg_confidence))
-            thresholds['iou'] = max(0.1, min(0.7, thresholds['iou']))
+            avg_confidence = np.mean([d.get("confidence", 0.5) for d in detections])
+            thresholds["iou"] = self.iou_threshold * (0.8 + 0.4 * (1 - avg_confidence))
+            thresholds["iou"] = max(0.1, min(0.7, thresholds["iou"]))
 
         elif level == MatchLevel.FEATURE:
             feature_quality = self._estimate_feature_quality(detections, tracks)
-            thresholds['feature'] = self.feature_threshold * (1.0 - 0.3 * feature_quality)
-            thresholds['feature'] = max(0.3, min(0.9, thresholds['feature']))
+            thresholds["feature"] = self.feature_threshold * (1.0 - 0.3 * feature_quality)
+            thresholds["feature"] = max(0.3, min(0.9, thresholds["feature"]))
 
         elif level == MatchLevel.MOTION:
             avg_speed = self._estimate_avg_speed(tracks)
-            thresholds['motion'] = self.motion_threshold * (0.7 + 0.3 * min(1.0, avg_speed / 20.0))
-            thresholds['motion'] = max(0.3, min(0.9, thresholds['motion']))
+            thresholds["motion"] = self.motion_threshold * (0.7 + 0.3 * min(1.0, avg_speed / 20.0))
+            thresholds["motion"] = max(0.3, min(0.9, thresholds["motion"]))
 
         return thresholds
 
-    def _estimate_feature_quality(self, detections: List[Dict], tracks: List[Any]) -> float:
-        """
-        Estima la calidad promedio de los features disponibles.
+    def _estimate_feature_quality(self, detections: list[dict], tracks: list[Any]) -> float:
+        """Estima la calidad promedio de los features disponibles.
 
         Args:
             detections: Lista de detecciones.
@@ -1092,16 +1044,15 @@ class TrackMatcher(LoggerMixin):
                 qualities.append(0.0)
 
         for track in tracks:
-            if hasattr(track, 'features') and track.features is not None:
+            if hasattr(track, "features") and track.features is not None:
                 qualities.append(1.0)
             else:
                 qualities.append(0.0)
 
         return float(np.mean(qualities)) if qualities else 0.0
 
-    def _estimate_avg_speed(self, tracks: List[Any]) -> float:
-        """
-        Estima la velocidad promedio de los tracks.
+    def _estimate_avg_speed(self, tracks: list[Any]) -> float:
+        """Estima la velocidad promedio de los tracks.
 
         Args:
             tracks: Lista de tracks.
@@ -1112,7 +1063,7 @@ class TrackMatcher(LoggerMixin):
         speeds = []
 
         for track in tracks:
-            if hasattr(track, 'velocity') and track.velocity:
+            if hasattr(track, "velocity") and track.velocity:
                 speed = np.linalg.norm(track.velocity)
                 if not np.isnan(speed) and not np.isinf(speed):
                     speeds.append(speed)

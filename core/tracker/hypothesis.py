@@ -1,15 +1,14 @@
-"""
-Sistema de seguimiento multi-hipótesis (MHT) para tracking robusto.
+"""Sistema de seguimiento multi-hipótesis (MHT) para tracking robusto.
 
 Este módulo implementa un sistema de hipótesis múltiples que permite mantener
 varias posibles trayectorias para un mismo objeto, manejando eficazmente
 occlusiones y ambigüedades en la asociación de datos.
 """
 
-import time
-import threading
 from enum import Enum
-from typing import List, Optional, Dict, Any, Set, Tuple
+import threading
+import time
+from typing import Any
 
 import numpy as np
 
@@ -18,6 +17,7 @@ from core.constants import MAX_TRACK_HISTORY
 
 class HypothesisStatus(Enum):
     """Estados posibles de una hipótesis en el sistema MHT."""
+
     ACTIVE = "active"
     PRUNED = "pruned"
     CONFIRMED = "confirmed"
@@ -25,8 +25,7 @@ class HypothesisStatus(Enum):
 
 
 class TrackHypothesis:
-    """
-    Representa una hipótesis de trayectoria para un objeto en seguimiento.
+    """Representa una hipótesis de trayectoria para un objeto en seguimiento.
 
     Attributes:
         track_id: Identificador único del track al que pertenece la hipótesis.
@@ -43,27 +42,39 @@ class TrackHypothesis:
         velocity: Velocidad estimada de la hipótesis.
         acceleration: Aceleración estimada de la hipótesis.
     """
+
     __slots__ = (
-        'track_id', 'positions', 'features', 'confidence', 'probability',
-        'last_update', 'active', 'parent_id', 'status', 'creation_time',
-        'bbox_history', 'velocity', 'acceleration', '_lock'
+        "track_id",
+        "positions",
+        "features",
+        "confidence",
+        "probability",
+        "last_update",
+        "active",
+        "parent_id",
+        "status",
+        "creation_time",
+        "bbox_history",
+        "velocity",
+        "acceleration",
+        "_lock",
     )
 
     def __init__(
         self,
         track_id: int,
-        positions: Optional[List[Tuple[int, int]]] = None,
-        features: Optional[List[np.ndarray]] = None,
+        positions: list[tuple[int, int]] | None = None,
+        features: list[np.ndarray] | None = None,
         confidence: float = 0.0,
         probability: float = 0.5,
-        last_update: Optional[float] = None,
+        last_update: float | None = None,
         active: bool = True,
-        parent_id: Optional[int] = None,
+        parent_id: int | None = None,
         status: HypothesisStatus = HypothesisStatus.ACTIVE,
-        creation_time: Optional[float] = None,
-        bbox_history: Optional[List[Tuple[int, int, int, int]]] = None,
-        velocity: Tuple[float, float] = (0.0, 0.0),
-        acceleration: Tuple[float, float] = (0.0, 0.0),
+        creation_time: float | None = None,
+        bbox_history: list[tuple[int, int, int, int]] | None = None,
+        velocity: tuple[float, float] = (0.0, 0.0),
+        acceleration: tuple[float, float] = (0.0, 0.0),
     ):
         self.track_id = track_id
         self.positions = positions or []
@@ -78,11 +89,12 @@ class TrackHypothesis:
         self.bbox_history = bbox_history or []
         self.velocity = velocity
         self.acceleration = acceleration
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
-    def update_position(self, position: Tuple[int, int], bbox: Optional[Tuple[int, int, int, int]] = None) -> None:
-        """
-        Actualiza la posición de la hipótesis con nueva observación.
+    def update_position(
+        self, position: tuple[int, int], bbox: tuple[int, int, int, int] | None = None
+    ) -> None:
+        """Actualiza la posición de la hipótesis con nueva observación.
 
         Args:
             position: Nueva posición (x, y) del objeto.
@@ -114,8 +126,7 @@ class TrackHypothesis:
                     )
 
     def add_feature(self, feature: np.ndarray) -> None:
-        """
-        Añade un feature visual a la hipótesis.
+        """Añade un feature visual a la hipótesis.
 
         Args:
             feature: Vector de features a añadir.
@@ -128,15 +139,14 @@ class TrackHypothesis:
 
     def compute_bayesian_probability(
         self,
-        observation: Dict[str, Any],
+        observation: dict[str, Any],
         similarity: float,
         spatial_distance: float,
         max_distance: float = 100.0,
         temporal_weight: float = 0.6,
-        spatial_weight: float = 0.4
+        spatial_weight: float = 0.4,
     ) -> float:
-        """
-        Actualiza la probabilidad usando filtro Bayesiano con normalización.
+        """Actualiza la probabilidad usando filtro Bayesiano con normalización.
 
         Args:
             observation: Observación actual del objeto.
@@ -153,7 +163,7 @@ class TrackHypothesis:
             spatial_score = 1.0 - min(1.0, spatial_distance / max_distance)
             likelihood = (temporal_weight * max(0.0, similarity)) + (spatial_weight * spatial_score)
 
-            det_confidence = observation.get('confidence', 0.5)
+            det_confidence = observation.get("confidence", 0.5)
             confidence_factor = 0.7 + 0.3 * det_confidence
             likelihood *= confidence_factor
 
@@ -169,9 +179,8 @@ class TrackHypothesis:
 
             return self.probability
 
-    def get_average_feature(self) -> Optional[np.ndarray]:
-        """
-        Obtiene el feature promedio de la hipótesis.
+    def get_average_feature(self) -> np.ndarray | None:
+        """Obtiene el feature promedio de la hipótesis.
 
         Returns:
             Optional[np.ndarray]: Feature promedio o None si no hay features.
@@ -186,9 +195,8 @@ class TrackHypothesis:
                 avg_feature = avg_feature / norm
             return avg_feature
 
-    def get_recent_velocity(self, num_samples: int = 5) -> Tuple[float, float]:
-        """
-        Calcula la velocidad promedio reciente.
+    def get_recent_velocity(self, num_samples: int = 5) -> tuple[float, float]:
+        """Calcula la velocidad promedio reciente.
 
         Args:
             num_samples: Número de posiciones a considerar.
@@ -216,8 +224,7 @@ class TrackHypothesis:
             return (total_dx / num_steps, total_dy / num_steps)
 
     def is_expired(self, max_age_seconds: float = 30.0) -> bool:
-        """
-        Verifica si la hipótesis ha expirado por antigüedad.
+        """Verifica si la hipótesis ha expirado por antigüedad.
 
         Args:
             max_age_seconds: Tiempo máximo de vida en segundos.
@@ -227,9 +234,8 @@ class TrackHypothesis:
         """
         return time.time() - self.last_update > max_age_seconds
 
-    def get_position_at_time(self, t: float) -> Optional[Tuple[float, float]]:
-        """
-        Interpola la posición en un momento específico.
+    def get_position_at_time(self, t: float) -> tuple[float, float] | None:
+        """Interpola la posición en un momento específico.
 
         Args:
             t: Timestamp para el cual se desea la posición.
@@ -248,15 +254,18 @@ class TrackHypothesis:
             for i in range(len(times) - 1):
                 if times[i] <= t <= times[i + 1]:
                     alpha = (t - times[i]) / (times[i + 1] - times[i] + 1e-8)
-                    x = self.positions[i][0] + alpha * (self.positions[i + 1][0] - self.positions[i][0])
-                    y = self.positions[i][1] + alpha * (self.positions[i + 1][1] - self.positions[i][1])
+                    x = self.positions[i][0] + alpha * (
+                        self.positions[i + 1][0] - self.positions[i][0]
+                    )
+                    y = self.positions[i][1] + alpha * (
+                        self.positions[i + 1][1] - self.positions[i][1]
+                    )
                     return (x, y)
 
             return None
 
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convierte la hipótesis a diccionario para serialización.
+    def to_dict(self) -> dict[str, Any]:
+        """Convierte la hipótesis a diccionario para serialización.
 
         Returns:
             Dict[str, Any]: Representación en diccionario de la hipótesis.
@@ -279,8 +288,7 @@ class TrackHypothesis:
 
 
 class HypothesisTree:
-    """
-    Árbol de hipótesis para el sistema MHT.
+    """Árbol de hipótesis para el sistema MHT.
 
     Gestiona múltiples hipótesis por track, manteniendo las más probables
     y podando las de baja probabilidad.
@@ -299,10 +307,9 @@ class HypothesisTree:
         self,
         max_depth: int = 10,
         pruning_threshold: float = 0.05,
-        max_hypotheses_per_track: int = 5
+        max_hypotheses_per_track: int = 5,
     ) -> None:
-        """
-        Inicializa el árbol de hipótesis.
+        """Inicializa el árbol de hipótesis.
 
         Args:
             max_depth: Profundidad máxima del árbol.
@@ -313,8 +320,8 @@ class HypothesisTree:
         self.pruning_threshold = pruning_threshold
         self.max_hypotheses_per_track = max_hypotheses_per_track
 
-        self._hypotheses: Dict[int, List[TrackHypothesis]] = {}
-        self._active_hyps: Set[int] = set()
+        self._hypotheses: dict[int, list[TrackHypothesis]] = {}
+        self._active_hyps: set[int] = set()
         self._lock = threading.Lock()
 
         self._stats = {
@@ -329,13 +336,9 @@ class HypothesisTree:
         }
 
     def add_hypothesis(
-        self,
-        track_id: int,
-        hypothesis: TrackHypothesis,
-        parent_id: Optional[int] = None
+        self, track_id: int, hypothesis: TrackHypothesis, parent_id: int | None = None
     ) -> None:
-        """
-        Añade una nueva hipótesis al árbol.
+        """Añade una nueva hipótesis al árbol.
 
         Args:
             track_id: ID del track al que pertenece la hipótesis.
@@ -358,9 +361,8 @@ class HypothesisTree:
             self._normalize_probabilities(track_id)
             self._prune_track(track_id)
 
-    def get_best_hypothesis(self, track_id: int) -> Optional[TrackHypothesis]:
-        """
-        Obtiene la mejor hipótesis para un track según probabilidad.
+    def get_best_hypothesis(self, track_id: int) -> TrackHypothesis | None:
+        """Obtiene la mejor hipótesis para un track según probabilidad.
 
         Args:
             track_id: ID del track.
@@ -377,9 +379,8 @@ class HypothesisTree:
 
             return max(active_hyps, key=lambda h: h.probability)
 
-    def get_top_k_hypotheses(self, track_id: int, k: int = 3) -> List[TrackHypothesis]:
-        """
-        Obtiene las k mejores hipótesis para un track.
+    def get_top_k_hypotheses(self, track_id: int, k: int = 3) -> list[TrackHypothesis]:
+        """Obtiene las k mejores hipótesis para un track.
 
         Args:
             track_id: ID del track.
@@ -399,8 +400,7 @@ class HypothesisTree:
             return sorted_hyps[:k]
 
     def _normalize_probabilities(self, track_id: int) -> None:
-        """
-        Normaliza las probabilidades de todas las hipótesis de un track.
+        """Normaliza las probabilidades de todas las hipótesis de un track.
 
         Args:
             track_id: ID del track.
@@ -424,12 +424,11 @@ class HypothesisTree:
     def update_hypothesis_probabilities(
         self,
         track_id: int,
-        observation: Dict[str, Any],
-        similarities: Dict[int, float],
-        spatial_distances: Dict[int, float]
+        observation: dict[str, Any],
+        similarities: dict[int, float],
+        spatial_distances: dict[int, float],
     ) -> None:
-        """
-        Actualiza las probabilidades de todas las hipótesis de un track.
+        """Actualiza las probabilidades de todas las hipótesis de un track.
 
         Args:
             track_id: ID del track.
@@ -449,17 +448,12 @@ class HypothesisTree:
                 similarity = similarities.get(hyp_id, 0.3)
                 spatial_dist = spatial_distances.get(hyp_id, 50.0)
 
-                hyp.compute_bayesian_probability(
-                    observation,
-                    similarity,
-                    spatial_dist
-                )
+                hyp.compute_bayesian_probability(observation, similarity, spatial_dist)
 
             self._normalize_probabilities(track_id)
 
     def confirm_hypothesis(self, track_id: int, hypothesis_id: int) -> bool:
-        """
-        Confirma una hipótesis como la correcta para un track.
+        """Confirma una hipótesis como la correcta para un track.
 
         Args:
             track_id: ID del track.
@@ -482,8 +476,7 @@ class HypothesisTree:
             return False
 
     def _reject_other_hypotheses(self, track_id: int, confirmed_id: int) -> None:
-        """
-        Rechaza todas las hipótesis excepto la confirmada.
+        """Rechaza todas las hipótesis excepto la confirmada.
 
         Args:
             track_id: ID del track.
@@ -498,8 +491,7 @@ class HypothesisTree:
                 self._stats["total_hypotheses_rejected"] += 1
 
     def _prune_track(self, track_id: int) -> None:
-        """
-        Poda las hipótesis de baja probabilidad para un track específico.
+        """Poda las hipótesis de baja probabilidad para un track específico.
 
         Args:
             track_id: ID del track a podar.
@@ -515,7 +507,7 @@ class HypothesisTree:
 
         if len(hyps) > self.max_hypotheses_per_track:
             sorted_hyps = sorted(hyps, key=lambda h: h.probability, reverse=True)
-            to_keep = sorted_hyps[:self.max_hypotheses_per_track]
+            to_keep = sorted_hyps[: self.max_hypotheses_per_track]
 
             for hyp in hyps:
                 if hyp not in to_keep:
@@ -536,8 +528,7 @@ class HypothesisTree:
         self._stats["last_prune_time"] = time.time()
 
     def prune_all(self) -> int:
-        """
-        Poda todas las hipótesis en el árbol.
+        """Poda todas las hipótesis en el árbol.
 
         Returns:
             int: Número total de hipótesis podadas.
@@ -549,7 +540,7 @@ class HypothesisTree:
                 before = len(self._hypotheses[track_id])
                 self._prune_track(track_id)
                 after = len(self._hypotheses.get(track_id, []))
-                pruned_count += (before - after)
+                pruned_count += before - after
 
             total_hyps = sum(len(hyps) for hyps in self._hypotheses.values())
             num_tracks = len(self._hypotheses)
@@ -563,9 +554,8 @@ class HypothesisTree:
 
             return pruned_count
 
-    def get_most_likely_positions(self, track_id: int, horizon: int = 10) -> List[Tuple[int, int]]:
-        """
-        Obtiene las posiciones más probables futuras para un track.
+    def get_most_likely_positions(self, track_id: int, horizon: int = 10) -> list[tuple[int, int]]:
+        """Obtiene las posiciones más probables futuras para un track.
 
         Args:
             track_id: ID del track.
@@ -589,9 +579,8 @@ class HypothesisTree:
 
         return predictions
 
-    def get_track_hypotheses_history(self, track_id: int) -> List[Dict[str, Any]]:
-        """
-        Obtiene el historial completo de hipótesis para un track.
+    def get_track_hypotheses_history(self, track_id: int) -> list[dict[str, Any]]:
+        """Obtiene el historial completo de hipótesis para un track.
 
         Args:
             track_id: ID del track.
@@ -603,9 +592,8 @@ class HypothesisTree:
             hyps = self._hypotheses.get(track_id, [])
             return [hyp.to_dict() for hyp in hyps]
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del sistema MHT.
+    def get_stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del sistema MHT.
 
         Returns:
             Dict[str, Any]: Estadísticas del árbol de hipótesis.
@@ -613,8 +601,10 @@ class HypothesisTree:
         with self._lock:
             total_hyps = sum(len(hyps) for hyps in self._hypotheses.values())
             active_hyps = sum(
-                1 for hyps in self._hypotheses.values()
-                for h in hyps if h.active and h.status == HypothesisStatus.ACTIVE
+                1
+                for hyps in self._hypotheses.values()
+                for h in hyps
+                if h.active and h.status == HypothesisStatus.ACTIVE
             )
 
             return {
@@ -631,11 +621,13 @@ class HypothesisTree:
                 "memory_usage_estimate": total_hyps * 1024,
                 "hypothesis_status_distribution": {
                     status.value: sum(
-                        1 for h_list in self._hypotheses.values()
-                        for h in h_list if h.status == status
+                        1
+                        for h_list in self._hypotheses.values()
+                        for h in h_list
+                        if h.status == status
                     )
                     for status in HypothesisStatus
-                }
+                },
             }
 
     def clear(self) -> None:
@@ -652,8 +644,7 @@ class HypothesisTree:
             }
 
     def __len__(self) -> int:
-        """
-        Retorna el número total de hipótesis activas.
+        """Retorna el número total de hipótesis activas.
 
         Returns:
             int: Número total de hipótesis.
