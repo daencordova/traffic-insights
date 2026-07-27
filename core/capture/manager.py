@@ -1,38 +1,37 @@
-"""
-Gestor de captura de video con reconexión automática y control de flujo.
+"""Gestor de captura de video con reconexión automática y control de flujo.
 
 Extraído de AsyncPipeline para mejorar la estructura del código.
 """
 
-import time
+from collections.abc import Callable
 import threading
-from typing import Optional, Callable
+import time
 
 import numpy as np
 
 from core.capture.reconnector import Reconnector
-from core.frame_buffer import FrameBuffer, FrameMetadata
-from core.validators import validate_frame
 from core.constants import (
-    CAPTURE_MIN_FPS_CPU,
-    CAPTURE_MAX_FPS_CPU,
-    CAPTURE_TARGET_FPS_CPU,
-    CAPTURE_TARGET_FPS_GPU,
-    CAPTURE_DEFAULT_INTERVAL_CPU,
-    CAPTURE_DEFAULT_INTERVAL_GPU,
-    BUFFER_SKIP_MAX,
-    BUFFER_SKIP_CONSECUTIVE_LIMIT,
     BUFFER_DROP_THRESHOLD,
     BUFFER_RECOVERY_THRESHOLD,
+    BUFFER_SKIP_CONSECUTIVE_LIMIT,
+    BUFFER_SKIP_MAX,
+    CAPTURE_DEFAULT_INTERVAL_CPU,
+    CAPTURE_DEFAULT_INTERVAL_GPU,
     CAPTURE_MAX_CONSECUTIVE_ERRORS,
+    CAPTURE_MAX_FPS_CPU,
+    CAPTURE_MIN_FPS_CPU,
+    CAPTURE_TARGET_FPS_CPU,
+    CAPTURE_TARGET_FPS_GPU,
+    DEFAULT_SLEEP_SHORT,
     MIN_FRAME_DIMENSION,
 )
+from core.frame_buffer import FrameBuffer, FrameMetadata
+from core.validators import validate_frame
 from utils.logger import LoggerMixin
 
 
 class CaptureManager(LoggerMixin):
-    """
-    Gestiona la captura de frames desde una fuente de video.
+    """Gestiona la captura de frames desde una fuente de video.
 
     Responsabilidades:
     - Conexión y reconexión automática
@@ -56,7 +55,7 @@ class CaptureManager(LoggerMixin):
         stop_event: threading.Event,
         pause_event: threading.Event,
         is_cpu_mode: bool = False,
-        capture_interval: Optional[float] = None,
+        capture_interval: float | None = None,
     ):
         self.config = config
         self.buffer = buffer
@@ -65,7 +64,9 @@ class CaptureManager(LoggerMixin):
         self.is_cpu_mode = is_cpu_mode
 
         if capture_interval is None:
-            capture_interval = CAPTURE_DEFAULT_INTERVAL_CPU if is_cpu_mode else CAPTURE_DEFAULT_INTERVAL_GPU
+            capture_interval = (
+                CAPTURE_DEFAULT_INTERVAL_CPU if is_cpu_mode else CAPTURE_DEFAULT_INTERVAL_GPU
+            )
 
         self._capture_interval = capture_interval
         self._last_capture_time = time.time()
@@ -76,8 +77,7 @@ class CaptureManager(LoggerMixin):
         self._current_fps = 0.0
 
         self._reconnector = Reconnector(
-            max_attempts=config.camera.reconnect_attempts,
-            delay=config.camera.reconnect_delay
+            max_attempts=config.camera.reconnect_attempts, delay=config.camera.reconnect_delay
         )
 
         self._flow_control_enabled = True
@@ -89,8 +89,8 @@ class CaptureManager(LoggerMixin):
         self._max_capture_fps = CAPTURE_MAX_FPS_CPU if is_cpu_mode else CAPTURE_TARGET_FPS_GPU
         self._capture_fps_target = CAPTURE_TARGET_FPS_CPU if is_cpu_mode else CAPTURE_TARGET_FPS_GPU
 
-        self._on_frame_dropped: Optional[Callable[[int], None]] = None
-        self._on_frame_captured: Optional[Callable[[int], None]] = None
+        self._on_frame_dropped: Callable[[int], None] | None = None
+        self._on_frame_captured: Callable[[int], None] | None = None
 
         self._max_consecutive_errors = CAPTURE_MAX_CONSECUTIVE_ERRORS
 
@@ -98,12 +98,11 @@ class CaptureManager(LoggerMixin):
             "CaptureManager inicializado",
             is_cpu_mode=is_cpu_mode,
             capture_fps_target=self._capture_fps_target,
-            capture_interval=self._capture_interval
+            capture_interval=self._capture_interval,
         )
 
-    def run(self, source: Optional[str] = None) -> None:
-        """
-        Bucle principal de captura.
+    def run(self, source: str | None = None) -> None:
+        """Bucle principal de captura.
 
         Args:
             source: Fuente de video (opcional).
@@ -118,7 +117,7 @@ class CaptureManager(LoggerMixin):
             try:
                 current_time = time.time()
                 if current_time - self._last_capture_time < self._capture_interval:
-                    time.sleep(0.001)
+                    time.sleep(DEFAULT_SLEEP_SHORT)
                     continue
                 self._last_capture_time = current_time
 
@@ -152,7 +151,9 @@ class CaptureManager(LoggerMixin):
                     cap = None
                     continue
 
-                if not validate_frame(frame, min_width=MIN_FRAME_DIMENSION, min_height=MIN_FRAME_DIMENSION):
+                if not validate_frame(
+                    frame, min_width=MIN_FRAME_DIMENSION, min_height=MIN_FRAME_DIMENSION
+                ):
                     self.logger.debug("Frame inválido, saltando...")
                     continue
 
@@ -174,8 +175,7 @@ class CaptureManager(LoggerMixin):
         self.logger.info("Bucle de captura terminado")
 
     def _apply_flow_control(self) -> bool:
-        """
-        Aplica control de flujo basado en el estado del buffer.
+        """Aplica control de flujo basado en el estado del buffer.
 
         Returns:
             bool: True si el frame debe ser procesado.
@@ -191,27 +191,24 @@ class CaptureManager(LoggerMixin):
                 self._dropped_count += 1
                 self._consecutive_skips += 1
                 if self._consecutive_skips > BUFFER_SKIP_CONSECUTIVE_LIMIT:
-                    self._add_health_issue(f"Buffer crítico: {buffer_usage*100:.1f}%")
+                    self._add_health_issue(f"Buffer crítico: {buffer_usage * 100:.1f}%")
                     if self.is_cpu_mode:
                         self._capture_fps_target = max(
-                            self._min_capture_fps,
-                            self._capture_fps_target * 0.9
+                            self._min_capture_fps, self._capture_fps_target * 0.9
                         )
                         self._capture_interval = 1.0 / self._capture_fps_target
                 if self._on_frame_dropped:
                     self._on_frame_dropped(self._frame_count)
                 return False
-            else:
-                self._frame_skip_counter = 0
-                self._consecutive_skips = max(0, self._consecutive_skips - 2)
+            self._frame_skip_counter = 0
+            self._consecutive_skips = max(0, self._consecutive_skips - 2)
 
         elif buffer_usage < BUFFER_RECOVERY_THRESHOLD:
             self._frame_skip_counter = 0
             self._consecutive_skips = max(0, self._consecutive_skips - 2)
             if self._capture_fps_target < self._max_capture_fps:
                 self._capture_fps_target = min(
-                    self._max_capture_fps,
-                    self._capture_fps_target + 0.5
+                    self._max_capture_fps, self._capture_fps_target + 0.5
                 )
                 self._capture_interval = 1.0 / self._capture_fps_target
 
@@ -221,8 +218,7 @@ class CaptureManager(LoggerMixin):
         return True
 
     def _store_frame(self, frame: np.ndarray) -> None:
-        """
-        Almacena un frame en el buffer.
+        """Almacena un frame en el buffer.
 
         Args:
             frame: Frame a almacenar.
