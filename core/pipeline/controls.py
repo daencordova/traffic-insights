@@ -59,7 +59,7 @@ class ControlHandler(LoggerMixin):
             self.toggle_pause()
             status = "pausado" if self.is_paused else "reanudado"
             self.logger.info(f"Sistema {status}")
-            print(f"{'⏸️' if self.is_paused else '▶️'} Sistema {status}")
+            self.logger.info(f"{'⏸️' if self.is_paused else '▶️'} Sistema {status}")
 
         elif key == ord("s"):
             self.save_screenshot()
@@ -98,7 +98,7 @@ class ControlHandler(LoggerMixin):
 
             cv2.imwrite(filepath, frame)
             self.logger.info(f"Captura guardada: {filepath}")
-            print(f"📸 Captura guardada: {filepath}")
+            self.logger.info(f"📸 Captura guardada: {filepath}")
 
             if "on_screenshot" in self.callbacks:
                 self.callbacks["on_screenshot"](filepath)
@@ -113,12 +113,12 @@ class ControlHandler(LoggerMixin):
         """Reinicia los contadores y el tracker."""
         if "on_reset" in self.callbacks:
             self.callbacks["on_reset"]()
-            print("🔄 Sistema reiniciado")
+            self.logger.info("🔄 Sistema reiniciado")
             self.logger.info("Sistema reiniciado")
 
     def show_help(self) -> None:
         """Muestra la ayuda en consola."""
-        print("""
+        self.logger.info("""
         ═══════════════════════════════════════════════════
         🎮 CONTROLES DEL SISTEMA
         ═══════════════════════════════════════════════════

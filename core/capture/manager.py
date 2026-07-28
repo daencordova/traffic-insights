@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 from core.capture.reconnector import Reconnector
-from core.constants.pipeline import (
+from core.constants import (
     BUFFER_DROP_THRESHOLD,
     BUFFER_RECOVERY_THRESHOLD,
     BUFFER_SKIP_CONSECUTIVE_LIMIT,
@@ -22,16 +22,15 @@ from core.constants.pipeline import (
     CAPTURE_MIN_FPS_CPU,
     CAPTURE_TARGET_FPS_CPU,
     CAPTURE_TARGET_FPS_GPU,
-)
-from core.constants.system import (
     DEFAULT_SLEEP_SHORT,
-)
-from core.constants.vision import (
     MIN_FRAME_DIMENSION,
 )
 from core.frame_buffer import FrameBuffer, FrameMetadata
 from core.validators import validate_frame
 from utils.logger import LoggerMixin
+
+BUFFER_USAGE_RECOVERY_BOUNDARY = 0.6
+"""Umbral para considerar que el buffer se está recuperando."""
 
 
 class CaptureManager(LoggerMixin):
@@ -58,9 +57,20 @@ class CaptureManager(LoggerMixin):
         buffer: FrameBuffer,
         stop_event: threading.Event,
         pause_event: threading.Event,
+        *,
         is_cpu_mode: bool = False,
         capture_interval: float | None = None,
-    ):
+    ) -> None:
+        """Inicializa el gestor de captura.
+
+        Args:
+            config: Configuración del sistema.
+            buffer: Buffer circular para frames.
+            stop_event: Evento para detener la captura.
+            pause_event: Evento para pausar la captura.
+            is_cpu_mode: Si está en modo CPU.
+            capture_interval: Intervalo de captura personalizado (opcional).
+        """
         self.config = config
         self.buffer = buffer
         self.stop_event = stop_event
@@ -97,6 +107,7 @@ class CaptureManager(LoggerMixin):
         self._on_frame_captured: Callable[[int], None] | None = None
 
         self._max_consecutive_errors = CAPTURE_MAX_CONSECUTIVE_ERRORS
+        self._health_issues: list[str] = []
 
         self.logger.info(
             "CaptureManager inicializado",
@@ -119,34 +130,23 @@ class CaptureManager(LoggerMixin):
 
         while not self.stop_event.is_set():
             try:
-                current_time = time.time()
-                if current_time - self._last_capture_time < self._capture_interval:
+                if not self._should_capture_frame():
                     time.sleep(DEFAULT_SLEEP_SHORT)
                     continue
-                self._last_capture_time = current_time
 
                 if self.pause_event.is_set():
                     time.sleep(0.01)
                     continue
 
-                if cap is None or not cap.isOpened():
-                    cap = self._reconnector.connect(source, self.config.camera)
-                    if cap is None:
-                        self.logger.warning("No se pudo conectar, reintentando...")
-                        time.sleep(self._reconnector.delay)
-                        consecutive_errors += 1
-                        if consecutive_errors > self._max_consecutive_errors:
-                            self._add_health_issue("Fallo de conexión persistente a la fuente")
-                            consecutive_errors = 0
-                        continue
+                cap = self._ensure_connection(cap, source, consecutive_errors)
+                if cap is None:
+                    consecutive_errors += 1
+                    if consecutive_errors > self._max_consecutive_errors:
+                        self._add_health_issue("Fallo de conexión persistente a la fuente")
+                        consecutive_errors = 0
+                    continue
 
-                    consecutive_errors = 0
-                    ret, test_frame = cap.read()
-                    if not ret or test_frame is None:
-                        self.logger.warning("Frame de prueba falló, reconectando...")
-                        cap.release()
-                        cap = None
-                        continue
+                consecutive_errors = 0
 
                 ret, frame = cap.read()
                 if not ret or frame is None:
@@ -178,6 +178,48 @@ class CaptureManager(LoggerMixin):
 
         self.logger.info("Bucle de captura terminado")
 
+    def _should_capture_frame(self) -> bool:
+        """Verifica si es momento de capturar un frame.
+
+        Returns:
+            bool: True si se debe capturar un frame.
+        """
+        current_time = time.time()
+        if current_time - self._last_capture_time < self._capture_interval:
+            return False
+        self._last_capture_time = current_time
+        return True
+
+    def _ensure_connection(self, cap, source: str, consecutive_errors: int):
+        """Asegura que la conexión esté activa.
+
+        Args:
+            cap: Captura actual o None.
+            source: Fuente de video.
+            consecutive_errors: Número de errores consecutivos.
+
+        Returns:
+            Captura activa o None.
+        """
+        if cap is not None and cap.isOpened():
+            return cap
+
+        self.logger.debug("Conectando a la fuente...")
+        cap = self._reconnector.connect(source, self.config.camera)
+
+        if cap is None:
+            self.logger.warning("No se pudo conectar, reintentando...")
+            time.sleep(self._reconnector.delay)
+            return None
+
+        ret, test_frame = cap.read()
+        if not ret or test_frame is None:
+            self.logger.warning("Frame de prueba falló, reconectando...")
+            cap.release()
+            return None
+
+        return cap
+
     def _apply_flow_control(self) -> bool:
         """Aplica control de flujo basado en el estado del buffer.
 
@@ -190,36 +232,58 @@ class CaptureManager(LoggerMixin):
         buffer_usage = self.buffer.count / self.buffer.max_size if self.buffer.max_size > 0 else 0
 
         if buffer_usage > BUFFER_DROP_THRESHOLD:
-            self._frame_skip_counter += 1
-            if self._frame_skip_counter < self._max_frame_skip:
-                self._dropped_count += 1
-                self._consecutive_skips += 1
-                if self._consecutive_skips > BUFFER_SKIP_CONSECUTIVE_LIMIT:
-                    self._add_health_issue(f"Buffer crítico: {buffer_usage * 100:.1f}%")
-                    if self.is_cpu_mode:
-                        self._capture_fps_target = max(
-                            self._min_capture_fps, self._capture_fps_target * 0.9
-                        )
-                        self._capture_interval = 1.0 / self._capture_fps_target
-                if self._on_frame_dropped:
-                    self._on_frame_dropped(self._frame_count)
-                return False
-            self._frame_skip_counter = 0
-            self._consecutive_skips = max(0, self._consecutive_skips - 2)
+            return self._handle_buffer_overflow(buffer_usage)
 
-        elif buffer_usage < BUFFER_RECOVERY_THRESHOLD:
-            self._frame_skip_counter = 0
-            self._consecutive_skips = max(0, self._consecutive_skips - 2)
-            if self._capture_fps_target < self._max_capture_fps:
-                self._capture_fps_target = min(
-                    self._max_capture_fps, self._capture_fps_target + 0.5
-                )
-                self._capture_interval = 1.0 / self._capture_fps_target
+        if buffer_usage < BUFFER_RECOVERY_THRESHOLD:
+            self._handle_buffer_recovery()
+            return True
 
-        elif buffer_usage < 0.6:
+        if buffer_usage < BUFFER_USAGE_RECOVERY_BOUNDARY:
             self._consecutive_skips = max(0, self._consecutive_skips - 1)
 
         return True
+
+    def _handle_buffer_overflow(self, buffer_usage: float) -> bool:
+        """Maneja el desbordamiento del buffer.
+
+        Args:
+            buffer_usage: Uso actual del buffer (0-1).
+
+        Returns:
+            bool: True si el frame debe ser procesado.
+        """
+        self._frame_skip_counter += 1
+
+        if self._frame_skip_counter < self._max_frame_skip:
+            self._dropped_count += 1
+            self._consecutive_skips += 1
+
+            if self._consecutive_skips > BUFFER_SKIP_CONSECUTIVE_LIMIT:
+                self._add_health_issue(f"Buffer crítico: {buffer_usage * 100:.1f}%")
+                if self.is_cpu_mode:
+                    self._reduce_capture_fps()
+
+            if self._on_frame_dropped:
+                self._on_frame_dropped(self._frame_count)
+            return False
+
+        self._frame_skip_counter = 0
+        self._consecutive_skips = max(0, self._consecutive_skips - 2)
+        return True
+
+    def _handle_buffer_recovery(self) -> None:
+        """Maneja la recuperación del buffer."""
+        self._frame_skip_counter = 0
+        self._consecutive_skips = max(0, self._consecutive_skips - 2)
+
+        if self._capture_fps_target < self._max_capture_fps:
+            self._capture_fps_target = min(self._max_capture_fps, self._capture_fps_target + 0.5)
+            self._capture_interval = 1.0 / self._capture_fps_target
+
+    def _reduce_capture_fps(self) -> None:
+        """Reduce el FPS de captura para aliviar el buffer."""
+        self._capture_fps_target = max(self._min_capture_fps, self._capture_fps_target * 0.9)
+        self._capture_interval = 1.0 / self._capture_fps_target
 
     def _store_frame(self, frame: np.ndarray) -> None:
         """Almacena un frame en el buffer.
@@ -258,6 +322,9 @@ class CaptureManager(LoggerMixin):
     def _add_health_issue(self, issue: str) -> None:
         """Registra un problema de salud del sistema."""
         timestamp = time.strftime("%H:%M:%S")
+        self._health_issues.append(f"[{timestamp}] {issue}")
+        if len(self._health_issues) > 50:
+            self._health_issues = self._health_issues[-25:]
         self.logger.warning(f"[{timestamp}] {issue}")
 
     @property
@@ -293,6 +360,7 @@ class CaptureManager(LoggerMixin):
             "capture_interval": self._capture_interval,
             "is_paused": self.pause_event.is_set(),
             "is_running": not self.stop_event.is_set(),
+            "health_issues": self._health_issues[-5:],
         }
 
     def stop(self) -> None:

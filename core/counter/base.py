@@ -20,15 +20,19 @@ Componentes principales:
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 from core.counter.crossing_detector import CrossingDetector
 from core.counter.line_manager import CountingLine, LineManager
 from core.counter.statistics_collector import StatisticsCollector, VehicleEvent
 from core.interfaces import ICounter
 from utils.logger import LoggerMixin
+
+POINT_DIMENSION = 2
+VELOCITY_DIMENSION = 2
 
 
 class VehicleCounter(ICounter, LoggerMixin):
@@ -219,17 +223,14 @@ class VehicleCounter(ICounter, LoggerMixin):
         if centroid is None:
             return False
 
-        if not isinstance(centroid, (tuple, list)) or len(centroid) != 2:
+        if not isinstance(centroid, (tuple, list)) or len(centroid) != POINT_DIMENSION:
             return False
 
         x, y = centroid
         if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
             return False
 
-        if x < 0 or y < 0:
-            return False
-
-        return True
+        return not (x < 0 or y < 0)
 
     def _check_line_crossing(
         self, object_id: int, centroid: tuple[int, int], line: CountingLine, height: int
@@ -304,7 +305,7 @@ class VehicleCounter(ICounter, LoggerMixin):
             track_data: Datos del track.
         """
         velocity = track_data.get("velocity", (0, 0))
-        if isinstance(velocity, (tuple, list)) and len(velocity) == 2:
+        if isinstance(velocity, (tuple, list)) and len(velocity) == VELOCITY_DIMENSION:
             self.stats_collector.record_speed(object_id, velocity)
 
     def _update_minute_stats(self) -> None:

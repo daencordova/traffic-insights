@@ -1,5 +1,4 @@
-"""Gestor de caché para features de re-identificación
-"""
+"""Gestor de caché para features de re-identificación."""
 
 import time
 from typing import Any
@@ -11,7 +10,7 @@ from utils.logger import LoggerMixin
 
 
 class FeatureEntry:
-    """Entrada en el caché de features"""
+    """Entrada en el caché de features."""
 
     __slots__ = ("track_id", "features", "confidence", "last_seen", "last_position", "access_count")
 
@@ -41,7 +40,7 @@ class FeatureEntry:
 
 
 class FeatureCacheManager(LoggerMixin):
-    """Gestor de caché para features con política LRU (Least Recently Used)
+    """Gestor de caché para features con política LRU (Least Recently Used).
 
     Características:
     - Límite de tamaño con LRU
@@ -75,8 +74,7 @@ class FeatureCacheManager(LoggerMixin):
         )
 
     def add(self, track_id: int, features: np.ndarray, confidence: float = 0.5):
-        """Añade un track al caché
-        """
+        """Añade un track al caché."""
         if features is None or len(features) == 0:
             return
 
@@ -106,7 +104,7 @@ class FeatureCacheManager(LoggerMixin):
             self._last_cleanup = time.time()
 
     def get(self, track_id: int) -> FeatureEntry | None:
-        """Obtiene un track del caché
+        """Obtiene un track del caché.
 
         Args:
             track_id: ID del track
@@ -135,7 +133,7 @@ class FeatureCacheManager(LoggerMixin):
         return entry
 
     def remove(self, track_id: int) -> bool:
-        """Elimina un track del caché"""
+        """Elimina un track del caché."""
         if track_id in self._entries:
             del self._entries[track_id]
             if track_id in self._access_order:
@@ -152,7 +150,7 @@ class FeatureCacheManager(LoggerMixin):
         similarity_threshold: float = 0.6,
         spatial_threshold: float = 100.0,
     ) -> list:
-        """Encuentra los mejores candidatos para re-identificación
+        """Encuentra los mejores candidatos para re-identificación.
 
         Args:
             query_features: Features de la detección actual
@@ -216,7 +214,7 @@ class FeatureCacheManager(LoggerMixin):
         return candidates[:max_candidates]
 
     def _evict_oldest(self):
-        """Elimina el entry más antiguo según LRU"""
+        """Elimina el entry más antiguo según LRU."""
         if not self._access_order:
             return
 
@@ -225,7 +223,7 @@ class FeatureCacheManager(LoggerMixin):
         self.logger.debug("Entry eliminado por LRU", track_id=oldest_id)
 
     def _cleanup_expired(self):
-        """Limpia entradas expiradas"""
+        """Limpia entradas expiradas."""
         current_time = time.time()
         expired_ids = []
 
@@ -240,7 +238,7 @@ class FeatureCacheManager(LoggerMixin):
             self.logger.debug("Entradas expiradas eliminadas", count=len(expired_ids))
 
     def clear(self):
-        """Limpia todo el caché"""
+        """Limpia todo el caché."""
         count = len(self._entries)
         self._entries.clear()
         self._access_order.clear()
@@ -248,7 +246,7 @@ class FeatureCacheManager(LoggerMixin):
         self.logger.info("Caché limpiado", entries_removed=count)
 
     def get_stats(self) -> dict[str, Any]:
-        """Obtiene estadísticas del caché"""
+        """Obtiene estadísticas del caché."""
         total_requests = self._hits + self._misses
 
         return {

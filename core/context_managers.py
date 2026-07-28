@@ -1,7 +1,7 @@
 """Context managers especializados para gestión de recursos."""
 
 from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 import gc
 from pathlib import Path
 import threading
@@ -22,7 +22,8 @@ def timer_context(name: str = "operation") -> Generator[float, None, None]:
     """Context manager para medir tiempo de ejecución.
 
     Args:
-        name: Nombre de la operación a medir
+        name: Nombre de la operación a medir (no se usa directamente,
+              pero se mantiene por compatibilidad con la API).
 
     Yields:
         Tiempo transcurrido en segundos
@@ -39,32 +40,31 @@ def memory_tracker_context(name: str = "memory") -> Generator[dict[str, float], 
     """Context manager para monitorear uso de memoria.
 
     Args:
-        name: Nombre del contexto
+        name: Nombre del contexto.
 
     Yields:
-        Diccionario con estadísticas de memoria
+        Diccionario con estadísticas iniciales de memoria.
     """
     start_memory = get_memory_usage()
     start_time = time.time()
 
-    try:
-        yield {
-            "start_memory_mb": start_memory.get("rss_mb", 0),
-            "start_time": start_time,
-            "name": name,
-        }
-    finally:
-        end_memory = get_memory_usage()
-        end_time = time.time()
+    yield {
+        "start_memory_mb": start_memory.get("rss_mb", 0),
+        "start_time": start_time,
+        "name": name,
+    }
 
-        stats = {
-            "name": name,
-            "duration_seconds": end_time - start_time,
-            "start_memory_mb": start_memory.get("rss_mb", 0),
-            "end_memory_mb": end_memory.get("rss_mb", 0),
-            "memory_delta_mb": end_memory.get("rss_mb", 0) - start_memory.get("rss_mb", 0),
-            "system_percent": end_memory.get("system_percent", 0),
-        }
+    end_memory = get_memory_usage()
+    end_time = time.time()
+
+    _stats = {
+        "name": name,
+        "duration_seconds": end_time - start_time,
+        "start_memory_mb": start_memory.get("rss_mb", 0),
+        "end_memory_mb": end_memory.get("rss_mb", 0),
+        "memory_delta_mb": end_memory.get("rss_mb", 0) - start_memory.get("rss_mb", 0),
+        "system_percent": end_memory.get("system_percent", 0),
+    }
 
 
 @contextmanager
@@ -72,13 +72,13 @@ def video_capture_context(source: str | int) -> Generator[cv2.VideoCapture, None
     """Context manager para captura de video con manejo automático de recursos.
 
     Args:
-        source: Fuente de video (número de dispositivo o ruta)
+        source: Fuente de video (número de dispositivo o ruta).
 
     Yields:
-        Objeto VideoCapture configurado
+        Objeto VideoCapture configurado.
 
     Raises:
-        RuntimeError: Si no se puede abrir la fuente
+        RuntimeError: Si no se puede abrir la fuente.
     """
     cap = None
     try:
@@ -101,15 +101,13 @@ def image_window_context(window_name: str) -> Generator[None, None, None]:
     """Context manager para ventanas de imagen con limpieza automática.
 
     Args:
-        window_name: Nombre de la ventana
+        window_name: Nombre de la ventana.
     """
     try:
         yield
     finally:
-        try:
+        with suppress(cv2.error):
             cv2.destroyWindow(window_name)
-        except cv2.error:
-            pass
 
 
 @contextmanager
@@ -119,11 +117,11 @@ def lock_context(
     """Context manager para locks con timeout opcional.
 
     Args:
-        lock: Objeto Lock a adquirir
-        timeout: Timeout en segundos (opcional)
+        lock: Objeto Lock a adquirir.
+        timeout: Timeout en segundos (opcional).
 
     Yields:
-        True si se adquirió el lock, False si timeout
+        True si se adquirió el lock, False si timeout.
     """
     acquired = False
     try:
@@ -146,24 +144,19 @@ def file_context(
     """Context manager para archivos con manejo automático.
 
     Args:
-        filepath: Ruta del archivo
-        mode: Modo de apertura
-        encoding: Codificación
+        filepath: Ruta del archivo.
+        mode: Modo de apertura.
+        encoding: Codificación.
 
     Yields:
-        Objeto archivo abierto
+        Objeto archivo abierto.
     """
     path = Path(filepath)
     if "w" in mode or "a" in mode:
         path.parent.mkdir(parents=True, exist_ok=True)
 
-    f = None
-    try:
-        f = open(filepath, mode, encoding=encoding)
+    with open(filepath, mode, encoding=encoding) as f:
         yield f
-    finally:
-        if f is not None:
-            f.close()
 
 
 @contextmanager
@@ -171,10 +164,10 @@ def gc_context(aggressive: bool = False) -> Generator[dict[str, int], None, None
     """Context manager para control de garbage collection.
 
     Args:
-        aggressive: Si usar limpieza agresiva
+        aggressive: Si usar limpieza agresiva.
 
     Yields:
-        Estadísticas de GC
+        Estadísticas de GC antes de la limpieza.
     """
     gc.disable()
     stats_before = {
@@ -191,44 +184,39 @@ def gc_context(aggressive: bool = False) -> Generator[dict[str, int], None, None
             for _ in range(3):
                 gc.collect()
 
-        stats_after = {
-            "collected_objects": collected,
-            "garbage_count": len(gc.garbage),
-            "gc_enabled": gc.isenabled(),
-        }
-
-
 @contextmanager
 def performance_context(name: str = "operation") -> Generator[dict[str, Any], None, None]:
     """Context manager para medir rendimiento completo (tiempo + memoria).
 
     Args:
-        name: Nombre de la operación
+        name: Nombre de la operación.
 
     Yields:
-        Diccionario con estadísticas de rendimiento
+        Diccionario con estadísticas de rendimiento actualizadas al finalizar.
     """
     start_time = time.perf_counter()
     start_memory = get_memory_usage()
 
-    try:
-        yield {
-            "name": name,
-            "start_time": start_time,
-            "start_memory_mb": start_memory.get("rss_mb", 0),
-        }
-    finally:
-        end_time = time.perf_counter()
-        end_memory = get_memory_usage()
+    stats = {
+        "name": name,
+        "start_time": start_time,
+        "start_memory_mb": start_memory.get("rss_mb", 0),
+    }
 
-        stats = {
-            "name": name,
+    yield stats
+
+    end_time = time.perf_counter()
+    end_memory = get_memory_usage()
+
+    stats.update(
+        {
             "duration_ms": (end_time - start_time) * 1000,
             "duration_seconds": end_time - start_time,
             "memory_delta_mb": end_memory.get("rss_mb", 0) - start_memory.get("rss_mb", 0),
-            "start_memory_mb": start_memory.get("rss_mb", 0),
             "end_memory_mb": end_memory.get("rss_mb", 0),
+            "start_memory_mb": start_memory.get("rss_mb", 0),
         }
+    )
 
 
 class VideoCaptureContext(LoggerMixin):
@@ -366,11 +354,11 @@ class ResourcePool(LoggerMixin):
         """Obtiene un recurso del pool o crea uno nuevo.
 
         Args:
-            resource_type: Tipo de recurso
-            creator: Función que crea el recurso
+            resource_type: Tipo de recurso.
+            creator: Función que crea el recurso.
 
         Returns:
-            Recurso o None si no se puede crear
+            Recurso o None si no se puede crear.
         """
         with lock_context(self._lock, timeout=self.timeout) as acquired:
             if not acquired:
@@ -402,11 +390,11 @@ class ResourcePool(LoggerMixin):
         """Libera un recurso de vuelta al pool.
 
         Args:
-            resource_type: Tipo de recurso
-            resource: Recurso a liberar
+            resource_type: Tipo de recurso.
+            resource: Recurso a liberar.
 
         Returns:
-            True si se liberó correctamente
+            True si se liberó correctamente.
         """
         with lock_context(self._lock, timeout=self.timeout) as acquired:
             if not acquired:
@@ -455,7 +443,7 @@ class ResourcePool(LoggerMixin):
         """Limpia el pool.
 
         Args:
-            resource_type: Tipo específico a limpiar, o None para todos
+            resource_type: Tipo específico a limpiar, o None para todos.
         """
         with lock_context(self._lock) as acquired:
             if not acquired:

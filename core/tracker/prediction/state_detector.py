@@ -4,15 +4,16 @@ Detecta el estado de movimiento de un objeto basado en
 su historial de posiciones y velocidades.
 """
 
+from collections import Counter
 from enum import Enum
+import time
 from typing import Any
 
 import numpy as np
 
 
 class TrajectoryState(Enum):
-    """Estados posibles de la trayectoria de un objeto.
-    """
+    """Estados posibles de la trayectoria de un objeto."""
 
     MOVING = "moving"
     STOPPED = "stopped"
@@ -58,8 +59,6 @@ class StateDetector:
         Returns:
             TrajectoryState: Estado detectado
         """
-        import time
-
         start_time = time.perf_counter()
 
         if len(positions) < 3 or len(velocities) < 2:
@@ -194,8 +193,6 @@ class StateDetector:
         history = self.get_state_history(track_id)
         if not history:
             return None
-
-        from collections import Counter
 
         counter = Counter(history)
         return max(counter, key=counter.get)

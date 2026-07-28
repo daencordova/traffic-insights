@@ -156,16 +156,16 @@ class YOLODetector(IDetector, LoggerMixin):
 
         try:
             model = YOLO(self.config.model_path)
-        except FileNotFoundError as e:
+        except FileNotFoundError as error:
             raise ModelLoadError(
                 f"Modelo no encontrado: {self.config.model_path}",
-                {"model_path": self.config.model_path, "error": str(e)},
-            )
-        except Exception as e:
+                {"model_path": self.config.model_path, "error": str(error)},
+            ) from error
+        except Exception as error:
             raise ModelLoadError(
                 f"Error cargando modelo {self.config.model_path}",
-                {"model_path": self.config.model_path, "error": str(e)},
-            )
+                {"model_path": self.config.model_path, "error": str(error)},
+            ) from error
 
         if self.device != "cpu":
             try:
@@ -460,10 +460,10 @@ class YOLODetector(IDetector, LoggerMixin):
                 device=self.device,
                 max_det=self.config.max_det,
             )
-        except Exception as e:
+        except Exception as error:
             raise DetectionError(
-                "Error en inferencia del modelo", {"frame_shape": frame.shape, "error": str(e)}
-            )
+                "Error en inferencia del modelo", {"frame_shape": frame.shape, "error": str(error)}
+            ) from error
 
         try:
             detections = self._parse_results(results[0])

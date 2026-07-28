@@ -1,6 +1,4 @@
-"""Manejador global de errores para el sistema.
-Proporciona recuperación y logging consistente.
-"""
+"""Manejador global de errores para el sistema. Proporciona recuperación y logging consistente."""
 
 from collections.abc import Callable
 from datetime import datetime
@@ -10,13 +8,18 @@ import traceback
 from typing import Any
 
 from core.circuit_breaker import circuit_breaker_registry
-from core.exceptions import VehicleCountingError
+from core.exceptions import (
+    CameraError,
+    CaptureError,
+    ConnectionError,
+    IOError,
+    TimeoutError,
+    VehicleCountingError,
+)
 
 
 class GlobalErrorHandler:
-    """Manejador global de errores que captura excepciones no manejadas
-    y proporciona recuperación automática cuando es posible.
-    """
+    """Manejador global de errores que captura excepciones no manejadas y proporciona recuperación automática cuando es posible."""
 
     def __init__(self, logger: logging.Logger | None = None):
         self.logger = logger or logging.getLogger("error_handler")
@@ -99,14 +102,6 @@ class GlobalErrorHandler:
 
     def _can_recover(self, exc: Exception) -> bool:
         """Determina si un error es recuperable."""
-        from core.exceptions import (
-            CameraError,
-            CaptureError,
-            ConnectionError,
-            IOError,
-            TimeoutError,
-        )
-
         recoverable_types = (
             CameraError,
             CaptureError,
@@ -184,9 +179,7 @@ global_error_handler = GlobalErrorHandler()
 
 
 def setup_global_exception_handler():
-    """Configura el manejador global de excepciones.
-    Debe llamarse al inicio del programa.
-    """
+    """Configura el manejador global de excepciones. Debe llamarse al inicio del programa."""
 
     def global_handler(exc_type, exc_value, exc_traceback):
         if issubclass(exc_type, KeyboardInterrupt):
