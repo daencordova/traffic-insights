@@ -1,5 +1,4 @@
-"""
-Contador inteligente de vehículos.
+"""Contador inteligente de vehículos.
 
 Este módulo implementa el contador principal del sistema que orquesta
 la gestión de líneas de conteo, detección de cruces y recolección
@@ -21,20 +20,19 @@ Componentes principales:
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any
 
 import numpy as np
 
-from utils.logger import LoggerMixin
-from core.interfaces import ICounter
-from core.counter.line_manager import LineManager, CountingLine
 from core.counter.crossing_detector import CrossingDetector
+from core.counter.line_manager import CountingLine, LineManager
 from core.counter.statistics_collector import StatisticsCollector, VehicleEvent
+from core.interfaces import ICounter
+from utils.logger import LoggerMixin
 
 
 class VehicleCounter(ICounter, LoggerMixin):
-    """
-    Contador de vehículos con soporte para múltiples líneas.
+    """Contador de vehículos con soporte para múltiples líneas.
 
     Esta clase orquesta los componentes de gestión de líneas,
     detección de cruces y recolección de estadísticas para
@@ -65,8 +63,7 @@ class VehicleCounter(ICounter, LoggerMixin):
     """
 
     def __init__(self, config=None) -> None:
-        """
-        Inicializa el contador de vehículos.
+        """Inicializa el contador de vehículos.
 
         Args:
             config: Configuración del sistema. Si es None, se usa
@@ -89,7 +86,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         self.logger.info(
             "Contador inicializado",
             lines=line_count,
-            line_ids=[line.id for line in self.line_manager.get_all_lines()]
+            line_ids=[line.id for line in self.line_manager.get_all_lines()],
         )
 
         if line_count == 0:
@@ -99,9 +96,8 @@ class VehicleCounter(ICounter, LoggerMixin):
         self._last_process_time = 0.0
         self._processed_tracks_count = 0
 
-    def process(self, tracks: Dict[int, Dict[str, Any]], frame: np.ndarray) -> Dict[str, Any]:
-        """
-        Procesa los tracks y actualiza los conteos.
+    def process(self, tracks: dict[int, dict[str, Any]], frame: np.ndarray) -> dict[str, Any]:
+        """Procesa los tracks y actualiza los conteos.
 
         Args:
             tracks: Diccionario de tracks activos del tracker.
@@ -119,7 +115,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         Example:
             >>> tracks = tracker.update(detections, frame)
             >>> stats = counter.process(tracks, frame)
-            >>> if stats['total'] > 100:
+            >>> if stats["total"] > 100:
             ...     print("Alto volumen de tráfico detectado")
 
         Note:
@@ -145,9 +141,8 @@ class VehicleCounter(ICounter, LoggerMixin):
 
         return self.get_stats()
 
-    def _is_valid_input(self, frame: np.ndarray, tracks: Dict[int, Dict[str, Any]]) -> bool:
-        """
-        Valida la entrada del método process.
+    def _is_valid_input(self, frame: np.ndarray, tracks: dict[int, dict[str, Any]]) -> bool:
+        """Valida la entrada del método process.
 
         Args:
             frame: Frame a validar.
@@ -166,9 +161,8 @@ class VehicleCounter(ICounter, LoggerMixin):
 
         return True
 
-    def _process_all_tracks(self, tracks: Dict[int, Dict[str, Any]], height: int) -> None:
-        """
-        Procesa todos los tracks para detección de cruces.
+    def _process_all_tracks(self, tracks: dict[int, dict[str, Any]], height: int) -> None:
+        """Procesa todos los tracks para detección de cruces.
 
         Args:
             tracks: Diccionario de tracks activos.
@@ -179,16 +173,13 @@ class VehicleCounter(ICounter, LoggerMixin):
                 if self._process_single_track(object_id, track_data, height):
                     self._processed_tracks_count += 1
             except Exception as e:
-                self.logger.debug(
-                    "Error procesando track",
-                    object_id=object_id,
-                    error=str(e)
-                )
+                self.logger.debug("Error procesando track", object_id=object_id, error=str(e))
                 continue
 
-    def _process_single_track(self, object_id: int, track_data: Dict[str, Any], height: int) -> bool:
-        """
-        Procesa un track individual para detección de cruces.
+    def _process_single_track(
+        self, object_id: int, track_data: dict[str, Any], height: int
+    ) -> bool:
+        """Procesa un track individual para detección de cruces.
 
         Args:
             object_id: ID del objeto.
@@ -212,9 +203,8 @@ class VehicleCounter(ICounter, LoggerMixin):
 
         return crossed_any
 
-    def _validate_track_data(self, track_data: Dict[str, Any]) -> bool:
-        """
-        Valida los datos de un track.
+    def _validate_track_data(self, track_data: dict[str, Any]) -> bool:
+        """Valida los datos de un track.
 
         Args:
             track_data: Datos del track a validar.
@@ -242,14 +232,9 @@ class VehicleCounter(ICounter, LoggerMixin):
         return True
 
     def _check_line_crossing(
-        self,
-        object_id: int,
-        centroid: Tuple[int, int],
-        line: CountingLine,
-        height: int
+        self, object_id: int, centroid: tuple[int, int], line: CountingLine, height: int
     ) -> bool:
-        """
-        Verifica si un objeto ha cruzado una línea específica.
+        """Verifica si un objeto ha cruzado una línea específica.
 
         Args:
             object_id: ID del objeto.
@@ -261,10 +246,7 @@ class VehicleCounter(ICounter, LoggerMixin):
             bool: True si el objeto cruzó la línea.
         """
         crossed = self.crossing_detector.detect_crossing(
-            object_id=object_id,
-            current_position=centroid,
-            line=line,
-            height=height
+            object_id=object_id, current_position=centroid, line=line, height=height
         )
 
         if crossed:
@@ -274,30 +256,24 @@ class VehicleCounter(ICounter, LoggerMixin):
         return False
 
     def _handle_crossing(
-        self,
-        object_id: int,
-        line: CountingLine,
-        centroid: Tuple[int, int]
+        self, object_id: int, line: CountingLine, centroid: tuple[int, int]
     ) -> None:
-        """
-        Maneja un evento de cruce de línea.
+        """Maneja un evento de cruce de línea.
 
         Args:
             object_id: ID del objeto.
             line: Línea de conteo cruzada.
             centroid: Posición del objeto.
         """
-        pass
 
     def _record_crossing(
         self,
         object_id: int,
         line: CountingLine,
-        track_data: Dict[str, Any],
-        centroid: Tuple[int, int]
+        track_data: dict[str, Any],
+        centroid: tuple[int, int],
     ) -> None:
-        """
-        Registra un cruce en el recolector de estadísticas.
+        """Registra un cruce en el recolector de estadísticas.
 
         Args:
             object_id: ID del objeto.
@@ -310,19 +286,18 @@ class VehicleCounter(ICounter, LoggerMixin):
             line_id=line.id,
             line_name=line.name,
             track_data=track_data,
-            centroid=centroid
+            centroid=centroid,
         )
 
         self.logger.debug(
             "Vehículo contado",
             object_id=object_id,
             line=line.id,
-            total=self.stats_collector.get_total_count()
+            total=self.stats_collector.get_total_count(),
         )
 
-    def _record_track_velocity(self, object_id: int, track_data: Dict[str, Any]) -> None:
-        """
-        Registra la velocidad de un track.
+    def _record_track_velocity(self, object_id: int, track_data: dict[str, Any]) -> None:
+        """Registra la velocidad de un track.
 
         Args:
             object_id: ID del objeto.
@@ -338,8 +313,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         self.stats_collector.update_minute_counts(total)
 
     def _log_performance(self, start_time: float) -> None:
-        """
-        Registra métricas de rendimiento.
+        """Registra métricas de rendimiento.
 
         Args:
             start_time: Timestamp de inicio del procesamiento.
@@ -353,12 +327,11 @@ class VehicleCounter(ICounter, LoggerMixin):
                 frames=self._frame_counter,
                 tracks_processed=self._processed_tracks_count,
                 total=self.stats_collector.get_total_count(),
-                time_ms=f"{elapsed_ms:.2f}"
+                time_ms=f"{elapsed_ms:.2f}",
             )
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Retorna estadísticas detalladas del conteo.
+    def get_stats(self) -> dict[str, Any]:
+        """Retorna estadísticas detalladas del conteo.
 
         Returns:
             Dict[str, Any]: Estadísticas actuales incluyendo:
@@ -389,9 +362,8 @@ class VehicleCounter(ICounter, LoggerMixin):
 
         return stats
 
-    def get_recent_log(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """
-        Obtiene los últimos eventos de conteo.
+    def get_recent_log(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Obtiene los últimos eventos de conteo.
 
         Args:
             limit: Número máximo de eventos a retornar.
@@ -402,8 +374,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         return self.stats_collector.get_recent_events(limit)
 
     def get_line_count(self, line_id: str) -> int:
-        """
-        Obtiene el conteo de una línea específica.
+        """Obtiene el conteo de una línea específica.
 
         Args:
             line_id: ID de la línea.
@@ -414,8 +385,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         return self.stats_collector.get_line_count(line_id)
 
     def get_class_count(self, class_name: str) -> int:
-        """
-        Obtiene el conteo de una clase específica.
+        """Obtiene el conteo de una clase específica.
 
         Args:
             class_name: Nombre de la clase (ej: 'car', 'truck').
@@ -425,9 +395,8 @@ class VehicleCounter(ICounter, LoggerMixin):
         """
         return self.stats_collector.get_class_count(class_name)
 
-    def get_crossed_lines(self, object_id: int) -> Set[str]:
-        """
-        Obtiene las líneas que un objeto ha cruzado.
+    def get_crossed_lines(self, object_id: int) -> set[str]:
+        """Obtiene las líneas que un objeto ha cruzado.
 
         Args:
             object_id: ID del objeto.
@@ -449,9 +418,8 @@ class VehicleCounter(ICounter, LoggerMixin):
         """Obtiene el recolector de estadísticas."""
         return self.stats_collector
 
-    def get_events(self, limit: int = 100) -> List[VehicleEvent]:
-        """
-        Obtiene los eventos de conteo.
+    def get_events(self, limit: int = 100) -> list[VehicleEvent]:
+        """Obtiene los eventos de conteo.
 
         Args:
             limit: Número máximo de eventos.
@@ -462,8 +430,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         return self.stats_collector.events[-limit:] if self.stats_collector.events else []
 
     def reset_line(self, line_id: str) -> None:
-        """
-        Reinicia el conteo de una línea específica.
+        """Reinicia el conteo de una línea específica.
 
         Args:
             line_id: ID de la línea a reiniciar.
@@ -477,8 +444,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         self.logger.info(f"Línea {line_id} reiniciada")
 
     def reset(self) -> None:
-        """
-        Reinicia todos los contadores y estadísticas.
+        """Reinicia todos los contadores y estadísticas.
 
         Example:
             >>> counter.reset()
@@ -487,7 +453,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         self.logger.info(
             "Reiniciando contador",
             total=self.stats_collector.get_total_count(),
-            lines=self.line_manager.get_total_lines()
+            lines=self.line_manager.get_total_lines(),
         )
 
         self.crossing_detector.clear()

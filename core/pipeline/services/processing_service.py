@@ -1,5 +1,4 @@
-"""
-Servicio de procesamiento de frames.
+"""Servicio de procesamiento de frames.
 
 Responsable de:
 - Detección de objetos en el frame
@@ -8,36 +7,43 @@ Responsable de:
 - Procesamiento por lotes (batch processing)
 """
 
-import time
+from collections.abc import Callable
 import threading
-from typing import Optional, Callable, List, Tuple
+import time
 
 import numpy as np
 
-from core.detector import YOLODetector, OptimizedYOLODetector
-from core.tracker import MultiObjectTracker
 from core.counter import VehicleCounter
+from core.detector import OptimizedYOLODetector, YOLODetector
 from core.frame_buffer import FrameMetadata
+from core.tracker import MultiObjectTracker
 from utils.logger import LoggerMixin
 
 
 class ProcessingResult:
     """Resultado del procesamiento de un frame."""
+
     __slots__ = (
-        'frame_number', 'detections', 'tracks', 'stats',
-        'processed_frame', 'processing_time_ms', 'capture_time_ms', 'timestamp'
+        "frame_number",
+        "detections",
+        "tracks",
+        "stats",
+        "processed_frame",
+        "processing_time_ms",
+        "capture_time_ms",
+        "timestamp",
     )
 
     def __init__(
         self,
         frame_number: int,
-        detections: List[dict],
+        detections: list[dict],
         tracks: dict,
         stats: dict,
         processed_frame: np.ndarray,
         processing_time_ms: float,
         capture_time_ms: float,
-        timestamp: float
+        timestamp: float,
     ):
         self.frame_number = frame_number
         self.detections = detections
@@ -54,9 +60,7 @@ class ProcessingResult:
 
 
 class ProcessingService(LoggerMixin):
-    """
-    Servicio especializado en procesamiento de frames.
-    """
+    """Servicio especializado en procesamiento de frames."""
 
     def __init__(
         self,
@@ -66,7 +70,7 @@ class ProcessingService(LoggerMixin):
         counter=None,
         enable_batch: bool = False,
         batch_size: int = 4,
-        on_frame_processed: Optional[Callable] = None,
+        on_frame_processed: Callable | None = None,
     ):
         self.config = config
         self.detector = self._init_detector(detector)
@@ -76,9 +80,9 @@ class ProcessingService(LoggerMixin):
         self.batch_size = batch_size
         self.on_frame_processed = on_frame_processed
 
-        self._frame_queue: List[Tuple[np.ndarray, FrameMetadata]] = []
+        self._frame_queue: list[tuple[np.ndarray, FrameMetadata]] = []
         self._queue_lock = threading.Lock()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._running = False
         self._paused = False
 
@@ -90,7 +94,7 @@ class ProcessingService(LoggerMixin):
             "ProcessingService inicializado",
             batch_enabled=enable_batch,
             batch_size=batch_size,
-            detector_type=type(self.detector).__name__
+            detector_type=type(self.detector).__name__,
         )
 
     def _init_detector(self, detector):
@@ -98,18 +102,14 @@ class ProcessingService(LoggerMixin):
         if detector is not None:
             return detector
 
-        use_optimized = getattr(
-            self.config.optimization, "use_optimized_detector", True
-        )
+        use_optimized = getattr(self.config.optimization, "use_optimized_detector", True)
 
         if use_optimized:
             try:
                 self.logger.info("✅ Detector optimizado activado")
                 return OptimizedYOLODetector()
             except Exception as e:
-                self.logger.warning(
-                    f"Detector optimizado no disponible: {e}. Usando estándar."
-                )
+                self.logger.warning(f"Detector optimizado no disponible: {e}. Usando estándar.")
 
         return YOLODetector()
 
@@ -120,9 +120,7 @@ class ProcessingService(LoggerMixin):
 
         self._running = True
         self._thread = threading.Thread(
-            target=self._process_loop,
-            name="ProcessingService",
-            daemon=True
+            target=self._process_loop, name="ProcessingService", daemon=True
         )
         self._thread.start()
         self.logger.info("Servicio de procesamiento iniciado")
@@ -212,9 +210,10 @@ class ProcessingService(LoggerMixin):
             if result and self.on_frame_processed:
                 self.on_frame_processed(result)
 
-    def process_frame(self, frame: np.ndarray, metadata: FrameMetadata) -> Optional[ProcessingResult]:
-        """
-        Procesa un único frame.
+    def process_frame(
+        self, frame: np.ndarray, metadata: FrameMetadata
+    ) -> ProcessingResult | None:
+        """Procesa un único frame.
 
         Args:
             frame: Frame a procesar
@@ -250,12 +249,13 @@ class ProcessingService(LoggerMixin):
             processed_frame=frame.copy(),
             processing_time_ms=process_time,
             capture_time_ms=0.0,
-            timestamp=metadata.timestamp
+            timestamp=metadata.timestamp,
         )
 
-    def process_batch(self, batch: List[Tuple[np.ndarray, FrameMetadata]]) -> List[ProcessingResult]:
-        """
-        Procesa un lote de frames.
+    def process_batch(
+        self, batch: list[tuple[np.ndarray, FrameMetadata]]
+    ) -> list[ProcessingResult]:
+        """Procesa un lote de frames.
 
         Args:
             batch: Lista de tuplas (frame, metadata)
@@ -269,7 +269,7 @@ class ProcessingService(LoggerMixin):
         results = []
 
         try:
-            if hasattr(self.detector, 'detect_batch'):
+            if hasattr(self.detector, "detect_batch"):
                 frames = [frame for frame, _ in batch]
                 metadatas = [metadata for _, metadata in batch]
                 batch_detections = self.detector.detect_batch(frames)
@@ -293,7 +293,7 @@ class ProcessingService(LoggerMixin):
                             processed_frame=frame.copy(),
                             processing_time_ms=process_time,
                             capture_time_ms=0.0,
-                            timestamp=metadata.timestamp
+                            timestamp=metadata.timestamp,
                         )
 
                         results.append(result)
@@ -328,16 +328,16 @@ class ProcessingService(LoggerMixin):
     def get_stats(self) -> dict:
         """Obtiene estadísticas del servicio."""
         return {
-            'processed_count': self._processed_count,
-            'avg_processing_time_ms': self._processing_time_ms,
-            'queue_size': len(self._frame_queue),
-            'is_running': self._running,
-            'is_paused': self._paused,
-            'batch_enabled': self.enable_batch,
-            'batch_size': self.batch_size,
-            'detector_stats': self.detector.get_performance_stats(),
-            'tracker_stats': self.tracker.get_stats(),
-            'counter_stats': self.counter.get_stats(),
+            "processed_count": self._processed_count,
+            "avg_processing_time_ms": self._processing_time_ms,
+            "queue_size": len(self._frame_queue),
+            "is_running": self._running,
+            "is_paused": self._paused,
+            "batch_enabled": self.enable_batch,
+            "batch_size": self.batch_size,
+            "detector_stats": self.detector.get_performance_stats(),
+            "tracker_stats": self.tracker.get_stats(),
+            "counter_stats": self.counter.get_stats(),
         }
 
     @property

@@ -1,24 +1,24 @@
-"""
-Módulo para obtener información del sistema (CPU, Memoria, Estado).
+"""Módulo para obtener información del sistema (CPU, Memoria, Estado).
 Minimalista y optimizado para mostrar en una sola línea.
 """
 
-import time
-import threading
-from typing import Optional
-from dataclasses import dataclass
 from collections import deque
+from dataclasses import dataclass
+import threading
+import time
 
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
 
 
-@dataclass
+@dataclass(slots=True)
 class SystemInfo:
     """Información minimalista del sistema."""
+
     cpu_percent: float = 0.0
     memory_percent: float = 0.0
     memory_used_mb: float = 0.0
@@ -30,18 +30,16 @@ class SystemInfo:
 
 
 class SystemInfoCollector:
-    """
-    Recolector de información del sistema con caché para evitar
+    """Recolector de información del sistema con caché para evitar
     llamadas frecuentes a psutil.
     """
 
     def __init__(self, cache_seconds: float = 0.5):
-        """
-        Args:
-            cache_seconds: Tiempo de caché para la información del sistema
+        """Args:
+        cache_seconds: Tiempo de caché para la información del sistema
         """
         self.cache_seconds = cache_seconds
-        self._cached_info: Optional[SystemInfo] = None
+        self._cached_info: SystemInfo | None = None
         self._last_update: float = 0.0
         self._lock = threading.Lock()
 
@@ -50,10 +48,10 @@ class SystemInfoCollector:
 
         self._pipeline_status: str = "RUNNING"
 
-    def get_info(self, fps: float = 0.0, processing_time_ms: float = 0.0,
-                 active_tracks: int = 0) -> SystemInfo:
-        """
-        Obtiene información del sistema con caché.
+    def get_info(
+        self, fps: float = 0.0, processing_time_ms: float = 0.0, active_tracks: int = 0
+    ) -> SystemInfo:
+        """Obtiene información del sistema con caché.
 
         Args:
             fps: FPS actual
@@ -80,7 +78,9 @@ class SystemInfoCollector:
             self._memory_history.append(memory_percent)
 
             cpu_smooth = sum(self._cpu_history) / len(self._cpu_history) if self._cpu_history else 0
-            memory_smooth = sum(self._memory_history) / len(self._memory_history) if self._memory_history else 0
+            memory_smooth = (
+                sum(self._memory_history) / len(self._memory_history) if self._memory_history else 0
+            )
 
             info = SystemInfo(
                 cpu_percent=round(cpu_smooth, 1),
@@ -90,7 +90,7 @@ class SystemInfoCollector:
                 processing_time_ms=round(processing_time_ms, 1),
                 active_tracks=active_tracks,
                 status=self._pipeline_status,
-                timestamp=current_time
+                timestamp=current_time,
             )
 
             self._cached_info = info
@@ -99,8 +99,7 @@ class SystemInfoCollector:
             return info
 
     def _get_system_metrics(self) -> tuple:
-        """
-        Obtiene métricas del sistema.
+        """Obtiene métricas del sistema.
 
         Returns:
             tuple: (cpu_percent, memory_percent, memory_used_mb)
@@ -121,17 +120,15 @@ class SystemInfoCollector:
             return 0.0, 0.0, 0.0
 
     def set_status(self, status: str) -> None:
-        """
-        Actualiza el estado del pipeline.
+        """Actualiza el estado del pipeline.
 
         Args:
             status: Estado del pipeline (RUNNING, PAUSED, STOPPED, ERROR, IDLE)
         """
         self._pipeline_status = status
 
-    def get_status_icon(self, status: Optional[str] = None) -> str:
-        """
-        Obtiene el icono correspondiente al estado.
+    def get_status_icon(self, status: str | None = None) -> str:
+        """Obtiene el icono correspondiente al estado.
 
         Args:
             status: Estado opcional (si no se proporciona, usa el actual)
@@ -152,8 +149,7 @@ class SystemInfoCollector:
         return status_icons.get(status, "⚪")
 
     def get_color_for_performance(self, fps: float, cpu_percent: float) -> tuple:
-        """
-        Determina el color según el rendimiento.
+        """Determina el color según el rendimiento.
 
         Returns:
             tuple: Color en formato (B, G, R)
@@ -163,28 +159,24 @@ class SystemInfoCollector:
 
         if fps >= TARGET_FPS and cpu_percent < 70:
             return (0, 255, 0)
-        elif fps >= MIN_ACCEPTABLE_FPS and cpu_percent < 85:
+        if fps >= MIN_ACCEPTABLE_FPS and cpu_percent < 85:
             return (0, 255, 255)
-        else:
-            return (0, 0, 255)
+        return (0, 0, 255)
 
     def get_color_for_memory(self, memory_percent: float) -> tuple:
-        """
-        Determina el color según el uso de memoria.
+        """Determina el color según el uso de memoria.
 
         Returns:
             tuple: Color en formato (B, G, R)
         """
         if memory_percent < 70:
             return (0, 255, 0)
-        elif memory_percent < 85:
+        if memory_percent < 85:
             return (0, 255, 255)
-        else:
-            return (0, 0, 255)
+        return (0, 0, 255)
 
     def get_status_text(self) -> str:
-        """
-        Obtiene el texto del estado actual.
+        """Obtiene el texto del estado actual.
 
         Returns:
             str: Texto del estado
@@ -202,10 +194,10 @@ class SystemInfoCollector:
 _system_info_collector = SystemInfoCollector(cache_seconds=0.5)
 
 
-def get_system_info(fps: float = 0.0, processing_time_ms: float = 0.0,
-                    active_tracks: int = 0) -> SystemInfo:
-    """
-    Función de conveniencia para obtener información del sistema.
+def get_system_info(
+    fps: float = 0.0, processing_time_ms: float = 0.0, active_tracks: int = 0
+) -> SystemInfo:
+    """Función de conveniencia para obtener información del sistema.
 
     Args:
         fps: FPS actual
@@ -219,8 +211,7 @@ def get_system_info(fps: float = 0.0, processing_time_ms: float = 0.0,
 
 
 def set_system_status(status: str) -> None:
-    """
-    Actualiza el estado del sistema globalmente.
+    """Actualiza el estado del sistema globalmente.
 
     Args:
         status: Estado del sistema (RUNNING, PAUSED, STOPPED, ERROR, IDLE)
@@ -229,8 +220,7 @@ def set_system_status(status: str) -> None:
 
 
 def get_system_status() -> str:
-    """
-    Obtiene el estado actual del sistema.
+    """Obtiene el estado actual del sistema.
 
     Returns:
         str: Estado actual del sistema
@@ -239,8 +229,7 @@ def get_system_status() -> str:
 
 
 def get_system_info_collector() -> SystemInfoCollector:
-    """
-    Obtiene la instancia global del recolector de información.
+    """Obtiene la instancia global del recolector de información.
 
     Returns:
         SystemInfoCollector: Instancia global

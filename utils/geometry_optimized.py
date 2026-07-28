@@ -128,3 +128,35 @@ def check_crossing_batch(prev_y: np.ndarray, curr_y: np.ndarray, line_y: float) 
         np.ndarray: Array booleano de cruces.
     """
     return (prev_y < line_y) & (curr_y >= line_y)
+
+
+@jit(nopython=True, cache=True)
+def calculate_iou_vectorized(boxes1: np.ndarray, boxes2: np.ndarray) -> np.ndarray:
+    """Calcula IoU vectorizado con Numba para máxima velocidad."""
+    n = boxes1.shape[0]
+    m = boxes2.shape[0]
+    iou_matrix = np.zeros((n, m), dtype=np.float32)
+
+    areas1 = (boxes1[:, 2] - boxes1[:, 0]) * (boxes1[:, 3] - boxes1[:, 1])
+    areas2 = (boxes2[:, 2] - boxes2[:, 0]) * (boxes2[:, 3] - boxes2[:, 1])
+
+    for i in range(n):
+        x1_i = boxes1[i, 0]
+        y1_i = boxes1[i, 1]
+        x2_i = boxes1[i, 2]
+        y2_i = boxes1[i, 3]
+        area_i = areas1[i]
+
+        for j in range(m):
+            xi1 = x1_i if x1_i > boxes2[j, 0] else boxes2[j, 0]
+            yi1 = y1_i if y1_i > boxes2[j, 1] else boxes2[j, 1]
+            xi2 = x2_i if x2_i < boxes2[j, 2] else boxes2[j, 2]
+            yi2 = y2_i if y2_i < boxes2[j, 3] else boxes2[j, 3]
+
+            if xi2 > xi1 and yi2 > yi1:
+                inter = (xi2 - xi1) * (yi2 - yi1)
+                union = area_i + areas2[j] - inter
+                if union > 0:
+                    iou_matrix[i, j] = inter / union
+
+    return iou_matrix

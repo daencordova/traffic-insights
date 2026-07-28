@@ -174,24 +174,22 @@ class FrameBuffer:
         self._total_memory_allocated = 0
 
     def put(self, frame: np.ndarray, metadata: FrameMetadata | None = None) -> bool:
-        """Inserta un frame en el buffer.
-
-        Args:
-            frame: Frame a insertar en formato numpy array.
-            metadata: Metadatos asociados al frame. Si es None, se crean automáticamente.
-
-        Returns:
-            bool: True si se insertó correctamente, False si fue descartado.
-
-        Raises:
-            ValueError: Si frame es None o está vacío.
-        """
+        """Inserta un frame en el buffer (optimizado)."""
         if frame is None or frame.size == 0:
-            raise ValueError("Frame no puede ser None o estar vacío")
+            return False
 
         with self._lock:
             self._total_frames_received += 1
-            frame_size = frame.nbytes
+
+            if self._is_full():
+                self._handle_overflow()
+                self._total_frames_dropped += 1
+                return False
+
+            if self._preallocated:
+                np.copyto(self._buffer[self._tail], frame)
+            else:
+                self._buffer.append(frame.copy())
 
             if metadata is None:
                 metadata = FrameMetadata(
@@ -200,25 +198,17 @@ class FrameBuffer:
                     source_fps=0.0,
                     capture_time_ms=0.0,
                 )
-
-            if self._is_full():
-                self._handle_overflow()
-                self._total_frames_dropped += 1
-                self._buffer_overflow_count += 1
-                self._memory_freed += frame_size
-                return False
-
-            if self._preallocated:
-                self._buffer[self._tail] = frame.copy()
-            else:
-                self._buffer.append(frame.copy())
-
             self._metadata.append(metadata)
+
             self._count += 1
             self._tail = (self._tail + 1) % self.max_size
-            self._total_memory_allocated += frame_size
 
-            self._update_status()
+            if self._count / self.max_size > 0.7:
+                self._status = BufferStatus.FULL
+            elif self._count / self.max_size > 0.9:
+                self._status = BufferStatus.OVERFLOW
+            else:
+                self._status = BufferStatus.PARTIAL
 
             return True
 
