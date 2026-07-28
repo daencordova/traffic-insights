@@ -19,7 +19,7 @@ import numpy as np
 from utils.logger import LoggerMixin
 from core.validators import ensure_valid_frame
 from utils.color_manager import get_color_manager
-from core.constants import (
+from core.constants.visualization import (
     FONT_SCALE,
     LINE_THICKNESS,
     TRACK_ARROW_LENGTH_MIN,

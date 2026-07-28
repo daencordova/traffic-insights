@@ -15,13 +15,17 @@ import cv2
 import numpy as np
 
 from utils.logger import LoggerMixin
-from core.constants import (
-    COLORS,
+from core.constants.visualization import (
     DASHBOARD_WIDTH,
     DASHBOARD_HEIGHT,
     DASHBOARD_ALPHA,
+)
+from core.constants.pipeline import (
     TARGET_FPS,
     MIN_ACCEPTABLE_FPS
+)
+from core.constants.vision import (
+    COLORS,
 )
 
 

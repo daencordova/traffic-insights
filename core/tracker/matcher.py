@@ -22,7 +22,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import KDTree
 
-from core.constants import (
+from core.constants.tracking import (
     MAX_MATCH_DISTANCE,
     TRACK_VALIDATION_FEATURE_THRESHOLD,
     TRACK_VALIDATION_IOU_THRESHOLD,

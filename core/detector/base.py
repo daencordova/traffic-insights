@@ -20,14 +20,18 @@ from typing import Any
 import numpy as np
 from ultralytics import YOLO
 
-from core.constants import (
+from core.constants.vision import (
     MAX_BOX_SIZE,
     MAX_DETECTION_CONFIDENCE,
-    MEMORY_CHECK_INTERVAL,
-    MEMORY_WARNING_THRESHOLD,
     MIN_BOX_SIZE,
     MIN_DETECTION_AREA,
     MIN_DETECTION_CONFIDENCE,
+)
+from core.constants.pipeline import (
+    MEMORY_CHECK_INTERVAL,
+)
+from core.constants.system import (
+    MEMORY_WARNING_THRESHOLD,
 )
 from core.detector.cache import DetectionCache
 from core.detector.config import DetectorConfig

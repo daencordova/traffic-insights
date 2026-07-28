@@ -21,11 +21,13 @@ from typing import Any
 
 import numpy as np
 
-from core.constants import (
+from core.constants.pipeline import (
     CLEANUP_INTERVAL,
+    MEMORY_CHECK_INTERVAL,
+)
+from core.constants.tracking import (
     MAX_ACTIVE_TRACKS,
     MAX_FRAMES_MISSED,
-    MEMORY_CHECK_INTERVAL,
     MIN_HITS_TO_CONFIRM,
 )
 from core.interfaces import ITracker

@@ -19,7 +19,7 @@ from typing import Any
 
 import numpy as np
 
-from core.constants import (
+from core.constants.tracking import (
     PATH_PREDICTION_HISTORY_LENGTH,
     PATH_PREDICTION_HORIZON,
     PATH_PREDICTION_MIN_SAMPLES,

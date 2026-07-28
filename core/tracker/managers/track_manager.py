@@ -20,7 +20,7 @@ import numpy as np
 
 from models.track_state import TrackState
 from models.enums import TrackStatus
-from core.constants import MAX_ACTIVE_TRACKS, MAX_LOST_TRACKS
+from core.constants.tracking import MAX_ACTIVE_TRACKS, MAX_LOST_TRACKS
 from utils.logger import LoggerMixin
 
 

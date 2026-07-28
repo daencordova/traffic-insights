@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 import time
 
 from models.enums import TrackStatus
-from core.constants import MIN_HITS_TO_CONFIRM, MAX_FRAMES_MISSED
+from core.constants.tracking import MIN_HITS_TO_CONFIRM, MAX_FRAMES_MISSED
 from utils.logger import LoggerMixin
 
 

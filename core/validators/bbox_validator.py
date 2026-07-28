@@ -11,7 +11,7 @@ from typing import Any, Tuple, List, Optional
 
 import numpy as np
 
-from core.constants import MIN_BOX_SIZE, MAX_BOX_SIZE
+from core.constants.vision import MIN_BOX_SIZE, MAX_BOX_SIZE
 
 BoundingBox = Tuple[int, int, int, int]
 Centroid = Tuple[int, int]

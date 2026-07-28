@@ -23,7 +23,7 @@ import numpy as np
 from utils.logger import LoggerMixin
 from models.feature_extractor import FeatureExtractor
 from core.tracker.feature_cache import FeatureCacheManager
-from core.constants import (
+from core.constants.tracking import (
     REID_SIMILARITY_THRESHOLD,
     REID_SPATIAL_THRESHOLD,
     REID_MAX_AGE_SECONDS,

@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 
 from utils.logger import LoggerMixin
-from core.constants import (
+from core.constants.pipeline import (
     DEFAULT_CACHE_SIZE,
     MAX_CACHE_MEMORY_MB,
     CACHE_CLEANUP_THRESHOLD,

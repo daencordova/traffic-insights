@@ -12,12 +12,14 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from core.constants import (
-    MAX_BOX_SIZE,
+from core.constants.tracking import (
     MAX_FRAMES_MISSED as MAX_LOST_FRAMES,
     MAX_TRACK_HISTORY as MAX_HISTORY_LENGTH,
-    MIN_BOX_SIZE,
     MIN_HITS_TO_CONFIRM,
+)
+from core.constants.vision import (
+    MAX_BOX_SIZE,
+    MIN_BOX_SIZE,
 )
 from core.validators import validate_bbox, validate_centroid
 from models.enums import TrackStatus

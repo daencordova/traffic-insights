@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from core.constants import (
+from core.constants.vision import (
     MIN_FRAME_WIDTH,
     MIN_FRAME_HEIGHT,
     DEFAULT_FRAME_WIDTH,

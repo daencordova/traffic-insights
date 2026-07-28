@@ -16,7 +16,7 @@ from core.tracker.learning.statistics import FeatureStatistics
 from core.tracker.learning.strategies import LearningStrategyFactory
 from core.tracker.learning.drift_detector import ConceptDriftDetector
 from core.tracker.learning.aggregator import FeatureAggregator
-from core.constants import (
+from core.constants.tracking import (
     ONLINE_LEARNING_DEFAULT_LR,
     ONLINE_LEARNING_MIN_SAMPLES,
     ONLINE_LEARNING_DRIFT_THRESHOLD,

@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from core.constants import MAX_TRACK_HISTORY
+from core.constants.tracking import MAX_TRACK_HISTORY
 
 
 class HypothesisStatus(Enum):

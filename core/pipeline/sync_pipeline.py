@@ -24,12 +24,14 @@ from utils.logger import LoggerMixin
 from utils.helpers import get_memory_usage, force_garbage_collection
 from core.pipeline.system_info import set_system_status
 from core.validators import validate_frame, ensure_valid_frame
-from core.constants import (
+from core.constants.pipeline import (
     MEMORY_CHECK_INTERVAL,
     GC_INTERVAL,
-    WINDOW_NAME,
     TARGET_FPS,
     MIN_ACCEPTABLE_FPS
+)
+from core.constants.vision import (
+    WINDOW_NAME,
 )
 
 

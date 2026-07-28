@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Tuple
 from dataclasses import dataclass
 
 from core.validators.bbox_validator import validate_bbox, validate_centroid
-from core.constants import MIN_DETECTION_AREA, MIN_DETECTION_CONFIDENCE, MAX_DETECTION_CONFIDENCE
+from core.constants.vision import MIN_DETECTION_AREA, MIN_DETECTION_CONFIDENCE, MAX_DETECTION_CONFIDENCE
 
 
 @dataclass

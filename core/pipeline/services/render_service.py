@@ -19,7 +19,7 @@ from core.pipeline.renderer import FrameRenderer
 from core.pipeline.controls import ControlHandler
 from core.pipeline.services.processing_service import ProcessingResult
 from utils.logger import LoggerMixin
-from core.constants import WINDOW_NAME
+from core.constants.vision import WINDOW_NAME
 
 
 class RenderService(LoggerMixin):

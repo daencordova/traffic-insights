@@ -20,7 +20,7 @@ from typing import Any
 
 import numpy as np
 
-from core.constants import (
+from core.constants.tracking import (
     SENSOR_FUSION_DEPTH_WEIGHT,
     SENSOR_FUSION_MAX_HISTORY,
     SENSOR_FUSION_MIN_OBSERVATIONS,

@@ -13,7 +13,7 @@ import numpy as np
 
 from utils.logger import LoggerMixin
 from utils.helpers import get_memory_usage, force_garbage_collection
-from core.constants import MEMORY_CHECK_INTERVAL, GC_INTERVAL
+from core.constants.pipeline import MEMORY_CHECK_INTERVAL, GC_INTERVAL
 
 T = TypeVar('T')
 

@@ -33,7 +33,7 @@ from core.tracker.hypothesis import (
     HypothesisTree,
     HypothesisStatus
 )
-from core.constants import (
+from core.constants.tracking import (
     MHT_MAX_DEPTH,
     MHT_PRUNING_THRESHOLD,
     MHT_MAX_HYPOTHESES,

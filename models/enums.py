@@ -6,7 +6,8 @@ organizadas por dominio de aplicación.
 
 from enum import Enum, auto
 
-from core.constants import CONGESTION_HIGH, CONGESTION_LOW, CONGESTION_MEDIUM, LOG_LEVELS
+from core.constants.analysis import CONGESTION_HIGH, CONGESTION_LOW, CONGESTION_MEDIUM
+from core.constants.system import LOG_LEVELS
 
 
 class TrackStatus(Enum):

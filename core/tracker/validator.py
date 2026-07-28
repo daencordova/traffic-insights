@@ -9,7 +9,7 @@ from enum import Enum
 
 from utils.logger import LoggerMixin
 from utils.geometry import euclidean_distance
-from core.constants import (
+from core.constants.tracking import (
     TRACK_VALIDATION_MIN_CONFIDENCE,
     TRACK_VALIDATION_MAX_SPEED_CHANGE,
 )
