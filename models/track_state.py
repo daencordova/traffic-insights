@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from core.constants.magic_numbers import HISTORY_MAX_SIZE
 from core.constants.tracking import (
     MAX_FRAMES_MISSED as MAX_LOST_FRAMES,
     MAX_TRACK_HISTORY as MAX_HISTORY_LENGTH,
@@ -241,8 +242,8 @@ class TrackState:
             self.bbox = new_bbox
             self.bbox_history.append(new_bbox)
 
-            if len(self.bbox_history) > 30:
-                self.bbox_history = self.bbox_history[-30:]
+            if len(self.bbox_history) > HISTORY_MAX_SIZE:
+                self.bbox_history = self.bbox_history[-HISTORY_MAX_SIZE:]
 
         new_centroid = detection.get("centroid")
         if new_centroid is not None and validate_centroid(new_centroid):

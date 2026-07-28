@@ -9,6 +9,12 @@ from enum import Enum, auto
 import threading
 import time
 
+from core.constants.magic_numbers import (
+    BUFFER_USAGE_RECOVERY,
+    HEALTH_ISSUES_MAX,
+    HEALTH_ISSUES_TRIM,
+)
+
 
 class PipelineState(Enum):
     """Estados del pipeline."""
@@ -203,7 +209,7 @@ class PipelineController:
                 )
                 self._capture_interval = 1.0 / self._capture_fps_target
 
-        elif buffer_usage < 0.6:
+        elif buffer_usage < BUFFER_USAGE_RECOVERY:
             self._consecutive_skips = max(0, self._consecutive_skips - 1)
 
         return True
@@ -231,8 +237,8 @@ class PipelineController:
         """Registra un problema de salud."""
         timestamp = time.strftime("%H:%M:%S")
         self._health_issues.append(f"[{timestamp}] {issue}")
-        if len(self._health_issues) > 100:
-            self._health_issues = self._health_issues[-50:]
+        if len(self._health_issues) > HEALTH_ISSUES_MAX:
+            self._health_issues = self._health_issues[-HEALTH_ISSUES_TRIM:]
 
     def get_health_status(self) -> dict:
         """Obtiene el estado de salud del pipeline."""

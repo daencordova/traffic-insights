@@ -12,7 +12,9 @@ from collections.abc import Callable
 import os
 
 import cv2
+import numpy as np
 
+from core.constants.visualization import CONTROL_KEY_ESCAPE
 from utils.helpers import ensure_directory_exists, get_timestamp_filename
 from utils.logger import LoggerMixin
 
@@ -50,7 +52,7 @@ class ControlHandler(LoggerMixin):
         Returns:
             bool: True si el sistema debe continuar ejecutándose
         """
-        if key == ord("q") or key == 27:
+        if key == ord("q") or key == CONTROL_KEY_ESCAPE:
             self.is_running = False
             self.logger.info("Tecla de salida presionada")
             return False

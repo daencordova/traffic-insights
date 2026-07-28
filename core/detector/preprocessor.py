@@ -4,11 +4,13 @@ Proporciona funciones para mejorar la calidad de las imágenes
 antes de la detección de objetos.
 """
 
+import time
 from typing import Any
 
 import cv2
 import numpy as np
 
+from core.constants.magic_numbers import PROCESSING_TIMES_MAX
 from utils.logger import LoggerMixin
 
 
@@ -72,8 +74,6 @@ class ImagePreprocessor(LoggerMixin):
         if not self.enabled or frame is None:
             return frame
 
-        import time
-
         start_time = time.perf_counter()
 
         try:
@@ -112,8 +112,8 @@ class ImagePreprocessor(LoggerMixin):
         self._stats["processed_frames"] += 1
         self._stats["processing_times"].append(time_ms)
 
-        if len(self._stats["processing_times"]) > 100:
-            self._stats["processing_times"] = self._stats["processing_times"][-100:]
+        if len(self._stats["processing_times"]) > PROCESSING_TIMES_MAX:
+            self._stats["processing_times"] = self._stats["processing_times"][-PROCESSING_TIMES_MAX:]
 
         self._stats["avg_processing_time_ms"] = sum(self._stats["processing_times"]) / len(
             self._stats["processing_times"]

@@ -14,6 +14,8 @@ import time
 
 import numpy as np
 
+from core.constants.magic_numbers import BUFFER_USAGE_FULL, BUFFER_USAGE_OVERFLOW
+
 
 class BufferStatus(Enum):
     """Estados posibles del buffer circular.
@@ -203,9 +205,9 @@ class FrameBuffer:
             self._count += 1
             self._tail = (self._tail + 1) % self.max_size
 
-            if self._count / self.max_size > 0.7:
+            if self._count / self.max_size > BUFFER_USAGE_FULL:
                 self._status = BufferStatus.FULL
-            elif self._count / self.max_size > 0.9:
+            elif self._count / self.max_size > BUFFER_USAGE_OVERFLOW:
                 self._status = BufferStatus.OVERFLOW
             else:
                 self._status = BufferStatus.PARTIAL
@@ -344,9 +346,9 @@ class FrameBuffer:
 
         if self._count == 0:
             self._status = BufferStatus.EMPTY
-        elif ratio >= 0.9:
+        elif ratio >= BUFFER_USAGE_OVERFLOW:
             self._status = BufferStatus.OVERFLOW
-        elif ratio >= 0.7:
+        elif ratio >= BUFFER_USAGE_FULL:
             self._status = BufferStatus.FULL
         else:
             self._status = BufferStatus.PARTIAL

@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from models.kalman import EnhancedKalmanFilter
+from models.kalman_optimized import OptimizedKalmanFilter
 from models.track_state import TrackState
 from utils.geometry import euclidean_distance
 from utils.logger import LoggerMixin
@@ -104,8 +105,6 @@ class TrackUpdater(LoggerMixin):
 
         try:
             if self.use_optimized_kalman:
-                from models.kalman_optimized import OptimizedKalmanFilter
-
                 kf = OptimizedKalmanFilter()
             else:
                 kf = EnhancedKalmanFilter()

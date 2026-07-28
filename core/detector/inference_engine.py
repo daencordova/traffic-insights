@@ -9,6 +9,8 @@ from abc import ABC, abstractmethod
 import numpy as np
 from ultralytics import YOLO
 
+from core.constants.magic_numbers import IMAGE_CHANNELS_RGB
+
 try:
     import onnxruntime as ort
 
@@ -50,7 +52,7 @@ class PyTorchInferenceEngine(InferenceEngine, LoggerMixin):
         self,
         model: YOLO,
         imgsz: int = 320,
-        vehicle_classes: list = None,
+        vehicle_classes: list | None = None,
         device: str = "cpu",
         max_det: int = 100,
     ):
@@ -155,7 +157,7 @@ class ONNXInferenceEngine(InferenceEngine, LoggerMixin):
             return np.array([])
 
         try:
-            if len(frame.shape) == 3:
+            if len(frame.shape) == IMAGE_CHANNELS_RGB:
                 frame = frame.astype(np.float32) / 255.0
                 frame = np.transpose(frame, (2, 0, 1))
                 frame = np.expand_dims(frame, axis=0)

@@ -21,6 +21,7 @@ except ImportError:
         return decorator if args and callable(args[0]) else decorator
 
 
+from core.constants.magic_numbers import IMAGE_CHANNELS_GRAY, IMAGE_CHANNELS_RGB
 from utils.geometry import calculate_centroid
 from utils.logger import LoggerMixin
 
@@ -93,7 +94,7 @@ class PostProcessor(LoggerMixin):
         self,
         confidence_threshold: float = 0.35,
         iou_threshold: float = 0.45,
-        vehicle_classes: list = None,
+        vehicle_classes: list | None = None,
         min_area: int = 500,
         max_area: int = 100000,
         imgsz: int = 320,
@@ -137,9 +138,9 @@ class PostProcessor(LoggerMixin):
             return []
 
         try:
-            if len(output.shape) == 3:
+            if len(output.shape) == IMAGE_CHANNELS_RGB:
                 output = output[0].T
-            elif len(output.shape) == 2:
+            elif len(output.shape) == IMAGE_CHANNELS_GRAY:
                 output = output.T
 
             if output.shape[1] < 6:

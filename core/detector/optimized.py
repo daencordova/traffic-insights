@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from core.constants.magic_numbers import INFERENCE_TIMES_MAX
 from core.detector.base import YOLODetector
 from core.detector.cache import DetectionCache
 from core.detector.config import DetectorConfig
@@ -18,6 +19,7 @@ from core.detector.model_exporter import ModelExporter
 from core.detector.model_manager import ModelLoadError, ModelManager
 from core.detector.post_processor import PostProcessor
 from core.detector.preprocessor import ImagePreprocessor
+from utils.helpers import get_memory_usage
 
 
 class OptimizedYOLODetector(YOLODetector):
@@ -204,8 +206,8 @@ class OptimizedYOLODetector(YOLODetector):
 
         inference_time = (time.perf_counter() - start_time) * 1000
         self._inference_times.append(inference_time)
-        if len(self._inference_times) > 100:
-            self._inference_times = self._inference_times[-100:]
+        if len(self._inference_times) > INFERENCE_TIMES_MAX:
+            self._inference_times = self._inference_times[-INFERENCE_TIMES_MAX:]
 
         self._total_detections += len(detections)
 
@@ -270,8 +272,6 @@ class OptimizedYOLODetector(YOLODetector):
     def _calculate_cache_size(self) -> int:
         """Calcula el tamaño óptimo del caché."""
         try:
-            from utils.helpers import get_memory_usage
-
             mem = get_memory_usage()
             available_mb = mem.get("system_available_mb", 4096)
             max_mb = min(available_mb * 0.1, 250)

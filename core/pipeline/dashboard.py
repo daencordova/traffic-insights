@@ -13,6 +13,11 @@ from typing import Any
 import cv2
 import numpy as np
 
+from core.constants.magic_numbers import (
+    IMAGE_CHANNELS_GRAY,
+    IMAGE_CHANNELS_RGB,
+    MAX_LINES_IN_DASHBOARD,
+)
 from core.constants.pipeline import MIN_ACCEPTABLE_FPS, TARGET_FPS
 from core.constants.vision import (
     COLORS,
@@ -90,9 +95,9 @@ class DashboardRenderer(LoggerMixin):
             h, w = self._default_frame_size
             frame = np.zeros((h, w, 3), dtype=np.uint8)
 
-        if len(frame.shape) == 2:
+        if len(frame.shape) == IMAGE_CHANNELS_GRAY:
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        elif len(frame.shape) != 3:
+        elif len(frame.shape) != IMAGE_CHANNELS_RGB:
             self.logger.warning(f"Dashboard: frame shape inválido: {frame.shape}")
             h, w = self._default_frame_size
             frame = np.zeros((h, w, 3), dtype=np.uint8)
@@ -143,10 +148,10 @@ class DashboardRenderer(LoggerMixin):
                 y_offset += 22
 
             line_counts = stats.get("line_counts", {})
-            if len(line_counts) <= 4 and line_counts:
+            if len(line_counts) <= MAX_LINES_IN_DASHBOARD and line_counts:
                 y_offset = y + dashboard_h - 10
                 for idx, (line_id, count) in enumerate(line_counts.items()):
-                    if idx >= 4:
+                    if idx >= MAX_LINES_IN_DASHBOARD:
                         break
 
                     line_name = self._get_line_name(line_id)

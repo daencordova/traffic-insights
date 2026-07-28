@@ -9,6 +9,9 @@ from collections import defaultdict
 import time
 from typing import Any
 
+from core.constants.magic_numbers import HISTORY_MAX_SIZE, VELOCITY_DIMENSION
+from core.constants.system import SECONDS_PER_MINUTE
+
 
 class VehicleEvent:
     """Evento de conteo de un vehículo."""
@@ -131,24 +134,24 @@ class StatisticsCollector:
             object_id: ID del objeto
             velocity: Velocidad (vx, vy)
         """
-        if not isinstance(velocity, (tuple, list)) or len(velocity) != 2:
+        if not isinstance(velocity, (tuple, list)) or len(velocity) != VELOCITY_DIMENSION:
             return
 
         speed = (velocity[0] ** 2 + velocity[1] ** 2) ** 0.5
         self.speed_history[object_id].append(speed)
 
-        if len(self.speed_history[object_id]) > 30:
-            self.speed_history[object_id] = self.speed_history[object_id][-30:]
+        if len(self.speed_history[object_id]) > HISTORY_MAX_SIZE:
+            self.speed_history[object_id] = self.speed_history[object_id][-HISTORY_MAX_SIZE:]
 
     def update_minute_counts(self, total: int) -> None:
         """Actualiza los conteos por minuto."""
         current_time = time.time()
-        if current_time - self._last_count_time >= 60:
+        if current_time - self._last_count_time >= SECONDS_PER_MINUTE:
             self._counts_per_minute.append(total)
             self._last_count_time = current_time
 
-            if len(self._counts_per_minute) > 60:
-                self._counts_per_minute = self._counts_per_minute[-60:]
+            if len(self._counts_per_minute) > SECONDS_PER_MINUTE:
+                self._counts_per_minute = self._counts_per_minute[-SECONDS_PER_MINUTE:]
 
     def get_average_speed(self) -> float:
         """Calcula la velocidad promedio de todos los objetos."""
@@ -315,7 +318,7 @@ class StatisticsCollector:
         for obj_id, speeds in other.speed_history.items():
             if obj_id in self.speed_history:
                 self.speed_history[obj_id].extend(speeds)
-                if len(self.speed_history[obj_id]) > 30:
-                    self.speed_history[obj_id] = self.speed_history[obj_id][-30:]
+                if len(self.speed_history[obj_id]) > HISTORY_MAX_SIZE:
+                    self.speed_history[obj_id] = self.speed_history[obj_id][-HISTORY_MAX_SIZE:]
             else:
                 self.speed_history[obj_id] = speeds.copy()

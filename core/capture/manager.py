@@ -32,6 +32,12 @@ from utils.logger import LoggerMixin
 BUFFER_USAGE_RECOVERY_BOUNDARY = 0.6
 """Umbral para considerar que el buffer se está recuperando."""
 
+MAX_HEALTH_ISSUES = 50
+"""Número máximo de issues de salud a mantener en el historial."""
+
+HEALTH_ISSUES_TRIM_SIZE = 25
+"""Número de issues a mantener después de podar el historial."""
+
 
 class CaptureManager(LoggerMixin):
     """Gestiona la captura de frames desde una fuente de video.
@@ -138,7 +144,7 @@ class CaptureManager(LoggerMixin):
                     time.sleep(0.01)
                     continue
 
-                cap = self._ensure_connection(cap, source, consecutive_errors)
+                cap = self._ensure_connection(cap, source)
                 if cap is None:
                     consecutive_errors += 1
                     if consecutive_errors > self._max_consecutive_errors:
@@ -190,13 +196,12 @@ class CaptureManager(LoggerMixin):
         self._last_capture_time = current_time
         return True
 
-    def _ensure_connection(self, cap, source: str, consecutive_errors: int):
+    def _ensure_connection(self, cap, source: str):
         """Asegura que la conexión esté activa.
 
         Args:
             cap: Captura actual o None.
             source: Fuente de video.
-            consecutive_errors: Número de errores consecutivos.
 
         Returns:
             Captura activa o None.
@@ -323,8 +328,10 @@ class CaptureManager(LoggerMixin):
         """Registra un problema de salud del sistema."""
         timestamp = time.strftime("%H:%M:%S")
         self._health_issues.append(f"[{timestamp}] {issue}")
-        if len(self._health_issues) > 50:
-            self._health_issues = self._health_issues[-25:]
+
+        if len(self._health_issues) > MAX_HEALTH_ISSUES:
+            self._health_issues = self._health_issues[-HEALTH_ISSUES_TRIM_SIZE:]
+
         self.logger.warning(f"[{timestamp}] {issue}")
 
     @property

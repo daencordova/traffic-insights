@@ -14,12 +14,14 @@ El detector soporta:
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
 import numpy as np
 from ultralytics import YOLO
 
+from core.constants.magic_numbers import BATCH_TIMES_MAX, INFERENCE_TIMES_MAX
 from core.constants.pipeline import (
     MEMORY_CHECK_INTERVAL,
 )
@@ -209,8 +211,6 @@ class YOLODetector(IDetector, LoggerMixin):
         Note:
             ONNX Runtime ofrece mejor rendimiento en CPU que PyTorch.
         """
-        import os
-
         onnx_path = self.config.model_path.replace(".pt", ".onnx")
 
         if not os.path.exists(onnx_path):
@@ -483,8 +483,8 @@ class YOLODetector(IDetector, LoggerMixin):
         self._inference_times.append(inference_time)
         self._total_detections += len(valid_detections)
 
-        if len(self._inference_times) > 100:
-            self._inference_times = self._inference_times[-100:]
+        if len(self._inference_times) > INFERENCE_TIMES_MAX:
+            self._inference_times = self._inference_times[-INFERENCE_TIMES_MAX:]
 
         if valid_detections:
             self.logger.debug(
@@ -559,8 +559,8 @@ class YOLODetector(IDetector, LoggerMixin):
             self._total_batches += 1
             self._total_detections += sum(len(d) for d in all_detections)
 
-            if len(self._batch_inference_times) > 50:
-                self._batch_inference_times = self._batch_inference_times[-50:]
+            if len(self._batch_inference_times) > BATCH_TIMES_MAX:
+                self._batch_inference_times = self._batch_inference_times[-BATCH_TIMES_MAX:]
 
             self.logger.debug(
                 "Batch inference completado",

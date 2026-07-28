@@ -6,6 +6,8 @@ Maneja la configuración, validación y acceso a las líneas de conteo.
 from dataclasses import dataclass
 from typing import Any
 
+from core.constants.magic_numbers import POINT_DIMENSION
+
 
 @dataclass
 class CountingLine:
@@ -112,7 +114,7 @@ class LineManager:
             return False
 
         first_point = points[0]
-        if not isinstance(first_point, (list, tuple)) or len(first_point) != 2:
+        if not isinstance(first_point, (list, tuple)) or len(first_point) != POINT_DIMENSION:
             return False
 
         x, y = first_point

@@ -1,11 +1,15 @@
-"""Módulo para obtener información del sistema (CPU, Memoria, Estado).
-Minimalista y optimizado para mostrar en una sola línea.
-"""
+"""Módulo para obtener información del sistema (CPU, Memoria, Estado). Minimalista y optimizado para mostrar en una sola línea."""
 
 from collections import deque
 from dataclasses import dataclass
 import threading
 import time
+
+from core.constants.magic_numbers import (
+    FPS_LOW,
+    MEMORY_HIGH_PERCENT,
+    MEMORY_SAFE_PERCENT,
+)
 
 try:
     import psutil
@@ -13,6 +17,10 @@ try:
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
+
+
+TARGET_FPS = 30.0
+MIN_ACCEPTABLE_FPS = 15.0
 
 
 @dataclass(slots=True)
@@ -63,13 +71,12 @@ class SystemInfoCollector:
         """
         current_time = time.time()
 
-        if (current_time - self._last_update) < self.cache_seconds:
-            if self._cached_info:
-                self._cached_info.fps = fps
-                self._cached_info.processing_time_ms = processing_time_ms
-                self._cached_info.active_tracks = active_tracks
-                self._cached_info.status = self._pipeline_status
-                return self._cached_info
+        if (current_time - self._last_update) < self.cache_seconds and self._cached_info:
+            self._cached_info.fps = fps
+            self._cached_info.processing_time_ms = processing_time_ms
+            self._cached_info.active_tracks = active_tracks
+            self._cached_info.status = self._pipeline_status
+            return self._cached_info
 
         with self._lock:
             cpu_percent, memory_percent, memory_used_mb = self._get_system_metrics()
@@ -154,12 +161,9 @@ class SystemInfoCollector:
         Returns:
             tuple: Color en formato (B, G, R)
         """
-        TARGET_FPS = 30.0
-        MIN_ACCEPTABLE_FPS = 15.0
-
-        if fps >= TARGET_FPS and cpu_percent < 70:
+        if fps >= TARGET_FPS and cpu_percent < MEMORY_SAFE_PERCENT:
             return (0, 255, 0)
-        if fps >= MIN_ACCEPTABLE_FPS and cpu_percent < 85:
+        if fps >= FPS_LOW and cpu_percent < MEMORY_HIGH_PERCENT:
             return (0, 255, 255)
         return (0, 0, 255)
 
@@ -169,9 +173,9 @@ class SystemInfoCollector:
         Returns:
             tuple: Color en formato (B, G, R)
         """
-        if memory_percent < 70:
+        if memory_percent < MEMORY_SAFE_PERCENT:
             return (0, 255, 0)
-        if memory_percent < 85:
+        if memory_percent < MEMORY_HIGH_PERCENT:
             return (0, 255, 255)
         return (0, 0, 255)
 

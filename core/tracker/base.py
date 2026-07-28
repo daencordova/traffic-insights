@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 
+from core.constants.magic_numbers import MEMORY_WARNING_PERCENT
 from core.constants.pipeline import (
     CLEANUP_INTERVAL,
     MEMORY_CHECK_INTERVAL,
@@ -857,7 +858,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             mem = get_memory_usage()
             mem_percent = mem.get("percent", 0)
 
-            if mem_percent > 75:
+            if mem_percent > MEMORY_WARNING_PERCENT:
                 self.logger.warning(
                     "Memoria alta, limpiando",
                     memory_percent=f"{mem_percent:.1f}",
