@@ -1,14 +1,14 @@
-"""
-Utilidades para el renderizado de texto.
+"""Utilidades para el renderizado de texto.
 """
 
-from typing import Dict, TypedDict
+from typing import TypedDict
 
 import cv2
 
 
 class TextMetrics(TypedDict):
     """Métricas de texto calculadas."""
+
     text: str
     width: int
     height: int
@@ -16,8 +16,7 @@ class TextMetrics(TypedDict):
 
 
 class TextMetricsCache:
-    """
-    Caché para métricas de texto calculadas.
+    """Caché para métricas de texto calculadas.
     Reduce llamadas a cv2.getTextSize.
     """
 
@@ -30,7 +29,7 @@ class TextMetricsCache:
         thickness: int = 1,
         max_size: int = 100,
     ):
-        self._cache: Dict[str, TextMetrics] = {}
+        self._cache: dict[str, TextMetrics] = {}
         self._max_size = max_size
         self._font = font
         self._scale = scale

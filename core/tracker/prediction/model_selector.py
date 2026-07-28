@@ -1,22 +1,22 @@
-"""
-Selector de modelos de movimiento.
+"""Selector de modelos de movimiento.
 
 Selecciona el modelo más apropiado para cada track basado
 en el historial de movimiento.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Any
+
 import numpy as np
 
 from core.tracker.prediction.motion_models import (
-    MotionModel,
     LinearModel,
+    MotionModel,
     MotionModelFactory,
 )
 
+
 class ModelSelector:
-    """
-    Selector de modelos de movimiento.
+    """Selector de modelos de movimiento.
 
     Responsabilidades:
     - Evaluar diferentes modelos para un track
@@ -29,9 +29,8 @@ class ModelSelector:
         _stats: Estadísticas del selector
     """
 
-    def __init__(self, models: Optional[List[str]] = None):
-        """
-        Inicializa el selector de modelos.
+    def __init__(self, models: list[str] | None = None):
+        """Inicializa el selector de modelos.
 
         Args:
             models: Lista de tipos de modelos a considerar
@@ -44,13 +43,13 @@ class ModelSelector:
             try:
                 model = MotionModelFactory.create(model_type)
                 self.available_models.append(model)
-            except Exception as e:
+            except Exception:
                 pass
 
         if not self.available_models:
             self.available_models.append(LinearModel())
 
-        self._model_history: Dict[int, str] = {}
+        self._model_history: dict[int, str] = {}
         self._stats = {
             "total_selections": 0,
             "model_usage": {model.name: 0 for model in self.available_models},
@@ -58,13 +57,9 @@ class ModelSelector:
         }
 
     def select_model(
-        self,
-        track_id: int,
-        positions: np.ndarray,
-        velocities: np.ndarray
+        self, track_id: int, positions: np.ndarray, velocities: np.ndarray
     ) -> MotionModel:
-        """
-        Selecciona el modelo más apropiado para un track.
+        """Selecciona el modelo más apropiado para un track.
 
         Args:
             track_id: ID del track
@@ -75,6 +70,7 @@ class ModelSelector:
             MotionModel: Modelo seleccionado
         """
         import time
+
         start_time = time.perf_counter()
 
         if len(positions) < 5:
@@ -93,15 +89,12 @@ class ModelSelector:
 
         self._model_history[track_id] = model.name
         self._stats["total_selections"] += 1
-        self._stats["model_usage"][model.name] = (
-            self._stats["model_usage"].get(model.name, 0) + 1
-        )
+        self._stats["model_usage"][model.name] = self._stats["model_usage"].get(model.name, 0) + 1
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         self._stats["selection_time_ms"] = (
-            (self._stats["selection_time_ms"] * (self._stats["total_selections"] - 1) + elapsed_ms) /
-            self._stats["total_selections"]
-        )
+            self._stats["selection_time_ms"] * (self._stats["total_selections"] - 1) + elapsed_ms
+        ) / self._stats["total_selections"]
 
         return model
 
@@ -112,9 +105,8 @@ class ModelSelector:
                 return model
         return LinearModel()
 
-    def get_last_model(self, track_id: int) -> Optional[MotionModel]:
-        """
-        Obtiene el último modelo seleccionado para un track.
+    def get_last_model(self, track_id: int) -> MotionModel | None:
+        """Obtiene el último modelo seleccionado para un track.
 
         Args:
             track_id: ID del track
@@ -128,7 +120,7 @@ class ModelSelector:
         model_name = self._model_history[track_id]
         return self._get_model_by_name(model_name)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del selector."""
         return {
             **self._stats,

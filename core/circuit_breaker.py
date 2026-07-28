@@ -1,27 +1,27 @@
-"""
-Sistema Circuit Breaker para prevenir fallos en cascada.
+"""Sistema Circuit Breaker para prevenir fallos en cascada.
 
 Protege componentes que pueden fallar temporalmente (conexiones de red,
 cámaras, etc.) evitando que el sistema se degrade por fallos repetitivos.
 """
 
-from enum import Enum
+from collections.abc import Callable
 from datetime import datetime
-from typing import Optional, Callable, Dict, Any
+from enum import Enum
 import logging
 import threading
+from typing import Any, Optional
 
 
 class CircuitState(Enum):
     """Estados del circuit breaker."""
+
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
 
 
 class CircuitBreaker:
-    """
-    Circuit breaker para proteger componentes de fallos en cascada.
+    """Circuit breaker para proteger componentes de fallos en cascada.
 
     Características:
     - Tres estados: CLOSED, OPEN, HALF_OPEN
@@ -48,9 +48,10 @@ class CircuitBreaker:
         failure_threshold: int = 5,
         timeout_seconds: float = 30.0,
         half_open_max_attempts: int = 3,
-        on_state_change: Optional[Callable[[str, str], None]] = None,
+        on_state_change: Callable[[str, str], None] | None = None,
     ):
-        """
+        """Inicializa el circuit breaker.
+
         Args:
             name: Identificador único del circuit breaker.
             failure_threshold: Número de fallos consecutivos para abrir.
@@ -67,8 +68,8 @@ class CircuitBreaker:
         self._state = CircuitState.CLOSED
         self._failure_count = 0
         self._success_count = 0
-        self._last_failure_time: Optional[datetime] = None
-        self._last_state_change: Optional[datetime] = datetime.now()
+        self._last_failure_time: datetime | None = None
+        self._last_state_change: datetime | None = datetime.now()
         self._half_open_attempts = 0
         self._total_failures = 0
         self._total_successes = 0
@@ -79,8 +80,7 @@ class CircuitBreaker:
         self.logger.info(f"Circuit breaker '{name}' inicializado (umbral: {failure_threshold})")
 
     def can_execute(self) -> bool:
-        """
-        Verifica si se puede ejecutar la operación.
+        """Verifica si se puede ejecutar la operación.
 
         Returns:
             bool: True si la operación está permitida.
@@ -92,7 +92,9 @@ class CircuitBreaker:
             if self._state == CircuitState.OPEN:
                 if self._is_timeout_expired():
                     self._transition_to(CircuitState.HALF_OPEN)
-                    self.logger.info(f"Circuit breaker '{self.name}' pasó a HALF_OPEN (timeout expirado)")
+                    self.logger.info(
+                        f"Circuit breaker '{self.name}' pasó a HALF_OPEN (timeout expirado)"
+                    )
                     return True
                 return False
 
@@ -124,9 +126,8 @@ class CircuitBreaker:
 
             self._failure_count = 0
 
-    def record_failure(self, error: Optional[Exception] = None) -> None:
-        """
-        Registra una operación fallida.
+    def record_failure(self, error: Exception | None = None) -> None:
+        """Registra una operación fallida.
 
         Args:
             error: Excepción que causó el fallo (opcional).
@@ -163,6 +164,8 @@ class CircuitBreaker:
         if self.on_state_change:
             self.on_state_change(self.name, new_state.value)
 
+        self.logger.debug(f"Circuit breaker '{self.name}': {old_state.value} -> {new_state.value}")
+
     def _is_timeout_expired(self) -> bool:
         """Verifica si el timeout de recuperación ha expirado."""
         if self._last_state_change is None:
@@ -175,7 +178,7 @@ class CircuitBreaker:
         with self._lock:
             return self._state.value
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del circuit breaker."""
         with self._lock:
             return {
@@ -186,8 +189,12 @@ class CircuitBreaker:
                 "total_failures": self._total_failures,
                 "total_successes": self._total_successes,
                 "half_open_attempts": self._half_open_attempts,
-                "last_failure_time": self._last_failure_time.isoformat() if self._last_failure_time else None,
-                "last_state_change": self._last_state_change.isoformat() if self._last_state_change else None,
+                "last_failure_time": self._last_failure_time.isoformat()
+                if self._last_failure_time
+                else None,
+                "last_state_change": self._last_state_change.isoformat()
+                if self._last_state_change
+                else None,
                 "timeout_seconds": self.timeout_seconds,
                 "failure_threshold": self.failure_threshold,
             }
@@ -203,14 +210,13 @@ class CircuitBreaker:
 
 
 class CircuitBreakerRegistry:
-    """
-    Registro global de circuit breakers para acceso centralizado.
+    """Registro global de circuit breakers para acceso centralizado.
 
     Útil para monitorear y gestionar todos los circuit breakers desde un solo lugar.
     """
 
-    _instance: Optional['CircuitBreakerRegistry'] = None
-    _breakers: Dict[str, CircuitBreaker] = {}
+    _instance: Optional["CircuitBreakerRegistry"] = None
+    _breakers: dict[str, CircuitBreaker] = {}
     _lock = threading.Lock()
 
     def __new__(cls):
@@ -225,18 +231,15 @@ class CircuitBreakerRegistry:
         with self._lock:
             self._breakers[breaker.name] = breaker
 
-    def get(self, name: str) -> Optional[CircuitBreaker]:
+    def get(self, name: str) -> CircuitBreaker | None:
         """Obtiene un circuit breaker por nombre."""
         with self._lock:
             return self._breakers.get(name)
 
-    def get_all_stats(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_stats(self) -> dict[str, dict[str, Any]]:
         """Obtiene estadísticas de todos los circuit breakers."""
         with self._lock:
-            return {
-                name: breaker.get_stats()
-                for name, breaker in self._breakers.items()
-            }
+            return {name: breaker.get_stats() for name, breaker in self._breakers.items()}
 
     def reset_all(self) -> None:
         """Reinicia todos los circuit breakers."""
@@ -244,16 +247,16 @@ class CircuitBreakerRegistry:
             for breaker in self._breakers.values():
                 breaker.reset()
 
-    def get_health_summary(self) -> Dict[str, Any]:
+    def get_health_summary(self) -> dict[str, Any]:
         """Obtiene un resumen de salud de todos los circuit breakers."""
         with self._lock:
             total = len(self._breakers)
             open_breakers = [
-                name for name, breaker in self._breakers.items()
-                if breaker.get_state() == "open"
+                name for name, breaker in self._breakers.items() if breaker.get_state() == "open"
             ]
             half_open_breakers = [
-                name for name, breaker in self._breakers.items()
+                name
+                for name, breaker in self._breakers.items()
                 if breaker.get_state() == "half_open"
             ]
 

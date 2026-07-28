@@ -1,5 +1,4 @@
-"""
-Servicio de control y eventos de usuario.
+"""Servicio de control y eventos de usuario.
 
 Responsable de:
 - Manejar eventos de teclado
@@ -9,7 +8,7 @@ Responsable de:
 - Mostrar ayuda
 """
 
-from typing import Optional, Callable
+from collections.abc import Callable
 
 import numpy as np
 
@@ -18,17 +17,16 @@ from utils.logger import LoggerMixin
 
 
 class ControlService(LoggerMixin):
-    """
-    Servicio especializado en control y eventos de usuario.
+    """Servicio especializado en control y eventos de usuario.
     """
 
     def __init__(
         self,
         config,
-        controls: Optional[ControlHandler] = None,
-        on_pause_toggle: Optional[Callable] = None,
-        on_reset: Optional[Callable] = None,
-        on_screenshot: Optional[Callable] = None,
+        controls: ControlHandler | None = None,
+        on_pause_toggle: Callable | None = None,
+        on_reset: Callable | None = None,
+        on_screenshot: Callable | None = None,
     ):
         self.config = config
         self.controls = controls or ControlHandler(config)
@@ -36,7 +34,7 @@ class ControlService(LoggerMixin):
         self.on_reset = on_reset
         self.on_screenshot = on_screenshot
 
-        self._last_frame: Optional[np.ndarray] = None
+        self._last_frame: np.ndarray | None = None
 
         self.controls.register_callback("on_pause_toggle", self._handle_pause_toggle)
         self.controls.register_callback("on_reset", self._handle_reset)
@@ -45,8 +43,7 @@ class ControlService(LoggerMixin):
         self.logger.info("ControlService inicializado")
 
     def handle_key(self, key: int) -> bool:
-        """
-        Maneja una tecla presionada.
+        """Maneja una tecla presionada.
 
         Args:
             key: Código de la tecla
@@ -76,9 +73,8 @@ class ControlService(LoggerMixin):
         if self.on_screenshot:
             self.on_screenshot(filepath)
 
-    def save_screenshot(self, frame: Optional[np.ndarray] = None) -> Optional[str]:
-        """
-        Guarda una captura de pantalla.
+    def save_screenshot(self, frame: np.ndarray | None = None) -> str | None:
+        """Guarda una captura de pantalla.
 
         Args:
             frame: Frame a guardar (opcional)
@@ -118,7 +114,7 @@ class ControlService(LoggerMixin):
     def get_stats(self) -> dict:
         """Obtiene estadísticas del servicio."""
         return {
-            'is_paused': self.is_paused(),
-            'is_running': self.is_running(),
-            'has_last_frame': self._last_frame is not None,
+            "is_paused": self.is_paused(),
+            "is_running": self.is_running(),
+            "has_last_frame": self._last_frame is not None,
         }

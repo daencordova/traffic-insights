@@ -1,32 +1,30 @@
-"""
-Sistema de aprendizaje en línea para adaptación de features en tracking.
+"""Sistema de aprendizaje en línea para adaptación de features en tracking.
 
 Orquesta los componentes de estadísticas, estrategias de aprendizaje,
 detector de concept drift y agregador de features.
 """
 
-import time
-from typing import Dict, Optional, List, Any
 from collections import deque
+import time
+from typing import Any
 
 import numpy as np
 
-from utils.logger import LoggerMixin
-from core.tracker.learning.statistics import FeatureStatistics
-from core.tracker.learning.strategies import LearningStrategyFactory
-from core.tracker.learning.drift_detector import ConceptDriftDetector
-from core.tracker.learning.aggregator import FeatureAggregator
 from core.constants.tracking import (
     ONLINE_LEARNING_DEFAULT_LR,
-    ONLINE_LEARNING_MIN_SAMPLES,
     ONLINE_LEARNING_DRIFT_THRESHOLD,
     ONLINE_LEARNING_MAX_HISTORY,
+    ONLINE_LEARNING_MIN_SAMPLES,
 )
+from core.tracker.learning.aggregator import FeatureAggregator
+from core.tracker.learning.drift_detector import ConceptDriftDetector
+from core.tracker.learning.statistics import FeatureStatistics
+from core.tracker.learning.strategies import LearningStrategyFactory
+from utils.logger import LoggerMixin
 
 
 class OnlineLearner(LoggerMixin):
-    """
-    Sistema de aprendizaje en línea para features de tracking.
+    """Sistema de aprendizaje en línea para features de tracking.
 
     Orquesta los componentes de estadísticas, estrategias de aprendizaje,
     detector de concept drift y agregador de features.
@@ -47,10 +45,9 @@ class OnlineLearner(LoggerMixin):
         min_samples: int = ONLINE_LEARNING_MIN_SAMPLES,
         drift_threshold: float = ONLINE_LEARNING_DRIFT_THRESHOLD,
         max_history: int = ONLINE_LEARNING_MAX_HISTORY,
-        strategy: str = "adaptive"
+        strategy: str = "adaptive",
     ):
-        """
-        Inicializa el sistema de aprendizaje en línea.
+        """Inicializa el sistema de aprendizaje en línea.
 
         Args:
             feature_dim: Dimensión de los features
@@ -65,12 +62,10 @@ class OnlineLearner(LoggerMixin):
         self.min_samples = min_samples
         self.max_history = max_history
 
-        self._stats: Dict[int, FeatureStatistics] = {}
+        self._stats: dict[int, FeatureStatistics] = {}
         self._strategy = LearningStrategyFactory.create(strategy)
         self._drift_detector = ConceptDriftDetector(
-            threshold=drift_threshold,
-            min_samples=min_samples,
-            history_size=max_history
+            threshold=drift_threshold, min_samples=min_samples, history_size=max_history
         )
         self._aggregator = FeatureAggregator()
 
@@ -89,18 +84,13 @@ class OnlineLearner(LoggerMixin):
             feature_dim=feature_dim,
             learning_rate=learning_rate,
             strategy=strategy,
-            drift_threshold=drift_threshold
+            drift_threshold=drift_threshold,
         )
 
     def update(
-        self,
-        track_id: int,
-        features: np.ndarray,
-        confidence: float = 1.0,
-        force: bool = False
+        self, track_id: int, features: np.ndarray, confidence: float = 1.0, force: bool = False
     ) -> np.ndarray:
-        """
-        Actualiza el feature promedio con la nueva observación.
+        """Actualiza el feature promedio con la nueva observación.
 
         Args:
             track_id: ID del track a actualizar
@@ -119,7 +109,7 @@ class OnlineLearner(LoggerMixin):
                 "Dimensión de features incorrecta",
                 expected=self.feature_dim,
                 actual=len(features),
-                track_id=track_id
+                track_id=track_id,
             )
             return features
 
@@ -135,17 +125,13 @@ class OnlineLearner(LoggerMixin):
                 n_samples=1,
                 confidence_history=deque(maxlen=self.max_history),
                 timestamps=deque(maxlen=self.max_history),
-                feature_history=deque(maxlen=self.max_history)
+                feature_history=deque(maxlen=self.max_history),
             )
             self._stats[track_id].add_sample(features, confidence)
             self._global_stats["total_tracks"] += 1
             self._global_stats["active_learners"] += 1
 
-            self.logger.debug(
-                "Nuevo learner creado",
-                track_id=track_id,
-                n_samples=1
-            )
+            self.logger.debug("Nuevo learner creado", track_id=track_id, n_samples=1)
             return features
 
         stats = self._stats[track_id]
@@ -155,7 +141,7 @@ class OnlineLearner(LoggerMixin):
                 "Confianza insuficiente para actualizar",
                 track_id=track_id,
                 confidence=confidence,
-                threshold=0.2
+                threshold=0.2,
             )
             return stats.mean_features
 
@@ -166,12 +152,7 @@ class OnlineLearner(LoggerMixin):
 
         current_lr = self._compute_learning_rate(stats, confidence)
 
-        updated_features = self._strategy.update(
-            stats,
-            features,
-            confidence,
-            current_lr
-        )
+        updated_features = self._strategy.update(stats, features, confidence, current_lr)
 
         stats.add_sample(features, confidence)
 
@@ -184,19 +165,13 @@ class OnlineLearner(LoggerMixin):
             track_id=track_id,
             n_samples=stats.n_samples,
             confidence=confidence,
-            learning_rate=current_lr
+            learning_rate=current_lr,
         )
 
         return updated_features
 
-    def _handle_concept_drift(
-        self,
-        track_id: int,
-        features: np.ndarray,
-        confidence: float
-    ) -> None:
-        """
-        Maneja un cambio de concepto (concept drift).
+    def _handle_concept_drift(self, track_id: int, features: np.ndarray, confidence: float) -> None:
+        """Maneja un cambio de concepto (concept drift).
 
         Args:
             track_id: ID del track
@@ -220,19 +195,10 @@ class OnlineLearner(LoggerMixin):
         stats.covariance = None
         stats.quality_score = 0.0
 
-        self.logger.info(
-            "Concept drift manejado",
-            track_id=track_id,
-            confidence=confidence
-        )
+        self.logger.info("Concept drift manejado", track_id=track_id, confidence=confidence)
 
-    def _compute_learning_rate(
-        self,
-        stats: FeatureStatistics,
-        confidence: float
-    ) -> float:
-        """
-        Calcula la tasa de aprendizaje adaptativa.
+    def _compute_learning_rate(self, stats: FeatureStatistics, confidence: float) -> float:
+        """Calcula la tasa de aprendizaje adaptativa.
 
         Args:
             stats: Estadísticas del track
@@ -252,9 +218,8 @@ class OnlineLearner(LoggerMixin):
 
         return max(0.001, min(0.2, adjusted_lr))
 
-    def get_feature(self, track_id: int) -> Optional[np.ndarray]:
-        """
-        Obtiene el feature promedio actual de un track.
+    def get_feature(self, track_id: int) -> np.ndarray | None:
+        """Obtiene el feature promedio actual de un track.
 
         Args:
             track_id: ID del track
@@ -268,8 +233,7 @@ class OnlineLearner(LoggerMixin):
         return stats.mean_features
 
     def get_confidence(self, track_id: int, features: np.ndarray) -> float:
-        """
-        Calcula la confianza de un feature respecto al promedio del track.
+        """Calcula la confianza de un feature respecto al promedio del track.
 
         Args:
             track_id: ID del track
@@ -291,9 +255,8 @@ class OnlineLearner(LoggerMixin):
         similarity = np.dot(mean_feat, features) / (norm_mean * norm_feat)
         return max(0.0, min(1.0, similarity))
 
-    def get_stats(self, track_id: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del sistema o de un track específico.
+    def get_stats(self, track_id: int | None = None) -> dict[str, Any]:
+        """Obtiene estadísticas del sistema o de un track específico.
 
         Args:
             track_id: ID del track (opcional)
@@ -312,16 +275,16 @@ class OnlineLearner(LoggerMixin):
             "active_tracks": len(self._stats),
             "total_samples": sum(s.n_samples for s in self._stats.values()),
             "total_updates": sum(s.total_updates for s in self._stats.values()),
-            "avg_samples_per_track": sum(s.n_samples for s in self._stats.values()) / max(1, len(self._stats)),
+            "avg_samples_per_track": sum(s.n_samples for s in self._stats.values())
+            / max(1, len(self._stats)),
             "drift_rate": self._drift_detector.get_drift_rate(),
             "strategy": self._strategy.name,
             "drift_detector": self._drift_detector.get_stats(),
             "aggregator": self._aggregator.get_stats(),
         }
 
-    def get_covariance(self, track_id: int) -> Optional[np.ndarray]:
-        """
-        Obtiene la matriz de covarianza de un track.
+    def get_covariance(self, track_id: int) -> np.ndarray | None:
+        """Obtiene la matriz de covarianza de un track.
 
         Args:
             track_id: ID del track
@@ -335,8 +298,7 @@ class OnlineLearner(LoggerMixin):
         return stats.covariance
 
     def get_uncertainty(self, track_id: int) -> float:
-        """
-        Calcula la incertidumbre del modelo para un track.
+        """Calcula la incertidumbre del modelo para un track.
 
         Args:
             track_id: ID del track
@@ -356,8 +318,7 @@ class OnlineLearner(LoggerMixin):
         return 1.0 / (1.0 + stats.n_samples / self.min_samples)
 
     def get_quality(self, track_id: int) -> float:
-        """
-        Obtiene la calidad del modelo para un track.
+        """Obtiene la calidad del modelo para un track.
 
         Args:
             track_id: ID del track
@@ -371,8 +332,7 @@ class OnlineLearner(LoggerMixin):
         return stats.quality_score
 
     def merge_tracks(self, target_id: int, source_id: int) -> bool:
-        """
-        Fusiona las estadísticas de dos tracks.
+        """Fusiona las estadísticas de dos tracks.
 
         Args:
             target_id: ID del track destino
@@ -397,14 +357,13 @@ class OnlineLearner(LoggerMixin):
             "Tracks fusionados",
             target_id=target_id,
             source_id=source_id,
-            total_samples=target_stats.n_samples
+            total_samples=target_stats.n_samples,
         )
 
         return True
 
     def clear_track(self, track_id: int) -> bool:
-        """
-        Elimina todas las estadísticas de un track.
+        """Elimina todas las estadísticas de un track.
 
         Args:
             track_id: ID del track a eliminar
@@ -431,9 +390,8 @@ class OnlineLearner(LoggerMixin):
         self._global_stats["total_drifts_detected"] = 0
         self.logger.info("Todos los learners eliminados", count=count)
 
-    def get_learning_curve(self, track_id: int) -> Dict[str, List[float]]:
-        """
-        Obtiene la curva de aprendizaje de un track.
+    def get_learning_curve(self, track_id: int) -> dict[str, list[float]]:
+        """Obtiene la curva de aprendizaje de un track.
 
         Args:
             track_id: ID del track
@@ -454,8 +412,7 @@ class OnlineLearner(LoggerMixin):
         }
 
     def set_strategy(self, strategy_type: str) -> None:
-        """
-        Cambia la estrategia de aprendizaje.
+        """Cambia la estrategia de aprendizaje.
 
         Args:
             strategy_type: Tipo de estrategia

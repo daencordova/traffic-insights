@@ -1,31 +1,33 @@
-"""
-Post-procesador para detecciones YOLO.
+"""Post-procesador para detecciones YOLO.
 
 Maneja el parsing de resultados, NMS y validación de detecciones.
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import Any
 
 import numpy as np
 
 try:
     from numba import jit
+
     NUMBA_AVAILABLE = True
 except ImportError:
     NUMBA_AVAILABLE = False
+
     def jit(*args, **kwargs):
         def decorator(func):
             return func
+
         return decorator if args and callable(args[0]) else decorator
 
-from utils.logger import LoggerMixin
+
 from utils.geometry import calculate_centroid
+from utils.logger import LoggerMixin
 
 
 @jit(nopython=True, cache=True)
 def nms_fast(detections: np.ndarray, iou_threshold: float) -> np.ndarray:
-    """
-    NMS optimizado con Numba.
+    """NMS optimizado con Numba.
 
     Args:
         detections: Array de detecciones [N, 6] (x1, y1, x2, y2, score, class_id)
@@ -70,8 +72,7 @@ def nms_fast(detections: np.ndarray, iou_threshold: float) -> np.ndarray:
 
 
 class PostProcessor(LoggerMixin):
-    """
-    Post-procesador para detecciones YOLO.
+    """Post-procesador para detecciones YOLO.
 
     Responsabilidades:
     - Parsear resultados de inferencia
@@ -117,16 +118,13 @@ class PostProcessor(LoggerMixin):
             "PostProcessor inicializado",
             confidence_threshold=confidence_threshold,
             iou_threshold=iou_threshold,
-            vehicle_classes=vehicle_classes
+            vehicle_classes=vehicle_classes,
         )
 
     def process_onnx_output(
-        self,
-        output: np.ndarray,
-        original_shape: Tuple[int, int]
-    ) -> List[Dict[str, Any]]:
-        """
-        Procesa la salida de ONNX.
+        self, output: np.ndarray, original_shape: tuple[int, int]
+    ) -> list[dict[str, Any]]:
+        """Procesa la salida de ONNX.
 
         Args:
             output: Salida del modelo ONNX
@@ -186,12 +184,9 @@ class PostProcessor(LoggerMixin):
             return []
 
     def process_pytorch_results(
-        self,
-        results,
-        original_shape: Tuple[int, int]
-    ) -> List[Dict[str, Any]]:
-        """
-        Procesa los resultados de PyTorch.
+        self, results, original_shape: tuple[int, int]
+    ) -> list[dict[str, Any]]:
+        """Procesa los resultados de PyTorch.
 
         Args:
             results: Resultados de YOLO
@@ -226,13 +221,15 @@ class PostProcessor(LoggerMixin):
 
                 centroid = calculate_centroid(x1, y1, x2, y2)
 
-                detections.append({
-                    "box": (x1, y1, x2, y2),
-                    "centroid": centroid,
-                    "confidence": confidence,
-                    "class_id": class_id,
-                    "area": area,
-                })
+                detections.append(
+                    {
+                        "box": (x1, y1, x2, y2),
+                        "centroid": centroid,
+                        "confidence": confidence,
+                        "class_id": class_id,
+                        "area": area,
+                    }
+                )
 
                 self._stats["detections_after_nms"] += 1
 
@@ -242,12 +239,9 @@ class PostProcessor(LoggerMixin):
         return detections
 
     def _parse_detections(
-        self,
-        detections: np.ndarray,
-        original_shape: Tuple[int, int]
-    ) -> List[Dict[str, Any]]:
-        """
-        Parsea detecciones al formato estándar.
+        self, detections: np.ndarray, original_shape: tuple[int, int]
+    ) -> list[dict[str, Any]]:
+        """Parsea detecciones al formato estándar.
 
         Args:
             detections: Array de detecciones
@@ -283,13 +277,15 @@ class PostProcessor(LoggerMixin):
 
                 centroid = calculate_centroid(x1, y1, x2, y2)
 
-                parsed.append({
-                    "box": (x1, y1, x2, y2),
-                    "centroid": centroid,
-                    "confidence": confidence,
-                    "class_id": class_id,
-                    "area": area,
-                })
+                parsed.append(
+                    {
+                        "box": (x1, y1, x2, y2),
+                        "centroid": centroid,
+                        "confidence": confidence,
+                        "class_id": class_id,
+                        "area": area,
+                    }
+                )
 
                 self._stats["detections_after_nms"] += 1
 

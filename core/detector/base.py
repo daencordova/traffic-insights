@@ -20,18 +20,18 @@ from typing import Any
 import numpy as np
 from ultralytics import YOLO
 
+from core.constants.pipeline import (
+    MEMORY_CHECK_INTERVAL,
+)
+from core.constants.system import (
+    MEMORY_WARNING_THRESHOLD,
+)
 from core.constants.vision import (
     MAX_BOX_SIZE,
     MAX_DETECTION_CONFIDENCE,
     MIN_BOX_SIZE,
     MIN_DETECTION_AREA,
     MIN_DETECTION_CONFIDENCE,
-)
-from core.constants.pipeline import (
-    MEMORY_CHECK_INTERVAL,
-)
-from core.constants.system import (
-    MEMORY_WARNING_THRESHOLD,
 )
 from core.detector.cache import DetectionCache
 from core.detector.config import DetectorConfig
@@ -324,7 +324,8 @@ class YOLODetector(IDetector, LoggerMixin):
             return []
 
         valid = [
-            d for d in detections
+            d
+            for d in detections
             if d.get("box") and d.get("centroid") and d.get("confidence", 0) > 0
         ]
 
@@ -333,7 +334,7 @@ class YOLODetector(IDetector, LoggerMixin):
                 "Detecciones filtradas",
                 total=len(detections),
                 valid=len(valid),
-                invalid=len(detections) - len(valid)
+                invalid=len(detections) - len(valid),
             )
         return valid
 

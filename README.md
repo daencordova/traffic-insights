@@ -499,6 +499,7 @@ value = config_manager.get("feature.disponible", default=False)
 ```python
 from utils.logger import LoggerMixin
 
+
 class MyComponent(LoggerMixin):
     def process(self):
         self.logger.info("Iniciando procesamiento", data={"items": 10})

@@ -1,19 +1,18 @@
-"""
-Detector de cambios de apariencia (concept drift).
+"""Detector de cambios de apariencia (concept drift).
 
 Detecta cuándo la apariencia de un objeto ha cambiado significativamente.
 """
 
-from typing import Dict, Any
 from collections import deque
+from typing import Any
+
 import numpy as np
 
 from core.tracker.learning.statistics import FeatureStatistics
 
 
 class ConceptDriftDetector:
-    """
-    Detector de cambios de apariencia.
+    """Detector de cambios de apariencia.
 
     Responsabilidades:
     - Detectar cambios significativos en la apariencia
@@ -27,14 +26,8 @@ class ConceptDriftDetector:
         _stats: Estadísticas del detector
     """
 
-    def __init__(
-        self,
-        threshold: float = 0.35,
-        min_samples: int = 5,
-        history_size: int = 50
-    ):
-        """
-        Inicializa el detector de concept drift.
+    def __init__(self, threshold: float = 0.35, min_samples: int = 5, history_size: int = 50):
+        """Inicializa el detector de concept drift.
 
         Args:
             threshold: Umbral de similitud para detectar drift
@@ -45,7 +38,7 @@ class ConceptDriftDetector:
         self.min_samples = min_samples
         self.history_size = history_size
 
-        self._similarity_history: Dict[int, deque] = {}
+        self._similarity_history: dict[int, deque] = {}
         self._stats = {
             "total_drifts_detected": 0,
             "total_checks": 0,
@@ -53,14 +46,8 @@ class ConceptDriftDetector:
             "detection_rate": 0.0,
         }
 
-    def detect_drift(
-        self,
-        track_id: int,
-        stats: FeatureStatistics,
-        features: np.ndarray
-    ) -> bool:
-        """
-        Detecta si hay un cambio de apariencia.
+    def detect_drift(self, track_id: int, stats: FeatureStatistics, features: np.ndarray) -> bool:
+        """Detecta si hay un cambio de apariencia.
 
         Args:
             track_id: ID del track
@@ -90,9 +77,8 @@ class ConceptDriftDetector:
 
         avg_similarity = np.mean(self._similarity_history[track_id])
         self._stats["avg_similarity"] = (
-            (self._stats["avg_similarity"] * (self._stats["total_checks"] - 1) + avg_similarity) /
-            self._stats["total_checks"]
-        )
+            self._stats["avg_similarity"] * (self._stats["total_checks"] - 1) + avg_similarity
+        ) / self._stats["total_checks"]
 
         if similarity < self.threshold and stats.n_samples > self.min_samples * 2:
             self._stats["total_drifts_detected"] += 1
@@ -102,8 +88,7 @@ class ConceptDriftDetector:
         return False
 
     def get_similarity_history(self, track_id: int) -> list:
-        """
-        Obtiene el historial de similitudes de un track.
+        """Obtiene el historial de similitudes de un track.
 
         Args:
             track_id: ID del track
@@ -114,8 +99,7 @@ class ConceptDriftDetector:
         return list(self._similarity_history.get(track_id, []))
 
     def get_average_similarity(self, track_id: int) -> float:
-        """
-        Obtiene la similitud promedio de un track.
+        """Obtiene la similitud promedio de un track.
 
         Args:
             track_id: ID del track
@@ -129,8 +113,7 @@ class ConceptDriftDetector:
         return float(np.mean(list(history)))
 
     def get_drift_rate(self) -> float:
-        """
-        Obtiene la tasa de detección de drift.
+        """Obtiene la tasa de detección de drift.
 
         Returns:
             float: Tasa de detección (0-1)
@@ -149,7 +132,7 @@ class ConceptDriftDetector:
         """Limpia todos los historiales."""
         self._similarity_history.clear()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del detector."""
         return {
             **self._stats,

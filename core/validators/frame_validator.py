@@ -1,5 +1,4 @@
-"""
-Validador de frames para imágenes y arrays numpy.
+"""Validador de frames para imágenes y arrays numpy.
 
 Proporciona funciones para validar la integridad y formato de los frames
 antes de su procesamiento en el pipeline.
@@ -7,29 +6,24 @@ antes de su procesamiento en el pipeline.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 import numpy as np
 
 from core.constants.vision import (
-    MIN_FRAME_WIDTH,
-    MIN_FRAME_HEIGHT,
-    DEFAULT_FRAME_WIDTH,
-    DEFAULT_FRAME_HEIGHT,
     DEFAULT_FRAME_CHANNELS,
-    DEFAULT_RENDER_WIDTH,
-    DEFAULT_RENDER_HEIGHT,
+    DEFAULT_FRAME_HEIGHT,
+    DEFAULT_FRAME_WIDTH,
     DEFAULT_RENDER_CHANNELS,
+    DEFAULT_RENDER_HEIGHT,
+    DEFAULT_RENDER_WIDTH,
+    MIN_FRAME_HEIGHT,
+    MIN_FRAME_WIDTH,
 )
 
 
 def validate_frame(
-    frame: np.ndarray,
-    min_width: int = MIN_FRAME_WIDTH,
-    min_height: int = MIN_FRAME_HEIGHT
+    frame: np.ndarray, min_width: int = MIN_FRAME_WIDTH, min_height: int = MIN_FRAME_HEIGHT
 ) -> bool:
-    """
-    Valida que el frame sea un array numpy válido y tenga tamaño mínimo.
+    """Valida que el frame sea un array numpy válido y tenga tamaño mínimo.
 
     Args:
         frame: Imagen a validar (numpy array).
@@ -62,12 +56,9 @@ def validate_frame(
 
 
 def validate_frame_shape(
-    frame: np.ndarray,
-    expected_dims: int = 3,
-    expected_channels: Optional[int] = None
+    frame: np.ndarray, expected_dims: int = 3, expected_channels: int | None = None
 ) -> bool:
-    """
-    Valida las dimensiones y canales del frame.
+    """Valida las dimensiones y canales del frame.
 
     Args:
         frame: Imagen a validar.
@@ -91,12 +82,15 @@ def validate_frame_shape(
 
 
 def ensure_valid_frame(
-    frame: Optional[np.ndarray],
-    default_shape: Tuple[int, int, int] = (DEFAULT_FRAME_HEIGHT, DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_CHANNELS),
-    dtype: np.dtype = np.uint8
+    frame: np.ndarray | None,
+    default_shape: tuple[int, int, int] = (
+        DEFAULT_FRAME_HEIGHT,
+        DEFAULT_FRAME_WIDTH,
+        DEFAULT_FRAME_CHANNELS,
+    ),
+    dtype: np.dtype = np.uint8,
 ) -> np.ndarray:
-    """
-    Asegura que el frame sea válido, creando uno por defecto si es necesario.
+    """Asegura que el frame sea válido, creando uno por defecto si es necesario.
 
     Args:
         frame: Frame a validar (puede ser None).
@@ -116,10 +110,9 @@ def create_default_frame(
     width: int = DEFAULT_RENDER_WIDTH,
     height: int = DEFAULT_RENDER_HEIGHT,
     channels: int = DEFAULT_RENDER_CHANNELS,
-    dtype: np.dtype = np.uint8
+    dtype: np.dtype = np.uint8,
 ) -> np.ndarray:
-    """
-    Crea un frame por defecto (negro) con las dimensiones especificadas.
+    """Crea un frame por defecto (negro) con las dimensiones especificadas.
 
     Args:
         width: Ancho del frame.
@@ -133,9 +126,8 @@ def create_default_frame(
     return np.zeros((height, width, channels), dtype=dtype)
 
 
-def get_frame_dimensions(frame: np.ndarray) -> Tuple[int, int]:
-    """
-    Obtiene las dimensiones (height, width) de un frame válido.
+def get_frame_dimensions(frame: np.ndarray) -> tuple[int, int]:
+    """Obtiene las dimensiones (height, width) de un frame válido.
 
     Args:
         frame: Frame del cual obtener dimensiones.
@@ -150,8 +142,7 @@ def get_frame_dimensions(frame: np.ndarray) -> Tuple[int, int]:
 
 
 def is_grayscale(frame: np.ndarray) -> bool:
-    """
-    Verifica si el frame es en escala de grises.
+    """Verifica si el frame es en escala de grises.
 
     Args:
         frame: Frame a verificar.
@@ -163,8 +154,7 @@ def is_grayscale(frame: np.ndarray) -> bool:
 
 
 def is_color(frame: np.ndarray) -> bool:
-    """
-    Verifica si el frame es a color.
+    """Verifica si el frame es a color.
 
     Args:
         frame: Frame a verificar.

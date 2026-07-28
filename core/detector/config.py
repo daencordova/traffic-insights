@@ -1,15 +1,12 @@
-"""
-Configuración específica para el detector de objetos.
+"""Configuración específica para el detector de objetos.
 """
 
 from dataclasses import dataclass, field
-from typing import List
 
 
 @dataclass
 class DetectorConfig:
-    """
-    Configuración para el detector de objetos.
+    """Configuración para el detector de objetos.
 
     Attributes:
         model_path: Ruta al modelo YOLO
@@ -23,10 +20,11 @@ class DetectorConfig:
         max_det: Número máximo de detecciones por imagen
         use_optimized: Si usar versión optimizada para CPU
     """
+
     model_path: str = "yolov8n.pt"
     confidence_threshold: float = 0.35
     iou_threshold: float = 0.45
-    vehicle_classes: List[int] = field(default_factory=lambda: [2, 3, 5, 7])
+    vehicle_classes: list[int] = field(default_factory=lambda: [2, 3, 5, 7])
     device: str = "auto"
     use_half_precision: bool = False
     use_onnx: bool = False
@@ -37,7 +35,9 @@ class DetectorConfig:
     def validate(self) -> bool:
         """Valida la configuración."""
         if not 0.0 <= self.confidence_threshold <= 1.0:
-            raise ValueError(f"Confidence threshold debe estar entre 0 y 1: {self.confidence_threshold}")
+            raise ValueError(
+                f"Confidence threshold debe estar entre 0 y 1: {self.confidence_threshold}"
+            )
 
         if not 0.0 <= self.iou_threshold <= 1.0:
             raise ValueError(f"IoU threshold debe estar entre 0 y 1: {self.iou_threshold}")
@@ -62,5 +62,5 @@ class DetectorConfig:
             use_onnx=config.model.use_onnx,
             imgsz=config.model.imgsz,
             max_det=config.model.max_det,
-            use_optimized=getattr(config.optimization, "use_optimized_detector", True)
+            use_optimized=getattr(config.optimization, "use_optimized_detector", True),
         )

@@ -1,11 +1,10 @@
-"""
-Preprocesamiento de imágenes para mejorar detección.
+"""Preprocesamiento de imágenes para mejorar detección.
 
 Proporciona funciones para mejorar la calidad de las imágenes
 antes de la detección de objetos.
 """
 
-from typing import Dict, Any
+from typing import Any
 
 import cv2
 import numpy as np
@@ -14,8 +13,7 @@ from utils.logger import LoggerMixin
 
 
 class ImagePreprocessor(LoggerMixin):
-    """
-    Preprocesador de imágenes para mejorar detección.
+    """Preprocesador de imágenes para mejorar detección.
 
     Características:
     - Reducción de ruido
@@ -34,10 +32,9 @@ class ImagePreprocessor(LoggerMixin):
         enabled: bool = False,
         denoise_strength: int = 5,
         equalize_histogram: bool = True,
-        enhance_contrast: bool = True
+        enhance_contrast: bool = True,
     ):
-        """
-        Inicializa el preprocesador.
+        """Inicializa el preprocesador.
 
         Args:
             enabled: Si el preprocesamiento está activado
@@ -60,12 +57,11 @@ class ImagePreprocessor(LoggerMixin):
             "ImagePreprocessor inicializado",
             enabled=enabled,
             denoise_strength=denoise_strength,
-            equalize_histogram=equalize_histogram
+            equalize_histogram=equalize_histogram,
         )
 
     def process(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Procesa una imagen aplicando las mejoras configuradas.
+        """Procesa una imagen aplicando las mejoras configuradas.
 
         Args:
             frame: Imagen a procesar
@@ -77,6 +73,7 @@ class ImagePreprocessor(LoggerMixin):
             return frame
 
         import time
+
         start_time = time.perf_counter()
 
         try:
@@ -84,14 +81,7 @@ class ImagePreprocessor(LoggerMixin):
 
             if self.denoise_strength > 0:
                 h = max(1, min(10, self.denoise_strength))
-                result = cv2.fastNlMeansDenoisingColored(
-                    result,
-                    None,
-                    h,
-                    h + 5,
-                    7,
-                    21
-                )
+                result = cv2.fastNlMeansDenoisingColored(result, None, h, h + 5, 7, 21)
 
             if self.equalize_histogram:
                 lab = cv2.cvtColor(result, cv2.COLOR_BGR2LAB)
@@ -125,11 +115,11 @@ class ImagePreprocessor(LoggerMixin):
         if len(self._stats["processing_times"]) > 100:
             self._stats["processing_times"] = self._stats["processing_times"][-100:]
 
-        self._stats["avg_processing_time_ms"] = (
-            sum(self._stats["processing_times"]) / len(self._stats["processing_times"])
+        self._stats["avg_processing_time_ms"] = sum(self._stats["processing_times"]) / len(
+            self._stats["processing_times"]
         )
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del preprocesador."""
         return {
             **self._stats,

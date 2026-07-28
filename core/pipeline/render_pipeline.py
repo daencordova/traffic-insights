@@ -1,15 +1,15 @@
-"""
-Pipeline de renderizado por capas.
+"""Pipeline de renderizado por capas.
 """
 
 from enum import Enum, auto
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
 
 class RenderLayer(Enum):
     """Capas de renderizado en orden de ejecución."""
+
     OVERLAY = auto()
     SYSTEM_INFO = auto()
     CONTROLS = auto()
@@ -17,16 +17,15 @@ class RenderLayer(Enum):
 
 
 class RenderPipeline:
-    """
-    Pipeline de renderizado por capas.
+    """Pipeline de renderizado por capas.
     Permite añadir/eliminar capas fácilmente.
     """
 
     __slots__ = ("_layers", "_renderers")
 
     def __init__(self):
-        self._layers: List[RenderLayer] = []
-        self._renderers: Dict[RenderLayer, Any] = {}
+        self._layers: list[RenderLayer] = []
+        self._renderers: dict[RenderLayer, Any] = {}
 
     def add_layer(self, layer: RenderLayer, renderer: Any) -> None:
         """Añade una capa de renderizado."""
@@ -43,8 +42,7 @@ class RenderPipeline:
         return False
 
     def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
-        """
-        Ejecuta todas las capas de renderizado en orden.
+        """Ejecuta todas las capas de renderizado en orden.
 
         Args:
             frame: Frame a renderizar

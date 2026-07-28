@@ -1,5 +1,4 @@
-"""
-Estrategias de aprendizaje para features en línea.
+"""Estrategias de aprendizaje para features en línea.
 
 Implementa diferentes estrategias de aprendizaje: incremental,
 adaptativo, batch y híbrido.
@@ -21,10 +20,9 @@ class LearningStrategy(ABC):
         stats: FeatureStatistics,
         features: np.ndarray,
         confidence: float,
-        learning_rate: float
+        learning_rate: float,
     ) -> np.ndarray:
-        """
-        Actualiza el feature promedio.
+        """Actualiza el feature promedio.
 
         Args:
             stats: Estadísticas del track
@@ -35,18 +33,15 @@ class LearningStrategy(ABC):
         Returns:
             np.ndarray: Features actualizados
         """
-        pass
 
     @property
     @abstractmethod
     def name(self) -> str:
         """Nombre de la estrategia."""
-        pass
 
 
 class IncrementalStrategy(LearningStrategy):
-    """
-    Estrategia incremental simple.
+    """Estrategia incremental simple.
 
     Actualiza la media con un factor de aprendizaje fijo.
     """
@@ -56,7 +51,7 @@ class IncrementalStrategy(LearningStrategy):
         stats: FeatureStatistics,
         features: np.ndarray,
         confidence: float,
-        learning_rate: float
+        learning_rate: float,
     ) -> np.ndarray:
         alpha = min(learning_rate, 1.0 / (stats.n_samples + 1))
         stats.mean_features = (1 - alpha) * stats.mean_features + alpha * features
@@ -68,8 +63,7 @@ class IncrementalStrategy(LearningStrategy):
 
 
 class AdaptiveStrategy(LearningStrategy):
-    """
-    Estrategia adaptativa con factor de confianza.
+    """Estrategia adaptativa con factor de confianza.
 
     Ajusta la tasa de aprendizaje basada en la confianza
     y el número de muestras.
@@ -80,7 +74,7 @@ class AdaptiveStrategy(LearningStrategy):
         stats: FeatureStatistics,
         features: np.ndarray,
         confidence: float,
-        learning_rate: float
+        learning_rate: float,
     ) -> np.ndarray:
         confidence_factor = 0.5 + 0.5 * confidence
 
@@ -98,8 +92,7 @@ class AdaptiveStrategy(LearningStrategy):
 
 
 class BatchStrategy(LearningStrategy):
-    """
-    Estrategia por lotes.
+    """Estrategia por lotes.
 
     Actualiza usando el promedio del historial completo.
     """
@@ -109,7 +102,7 @@ class BatchStrategy(LearningStrategy):
         stats: FeatureStatistics,
         features: np.ndarray,
         confidence: float,
-        learning_rate: float
+        learning_rate: float,
     ) -> np.ndarray:
         history = list(stats.feature_history)
         if len(history) < 5:
@@ -132,8 +125,7 @@ class BatchStrategy(LearningStrategy):
 
 
 class HybridStrategy(LearningStrategy):
-    """
-    Estrategia híbrida: incremental + batch periódico.
+    """Estrategia híbrida: incremental + batch periódico.
 
     Combina actualización incremental con re-cálculo batch periódico.
     """
@@ -143,7 +135,7 @@ class HybridStrategy(LearningStrategy):
         stats: FeatureStatistics,
         features: np.ndarray,
         confidence: float,
-        learning_rate: float
+        learning_rate: float,
     ) -> np.ndarray:
         alpha = min(learning_rate, 1.0 / (stats.n_samples + 1))
         stats.mean_features = (1 - alpha) * stats.mean_features + alpha * features
@@ -176,8 +168,7 @@ class LearningStrategyFactory:
 
     @classmethod
     def create(cls, strategy_type: str) -> LearningStrategy:
-        """
-        Crea una estrategia de aprendizaje.
+        """Crea una estrategia de aprendizaje.
 
         Args:
             strategy_type: Tipo de estrategia

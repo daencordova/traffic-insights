@@ -1,27 +1,25 @@
-"""
-Servicio de captura con circuit breaker y manejo robusto de errores.
+"""Servicio de captura con circuit breaker y manejo robusto de errores.
 """
 
-import time
-import threading
-from typing import Optional, Callable
+from collections.abc import Callable
 import logging
+import threading
+import time
 
 import cv2
 import numpy as np
 
 from core.capture.reconnector import Reconnector
-from core.frame_buffer import FrameBuffer, FrameMetadata
-from core.validators import validate_frame
 from core.circuit_breaker import CircuitBreaker, circuit_breaker_registry
 from core.exceptions import CameraError
+from core.frame_buffer import FrameBuffer, FrameMetadata
+from core.validators import validate_frame
 from utils.decorators import RetryConfig, retry_on_failure
 from utils.logger import LoggerMixin
 
 
 class CaptureService(LoggerMixin):
-    """
-    Servicio especializado en captura de video.
+    """Servicio especializado en captura de video.
 
     Responsabilidades:
     - Conectar y reconectar a la fuente
@@ -33,9 +31,9 @@ class CaptureService(LoggerMixin):
     def __init__(
         self,
         config,
-        buffer: Optional[FrameBuffer] = None,
-        on_frame_captured: Optional[Callable] = None,
-        on_frame_dropped: Optional[Callable] = None
+        buffer: FrameBuffer | None = None,
+        on_frame_captured: Callable | None = None,
+        on_frame_dropped: Callable | None = None,
     ):
         self.config = config
         self.buffer = buffer or self._create_buffer()
@@ -46,49 +44,42 @@ class CaptureService(LoggerMixin):
             name="capture_connection",
             failure_threshold=3,
             timeout_seconds=5.0,
-            on_state_change=self._on_breaker_state_change
+            on_state_change=self._on_breaker_state_change,
         )
         circuit_breaker_registry.register(self._circuit_breaker)
 
         self._reconnector = Reconnector(
-            max_attempts=config.camera.reconnect_attempts,
-            delay=config.camera.reconnect_delay
+            max_attempts=config.camera.reconnect_attempts, delay=config.camera.reconnect_delay
         )
-        self._cap: Optional[cv2.VideoCapture] = None
-        self._thread: Optional[threading.Thread] = None
+        self._cap: cv2.VideoCapture | None = None
+        self._thread: threading.Thread | None = None
         self._running = False
         self._paused = False
 
         self._stats = {
-            'frames_captured': 0,
-            'frames_dropped': 0,
-            'reconnections': 0,
-            'errors': 0,
-            'fps': 0.0,
-            'buffer_usage': 0.0,
-            'breaker_state': 'closed',
+            "frames_captured": 0,
+            "frames_dropped": 0,
+            "reconnections": 0,
+            "errors": 0,
+            "fps": 0.0,
+            "buffer_usage": 0.0,
+            "breaker_state": "closed",
         }
 
         self.logger.info(
             "CaptureService inicializado con circuit breaker",
             source=config.camera.source,
-            breaker_name=self._circuit_breaker.name
+            breaker_name=self._circuit_breaker.name,
         )
 
     def _create_buffer(self) -> FrameBuffer:
         """Crea el buffer circular."""
-        frame_shape = (
-            self.config.camera.height,
-            self.config.camera.width,
-            3
-        )
+        frame_shape = (self.config.camera.height, self.config.camera.width, 3)
         return FrameBuffer(
-            max_size=self.config.camera.buffer_size,
-            frame_shape=frame_shape,
-            drop_policy="oldest"
+            max_size=self.config.camera.buffer_size, frame_shape=frame_shape, drop_policy="oldest"
         )
 
-    def start(self, source: Optional[str] = None) -> None:
+    def start(self, source: str | None = None) -> None:
         """Inicia el servicio de captura."""
         if self._running:
             return
@@ -97,9 +88,7 @@ class CaptureService(LoggerMixin):
         self._source = source or self.config.camera.source
 
         self._thread = threading.Thread(
-            target=self._capture_loop,
-            name="CaptureService",
-            daemon=True
+            target=self._capture_loop, name="CaptureService", daemon=True
         )
         self._thread.start()
         self.logger.info("Servicio de captura iniciado")
@@ -182,7 +171,7 @@ class CaptureService(LoggerMixin):
                 self._circuit_breaker.record_success()
 
             except Exception as e:
-                self._stats['errors'] += 1
+                self._stats["errors"] += 1
                 self.logger.error(f"Error en bucle de captura: {e}", exc_info=True)
                 time.sleep(0.1)
 
@@ -200,21 +189,18 @@ class CaptureService(LoggerMixin):
         max_attempts=3,
         delay=0.5,
         backoff=2.0,
-        on_retry=lambda attempt, e: logging.warning(f"Reintentando conexión {attempt}: {e}")
+        on_retry=lambda attempt, e: logging.warning(f"Reintentando conexión {attempt}: {e}"),
     )
 
     @retry_on_failure(retry_config)
     def _connect(self) -> bool:
         """Conecta a la fuente de video con reintentos."""
         try:
-            self._cap = self._reconnector.connect(
-                self._source,
-                self.config.camera
-            )
+            self._cap = self._reconnector.connect(self._source, self.config.camera)
 
             if self._cap and self._cap.isOpened():
-                self._stats['reconnections'] += 1
-                self._stats['errors'] = 0
+                self._stats["reconnections"] += 1
+                self._stats["errors"] = 0
                 self._circuit_breaker.record_success()
                 self.logger.info("Conexión exitosa a la fuente")
                 return True
@@ -240,19 +226,17 @@ class CaptureService(LoggerMixin):
     def _handle_read_error(self) -> None:
         """Maneja errores de lectura con recuperación."""
         self.logger.warning("Error leyendo frame, intentando recuperar...")
-        self._stats['errors'] += 1
+        self._stats["errors"] += 1
 
-        if self._stats['errors'] > 5:
+        if self._stats["errors"] > 5:
             self.logger.warning("Demasiados errores, reconectando...")
             self._cap = None
-            self._stats['errors'] = 0
+            self._stats["errors"] = 0
 
     def _on_breaker_state_change(self, name: str, new_state: str) -> None:
         """Callback cuando cambia el estado del circuit breaker."""
-        self._stats['breaker_state'] = new_state
-        self.logger.warning(
-            f"Circuit breaker '{name}' cambió a estado: {new_state}"
-        )
+        self._stats["breaker_state"] = new_state
+        self.logger.warning(f"Circuit breaker '{name}' cambió a estado: {new_state}")
 
         if new_state == "open":
             self.logger.error("Conexión bloqueada por circuit breaker. Intentando recuperación...")
@@ -265,18 +249,18 @@ class CaptureService(LoggerMixin):
         """Procesa y almacena el frame."""
         metadata = FrameMetadata(
             timestamp=time.time(),
-            frame_number=self._stats['frames_captured'],
-            source_fps=self._stats['fps'],
-            capture_time_ms=0.0
+            frame_number=self._stats["frames_captured"],
+            source_fps=self._stats["fps"],
+            capture_time_ms=0.0,
         )
 
         if not self.buffer.put(frame, metadata):
-            self._stats['frames_dropped'] += 1
+            self._stats["frames_dropped"] += 1
             if self.on_frame_dropped:
-                self.on_frame_dropped(self._stats['frames_captured'])
+                self.on_frame_dropped(self._stats["frames_captured"])
             return
 
-        self._stats['frames_captured'] += 1
+        self._stats["frames_captured"] += 1
         self._update_fps()
 
         if self.on_frame_captured:
@@ -284,15 +268,14 @@ class CaptureService(LoggerMixin):
 
     def _update_fps(self) -> None:
         """Actualiza el FPS de captura."""
-        pass
 
     def get_stats(self) -> dict:
         """Obtiene estadísticas del servicio."""
         return {
             **self._stats,
-            'buffer_size': len(self.buffer),
-            'buffer_usage': self.buffer.count / self.buffer.max_size,
-            'is_running': self._running,
-            'is_paused': self._paused,
-            'is_connected': self._cap is not None and self._cap.isOpened(),
+            "buffer_size": len(self.buffer),
+            "buffer_usage": self.buffer.count / self.buffer.max_size,
+            "is_running": self._running,
+            "is_paused": self._paused,
+            "is_connected": self._cap is not None and self._cap.isOpened(),
         }

@@ -1,5 +1,4 @@
-"""
-Integración del sistema MHT (Multi-Hypothesis Tracking) con el tracker principal.
+"""Integración del sistema MHT (Multi-Hypothesis Tracking) con el tracker principal.
 
 Este módulo proporciona la integración del sistema de hipótesis múltiples
 con el tracker existente, añadiendo capacidades avanzadas de seguimiento.
@@ -20,28 +19,24 @@ El sistema MHT es especialmente útil en:
 
 from __future__ import annotations
 
-import time
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+import time
+from typing import Any
 
 import numpy as np
 
-from utils.logger import LoggerMixin
-from models.track_state import TrackState
-from core.tracker.hypothesis import (
-    TrackHypothesis,
-    HypothesisTree,
-    HypothesisStatus
-)
 from core.constants.tracking import (
     MHT_MAX_DEPTH,
-    MHT_PRUNING_THRESHOLD,
     MHT_MAX_HYPOTHESES,
+    MHT_PRUNING_THRESHOLD,
 )
+from core.tracker.hypothesis import HypothesisStatus, HypothesisTree, TrackHypothesis
+from models.track_state import TrackState
+from utils.logger import LoggerMixin
+
 
 class MHTIntegration(LoggerMixin):
-    """
-    Integración del sistema MHT con el tracker principal.
+    """Integración del sistema MHT con el tracker principal.
 
     Esta clase orquesta el sistema de hipótesis múltiples y lo integra
     con el flujo principal de tracking, proporcionando capacidades
@@ -63,11 +58,7 @@ class MHTIntegration(LoggerMixin):
         _recovery_cooldown: Cooldown para recuperación.
 
     Example:
-        >>> mht = MHTIntegration(
-        ...     max_depth=10,
-        ...     pruning_threshold=0.01,
-        ...     max_hypotheses_per_track=5
-        ... )
+        >>> mht = MHTIntegration(max_depth=10, pruning_threshold=0.01, max_hypotheses_per_track=5)
         >>> mht.update_with_observations(tracks, detections, matches, unmatched)
         >>> predictions = mht.get_track_predictions(track_id, horizon=10)
         >>> confidence = mht.get_hypothesis_confidence(track_id)
@@ -78,10 +69,9 @@ class MHTIntegration(LoggerMixin):
         max_depth: int = MHT_MAX_DEPTH,
         pruning_threshold: float = MHT_PRUNING_THRESHOLD,
         max_hypotheses_per_track: int = MHT_MAX_HYPOTHESES,
-        enable_mht: bool = True
+        enable_mht: bool = True,
     ) -> None:
-        """
-        Inicializa la integración MHT.
+        """Inicializa la integración MHT.
 
         Args:
             max_depth: Profundidad máxima del árbol de hipótesis.
@@ -96,13 +86,13 @@ class MHTIntegration(LoggerMixin):
         self.hypothesis_tree = HypothesisTree(
             max_depth=max_depth,
             pruning_threshold=pruning_threshold,
-            max_hypotheses_per_track=max_hypotheses_per_track
+            max_hypotheses_per_track=max_hypotheses_per_track,
         )
         self.enable_mht = enable_mht
 
-        self._track_hypothesis_map: Dict[int, List[int]] = {}
-        self._confirmed_hypotheses: Dict[int, int] = {}
-        self._recently_recovered: Dict[int, float] = {}
+        self._track_hypothesis_map: dict[int, list[int]] = {}
+        self._confirmed_hypotheses: dict[int, int] = {}
+        self._recently_recovered: dict[int, float] = {}
         self._recovery_cooldown: float = 3.0
         self._lock = threading.Lock()
 
@@ -122,17 +112,13 @@ class MHTIntegration(LoggerMixin):
             "MHTIntegration inicializado",
             enabled=enable_mht,
             max_depth=max_depth,
-            pruning_threshold=pruning_threshold
+            pruning_threshold=pruning_threshold,
         )
 
     def create_hypothesis_from_track(
-        self,
-        track: TrackState,
-        observation: Dict[str, Any],
-        confidence: float = 0.5
+        self, track: TrackState, observation: dict[str, Any], confidence: float = 0.5
     ) -> TrackHypothesis:
-        """
-        Crea una nueva hipótesis a partir de un track existente.
+        """Crea una nueva hipótesis a partir de un track existente.
 
         Args:
             track: Track existente.
@@ -158,25 +144,21 @@ class MHTIntegration(LoggerMixin):
         if track.history:
             hypothesis.positions = list(track.history)
 
-        if hasattr(track, 'bbox_history') and track.bbox_history:
+        if hasattr(track, "bbox_history") and track.bbox_history:
             hypothesis.bbox_history = list(track.bbox_history)
 
         if track.features is not None:
             hypothesis.add_feature(track.features)
 
-        if hasattr(track, 'velocity') and track.velocity:
+        if hasattr(track, "velocity") and track.velocity:
             hypothesis.velocity = track.velocity
 
         return hypothesis
 
     def create_hypothesis_from_detection(
-        self,
-        detection: Dict[str, Any],
-        track_id: Optional[int] = None,
-        confidence: float = 0.5
+        self, detection: dict[str, Any], track_id: int | None = None, confidence: float = 0.5
     ) -> TrackHypothesis:
-        """
-        Crea una nueva hipótesis a partir de una detección.
+        """Crea una nueva hipótesis a partir de una detección.
 
         Args:
             detection: Detección actual.
@@ -201,15 +183,15 @@ class MHTIntegration(LoggerMixin):
             status=HypothesisStatus.ACTIVE,
         )
 
-        centroid = detection.get('centroid')
+        centroid = detection.get("centroid")
         if centroid is not None:
             hypothesis.positions.append(centroid)
 
-        bbox = detection.get('box')
+        bbox = detection.get("box")
         if bbox is not None:
             hypothesis.bbox_history.append(bbox)
 
-        features = detection.get('features')
+        features = detection.get("features")
         if features is not None:
             hypothesis.add_feature(features)
 
@@ -217,14 +199,13 @@ class MHTIntegration(LoggerMixin):
 
     def update_with_observations(
         self,
-        tracks: Dict[int, TrackState],
-        detections: List[Dict[str, Any]],
-        matches: List[Tuple[int, int]],
-        unmatched_tracks: List[int],
-        unmatched_detections: List[int]
-    ) -> Dict[int, Optional[int]]:
-        """
-        Actualiza el árbol de hipótesis con nuevas observaciones.
+        tracks: dict[int, TrackState],
+        detections: list[dict[str, Any]],
+        matches: list[tuple[int, int]],
+        unmatched_tracks: list[int],
+        unmatched_detections: list[int],
+    ) -> dict[int, int | None]:
+        """Actualiza el árbol de hipótesis con nuevas observaciones.
 
         Args:
             tracks: Diccionario de tracks activos.
@@ -272,7 +253,8 @@ class MHTIntegration(LoggerMixin):
         """Limpia los tracks recuperados que han expirado."""
         current_time = time.time()
         expired = [
-            tid for tid, ts in self._recently_recovered.items()
+            tid
+            for tid, ts in self._recently_recovered.items()
             if current_time - ts > self._recovery_cooldown
         ]
         for tid in expired:
@@ -280,13 +262,12 @@ class MHTIntegration(LoggerMixin):
 
     def _process_matches(
         self,
-        tracks: Dict[int, TrackState],
-        detections: List[Dict[str, Any]],
-        matches: List[Tuple[int, int]],
-        track_ids: List[int]
+        tracks: dict[int, TrackState],
+        detections: list[dict[str, Any]],
+        matches: list[tuple[int, int]],
+        track_ids: list[int],
     ) -> None:
-        """
-        Procesa los matches entre detecciones y tracks.
+        """Procesa los matches entre detecciones y tracks.
 
         Args:
             tracks: Diccionario de tracks activos.
@@ -307,13 +288,9 @@ class MHTIntegration(LoggerMixin):
             self._process_single_match(track_id, detection, tracks)
 
     def _process_single_match(
-        self,
-        track_id: int,
-        detection: Dict[str, Any],
-        tracks: Dict[int, TrackState]
+        self, track_id: int, detection: dict[str, Any], tracks: dict[int, TrackState]
     ) -> None:
-        """
-        Procesa un match individual entre una detección y un track.
+        """Procesa un match individual entre una detección y un track.
 
         Args:
             track_id: ID del track.
@@ -329,77 +306,53 @@ class MHTIntegration(LoggerMixin):
                 self._create_new_hypothesis_from_track(track_id, detection, tracks)
 
         except Exception as e:
-            self.logger.warning(
-                f"Error procesando match para track {track_id}: {e}",
-                exc_info=True
-            )
+            self.logger.warning(f"Error procesando match para track {track_id}: {e}", exc_info=True)
 
     def _update_existing_hypothesis(
-        self,
-        hypothesis: TrackHypothesis,
-        detection: Dict[str, Any],
-        track_id: int
+        self, hypothesis: TrackHypothesis, detection: dict[str, Any], track_id: int
     ) -> None:
-        """
-        Actualiza una hipótesis existente con nueva detección.
+        """Actualiza una hipótesis existente con nueva detección.
 
         Args:
             hypothesis: Hipótesis a actualizar.
             detection: Detección actual.
             track_id: ID del track.
         """
-        centroid = detection.get('centroid')
+        centroid = detection.get("centroid")
         if centroid is not None:
-            hypothesis.update_position(
-                centroid,
-                detection.get('box')
-            )
+            hypothesis.update_position(centroid, detection.get("box"))
 
-        features = detection.get('features')
+        features = detection.get("features")
         if features is not None:
             hypothesis.add_feature(features)
 
-        hypothesis.confidence = detection.get('confidence', 0.5)
+        hypothesis.confidence = detection.get("confidence", 0.5)
         hypothesis.last_update = time.time()
 
         if len(self.hypothesis_tree._hypotheses.get(track_id, [])) < 10:
             self._create_alternative_hypothesis(track_id, detection)
 
-    def _create_alternative_hypothesis(
-        self,
-        track_id: int,
-        detection: Dict[str, Any]
-    ) -> None:
-        """
-        Crea una hipótesis alternativa para un track.
+    def _create_alternative_hypothesis(self, track_id: int, detection: dict[str, Any]) -> None:
+        """Crea una hipótesis alternativa para un track.
 
         Args:
             track_id: ID del track.
             detection: Detección actual.
         """
         hyps = self.hypothesis_tree._hypotheses.get(track_id, [])
-        active_hyps = [
-            h for h in hyps
-            if h.active and h.status == HypothesisStatus.ACTIVE
-        ]
+        active_hyps = [h for h in hyps if h.active and h.status == HypothesisStatus.ACTIVE]
 
         if len(active_hyps) < self.hypothesis_tree.max_hypotheses_per_track:
             new_hyp = self.create_hypothesis_from_detection(
-                detection,
-                track_id,
-                confidence=detection.get('confidence', 0.5) * 0.3
+                detection, track_id, confidence=detection.get("confidence", 0.5) * 0.3
             )
             new_hyp.probability = 0.02
             self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
 
     def _create_new_hypothesis_from_track(
-        self,
-        track_id: int,
-        detection: Dict[str, Any],
-        tracks: Dict[int, TrackState]
+        self, track_id: int, detection: dict[str, Any], tracks: dict[int, TrackState]
     ) -> None:
-        """
-        Crea una nueva hipótesis a partir de un track existente.
+        """Crea una nueva hipótesis a partir de un track existente.
 
         Args:
             track_id: ID del track.
@@ -409,22 +362,19 @@ class MHTIntegration(LoggerMixin):
         track = tracks.get(track_id)
         if track is not None:
             new_hyp = self.create_hypothesis_from_track(
-                track,
-                detection,
-                confidence=detection.get('confidence', 0.5)
+                track, detection, confidence=detection.get("confidence", 0.5)
             )
             new_hyp.probability = 0.3
             self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
 
     def _handle_unmatched_tracks(
         self,
-        tracks: Dict[int, TrackState],
-        matches: List[Tuple[int, int]],
-        unmatched_tracks: List[int],
-        track_ids: List[int]
+        tracks: dict[int, TrackState],
+        matches: list[tuple[int, int]],
+        unmatched_tracks: list[int],
+        track_ids: list[int],
     ) -> None:
-        """
-        Maneja tracks no asociados (pérdidas).
+        """Maneja tracks no asociados (pérdidas).
 
         Args:
             tracks: Diccionario de tracks activos.
@@ -442,13 +392,8 @@ class MHTIntegration(LoggerMixin):
 
             self._handle_single_unmatched_track(track_id, tracks)
 
-    def _handle_single_unmatched_track(
-        self,
-        track_id: int,
-        tracks: Dict[int, TrackState]
-    ) -> None:
-        """
-        Maneja un track individual no asociado.
+    def _handle_single_unmatched_track(self, track_id: int, tracks: dict[int, TrackState]) -> None:
+        """Maneja un track individual no asociado.
 
         Args:
             track_id: ID del track.
@@ -460,13 +405,9 @@ class MHTIntegration(LoggerMixin):
             self._create_predicted_hypothesis(track_id, best_hyp, tracks)
 
     def _create_predicted_hypothesis(
-        self,
-        track_id: int,
-        best_hyp: TrackHypothesis,
-        tracks: Dict[int, TrackState]
+        self, track_id: int, best_hyp: TrackHypothesis, tracks: dict[int, TrackState]
     ) -> None:
-        """
-        Crea una hipótesis basada en predicción para un track perdido.
+        """Crea una hipótesis basada en predicción para un track perdido.
 
         Args:
             track_id: ID del track.
@@ -475,10 +416,7 @@ class MHTIntegration(LoggerMixin):
         """
         velocity = best_hyp.get_recent_velocity()
         last_pos = best_hyp.positions[-1]
-        predicted_pos = (
-            int(last_pos[0] + velocity[0]),
-            int(last_pos[1] + velocity[1])
-        )
+        predicted_pos = (int(last_pos[0] + velocity[0]), int(last_pos[1] + velocity[1]))
 
         new_hyp = TrackHypothesis(
             track_id=track_id,
@@ -493,19 +431,18 @@ class MHTIntegration(LoggerMixin):
         )
 
         track = tracks.get(track_id)
-        if track is not None and hasattr(track, 'features') and track.features is not None:
+        if track is not None and hasattr(track, "features") and track.features is not None:
             new_hyp.add_feature(track.features)
 
         self.hypothesis_tree.add_hypothesis(track_id, new_hyp)
 
     def _attempt_recoveries(
         self,
-        detections: List[Dict[str, Any]],
-        unmatched_detections: List[int],
-        tracks: Dict[int, TrackState]
-    ) -> Dict[int, Optional[int]]:
-        """
-        Intenta recuperar tracks perdidos usando el árbol de hipótesis.
+        detections: list[dict[str, Any]],
+        unmatched_detections: list[int],
+        tracks: dict[int, TrackState],
+    ) -> dict[int, int | None]:
+        """Intenta recuperar tracks perdidos usando el árbol de hipótesis.
 
         Args:
             detections: Lista de detecciones actuales.
@@ -530,22 +467,16 @@ class MHTIntegration(LoggerMixin):
             recovered_track_id = self._attempt_single_recovery(detection)
 
             if recovered_track_id is not None:
-                if self._confirm_recovered_track(
-                    recovered_track_id,
-                    detection,
-                    tracks,
-                    confirmed
-                ):
+                if self._confirm_recovered_track(recovered_track_id, detection, tracks, confirmed):
                     recovered_count += 1
 
-            if detection.get('confidence', 0) > 0.5 and recovered_count < 2:
+            if detection.get("confidence", 0) > 0.5 and recovered_count < 2:
                 self._create_temporary_hypothesis(detection)
 
         return confirmed
 
-    def _is_valid_recovery_candidate(self, detection: Dict[str, Any]) -> bool:
-        """
-        Verifica si una detección es válida para intentar recuperación.
+    def _is_valid_recovery_candidate(self, detection: dict[str, Any]) -> bool:
+        """Verifica si una detección es válida para intentar recuperación.
 
         Args:
             detection: Detección a verificar.
@@ -553,10 +484,10 @@ class MHTIntegration(LoggerMixin):
         Returns:
             bool: True si es válida.
         """
-        if detection is None or detection.get('confidence', 0) < 0.3:
+        if detection is None or detection.get("confidence", 0) < 0.3:
             return False
 
-        bbox = detection.get('box')
+        bbox = detection.get("box")
         if bbox:
             width = bbox[2] - bbox[0]
             height = bbox[3] - bbox[1]
@@ -565,9 +496,8 @@ class MHTIntegration(LoggerMixin):
 
         return True
 
-    def _attempt_single_recovery(self, detection: Dict[str, Any]) -> Optional[int]:
-        """
-        Intenta recuperar un track perdido con una detección.
+    def _attempt_single_recovery(self, detection: dict[str, Any]) -> int | None:
+        """Intenta recuperar un track perdido con una detección.
 
         Args:
             detection: Detección actual.
@@ -577,15 +507,16 @@ class MHTIntegration(LoggerMixin):
         """
         self._stats["recovery_attempts"] += 1
 
-        centroid = detection.get('centroid')
+        centroid = detection.get("centroid")
         if centroid is None:
             return None
 
-        features = detection.get('features')
+        features = detection.get("features")
 
         current_time = time.time()
         active_recoveries = {
-            tid: ts for tid, ts in self._recently_recovered.items()
+            tid: ts
+            for tid, ts in self._recently_recovered.items()
             if current_time - ts < self._recovery_cooldown
         }
 
@@ -625,12 +556,11 @@ class MHTIntegration(LoggerMixin):
     def _evaluate_recovery_candidate(
         self,
         hyp: TrackHypothesis,
-        centroid: Tuple[int, int],
-        features: Optional[np.ndarray],
-        track_id: int
-    ) -> Tuple[float, Optional[int]]:
-        """
-        Evalúa un candidato para recuperación.
+        centroid: tuple[int, int],
+        features: np.ndarray | None,
+        track_id: int,
+    ) -> tuple[float, int | None]:
+        """Evalúa un candidato para recuperación.
 
         Args:
             hyp: Hipótesis a evaluar.
@@ -642,9 +572,7 @@ class MHTIntegration(LoggerMixin):
             Tuple[float, Optional[int]]: (puntuación, track_id)
         """
         last_pos = hyp.positions[-1]
-        spatial_dist = np.linalg.norm(
-            np.array(centroid) - np.array(last_pos)
-        )
+        spatial_dist = np.linalg.norm(np.array(centroid) - np.array(last_pos))
 
         if spatial_dist > 80.0:
             return 0.0, None
@@ -652,11 +580,7 @@ class MHTIntegration(LoggerMixin):
         feature_similarity = self._compute_feature_similarity(features, hyp)
 
         spatial_score = 1.0 - min(1.0, spatial_dist / 80.0)
-        combined_score = (
-            0.5 * spatial_score +
-            0.3 * feature_similarity +
-            0.2 * hyp.probability
-        )
+        combined_score = 0.5 * spatial_score + 0.3 * feature_similarity + 0.2 * hyp.probability
 
         recovery_threshold = 0.35
         if combined_score > recovery_threshold and track_id < 10000:
@@ -665,12 +589,9 @@ class MHTIntegration(LoggerMixin):
         return 0.0, None
 
     def _compute_feature_similarity(
-        self,
-        features: Optional[np.ndarray],
-        hyp: TrackHypothesis
+        self, features: np.ndarray | None, hyp: TrackHypothesis
     ) -> float:
-        """
-        Calcula la similitud de features entre detección e hipótesis.
+        """Calcula la similitud de features entre detección e hipótesis.
 
         Args:
             features: Features de la detección.
@@ -690,21 +611,18 @@ class MHTIntegration(LoggerMixin):
         norm_avg = np.linalg.norm(avg_feature)
 
         if norm_feat > 0 and norm_avg > 0:
-            similarity = np.dot(features, avg_feature) / (
-                norm_feat * norm_avg + 1e-8
-            )
+            similarity = np.dot(features, avg_feature) / (norm_feat * norm_avg + 1e-8)
             return max(0.0, min(0.5, similarity))
 
         return 0.2
 
     def _finalize_recovery(
         self,
-        best_track_id: Optional[int],
-        best_match: Optional[TrackHypothesis],
-        current_time: float
-    ) -> Optional[int]:
-        """
-        Finaliza el proceso de recuperación.
+        best_track_id: int | None,
+        best_match: TrackHypothesis | None,
+        current_time: float,
+    ) -> int | None:
+        """Finaliza el proceso de recuperación.
 
         Args:
             best_track_id: ID del mejor track.
@@ -717,8 +635,7 @@ class MHTIntegration(LoggerMixin):
         if best_track_id is not None and best_match is not None:
             self._recently_recovered[best_track_id] = current_time
 
-            if best_match.probability > 0.5:
-                best_match.probability = 0.5
+            best_match.probability = min(best_match.probability, 0.5)
 
             return best_track_id
 
@@ -727,12 +644,11 @@ class MHTIntegration(LoggerMixin):
     def _confirm_recovered_track(
         self,
         recovered_track_id: int,
-        detection: Dict[str, Any],
-        tracks: Dict[int, TrackState],
-        confirmed: Dict[int, Optional[int]]
+        detection: dict[str, Any],
+        tracks: dict[int, TrackState],
+        confirmed: dict[int, int | None],
     ) -> bool:
-        """
-        Confirma la recuperación de un track.
+        """Confirma la recuperación de un track.
 
         Args:
             recovered_track_id: ID del track recuperado.
@@ -746,13 +662,10 @@ class MHTIntegration(LoggerMixin):
         if recovered_track_id not in tracks:
             best_hyp = self.hypothesis_tree.get_best_hypothesis(recovered_track_id)
             if best_hyp is not None and best_hyp.probability > 0.3:
-                centroid = detection.get('centroid')
+                centroid = detection.get("centroid")
                 if centroid is not None:
-                    best_hyp.update_position(
-                        centroid,
-                        detection.get('box')
-                    )
-                best_hyp.confidence = detection.get('confidence', 0.5)
+                    best_hyp.update_position(centroid, detection.get("box"))
+                best_hyp.confidence = detection.get("confidence", 0.5)
                 best_hyp.last_update = time.time()
 
                 new_prob = min(0.6, best_hyp.probability * 1.05)
@@ -768,37 +681,31 @@ class MHTIntegration(LoggerMixin):
                 self.logger.debug(
                     "Track recuperado por MHT",
                     track_id=recovered_track_id,
-                    probability=f"{best_hyp.probability:.3f}"
+                    probability=f"{best_hyp.probability:.3f}",
                 )
 
                 return True
 
         return False
 
-    def _create_temporary_hypothesis(self, detection: Dict[str, Any]) -> None:
-        """
-        Crea una hipótesis temporal para una detección de alta confianza.
+    def _create_temporary_hypothesis(self, detection: dict[str, Any]) -> None:
+        """Crea una hipótesis temporal para una detección de alta confianza.
 
         Args:
             detection: Detección para crear hipótesis.
         """
-        temp_id = -abs(hash(str(detection.get('centroid', (0, 0))))) % 10000
+        temp_id = -abs(hash(str(detection.get("centroid", (0, 0))))) % 10000
         if temp_id not in self.hypothesis_tree._hypotheses:
             new_hyp = self.create_hypothesis_from_detection(
-                detection,
-                temp_id,
-                confidence=detection.get('confidence', 0.5) * 0.2
+                detection, temp_id, confidence=detection.get("confidence", 0.5) * 0.2
             )
             new_hyp.probability = 0.005
             self.hypothesis_tree.add_hypothesis(temp_id, new_hyp)
 
     def _create_temporary_hypotheses(
-        self,
-        detections: List[Dict[str, Any]],
-        unmatched_detections: List[int]
+        self, detections: list[dict[str, Any]], unmatched_detections: list[int]
     ) -> None:
-        """
-        Crea hipótesis temporales para detecciones no asociadas.
+        """Crea hipótesis temporales para detecciones no asociadas.
 
         Args:
             detections: Lista de detecciones.
@@ -812,7 +719,7 @@ class MHTIntegration(LoggerMixin):
 
             detection = detections[det_idx]
 
-            if detection.get('confidence', 0) > 0.5 and recovered_count < 2:
+            if detection.get("confidence", 0) > 0.5 and recovered_count < 2:
                 self._create_temporary_hypothesis(detection)
                 recovered_count += 1
 
@@ -821,26 +728,22 @@ class MHTIntegration(LoggerMixin):
         if self._should_prune():
             pruned = self.hypothesis_tree.prune_all()
             if pruned > 0:
-                self.logger.debug(
-                    f"Árbol MHT podado: {pruned} hipótesis eliminadas"
-                )
+                self.logger.debug(f"Árbol MHT podado: {pruned} hipótesis eliminadas")
 
     def _should_prune(self) -> bool:
-        """
-        Determina si es necesario podar el árbol de hipótesis.
+        """Determina si es necesario podar el árbol de hipótesis.
 
         Returns:
             bool: True si se debe podar.
         """
         stats = self.hypothesis_tree.get_stats()
-        total_hyps = stats.get('total_hypotheses', 0)
-        time_since_prune = time.time() - stats.get('last_prune_time', 0)
+        total_hyps = stats.get("total_hypotheses", 0)
+        time_since_prune = time.time() - stats.get("last_prune_time", 0)
 
         return total_hyps > 30 or time_since_prune > 15.0
 
-    def _update_stats(self, tracks: Dict[int, TrackState]) -> None:
-        """
-        Actualiza las estadísticas de la integración MHT.
+    def _update_stats(self, tracks: dict[int, TrackState]) -> None:
+        """Actualiza las estadísticas de la integración MHT.
 
         Args:
             tracks: Diccionario de tracks activos.
@@ -848,19 +751,18 @@ class MHTIntegration(LoggerMixin):
         total_tracks = len(tracks)
         total_hyps = len(self.hypothesis_tree)
 
-        self._stats.update({
-            "total_hypotheses_integrated": total_hyps,
-            "total_tracks_with_hyps": len(self.hypothesis_tree._active_hyps),
-            "confirmed_tracks": len(self._confirmed_hypotheses),
-            "active_tracks": total_tracks,
-            "hypothesis_per_track": (
-                total_hyps / total_tracks if total_tracks > 0 else 0.0
-            ),
-        })
+        self._stats.update(
+            {
+                "total_hypotheses_integrated": total_hyps,
+                "total_tracks_with_hyps": len(self.hypothesis_tree._active_hyps),
+                "confirmed_tracks": len(self._confirmed_hypotheses),
+                "active_tracks": total_tracks,
+                "hypothesis_per_track": (total_hyps / total_tracks if total_tracks > 0 else 0.0),
+            }
+        )
 
-    def _log_performance(self, start_time: float, matches: List[Tuple[int, int]]) -> None:
-        """
-        Registra métricas de rendimiento.
+    def _log_performance(self, start_time: float, matches: list[tuple[int, int]]) -> None:
+        """Registra métricas de rendimiento.
 
         Args:
             start_time: Timestamp de inicio.
@@ -872,16 +774,11 @@ class MHTIntegration(LoggerMixin):
                 "Actualización MHT completada",
                 time_ms=f"{elapsed_ms:.1f}",
                 matches=len(matches),
-                total_hyps=len(self.hypothesis_tree)
+                total_hyps=len(self.hypothesis_tree),
             )
 
-    def get_track_predictions(
-        self,
-        track_id: int,
-        horizon: int = 10
-    ) -> List[Tuple[int, int]]:
-        """
-        Obtiene predicciones de posición para un track usando MHT.
+    def get_track_predictions(self, track_id: int, horizon: int = 10) -> list[tuple[int, int]]:
+        """Obtiene predicciones de posición para un track usando MHT.
 
         Args:
             track_id: ID del track.
@@ -899,8 +796,7 @@ class MHTIntegration(LoggerMixin):
         return self.hypothesis_tree.get_most_likely_positions(track_id, horizon)
 
     def get_hypothesis_confidence(self, track_id: int) -> float:
-        """
-        Obtiene la confianza del sistema MHT para un track.
+        """Obtiene la confianza del sistema MHT para un track.
 
         Args:
             track_id: ID del track.
@@ -914,9 +810,8 @@ class MHTIntegration(LoggerMixin):
 
         return best_hyp.probability
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas completas de la integración MHT.
+    def get_stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas completas de la integración MHT.
 
         Returns:
             Dict[str, Any]: Estadísticas del sistema MHT.
@@ -932,12 +827,11 @@ class MHTIntegration(LoggerMixin):
                 track_id: hyp.probability
                 for track_id, hyp in self._get_all_best_hypotheses().items()
                 if hyp.probability > 0.1
-            }
+            },
         }
 
-    def _get_all_best_hypotheses(self) -> Dict[int, TrackHypothesis]:
-        """
-        Obtiene la mejor hipótesis para cada track activo.
+    def _get_all_best_hypotheses(self) -> dict[int, TrackHypothesis]:
+        """Obtiene la mejor hipótesis para cada track activo.
 
         Returns:
             Dict[int, TrackHypothesis]: Mejores hipótesis por track.

@@ -210,9 +210,7 @@ class ProcessingService(LoggerMixin):
             if result and self.on_frame_processed:
                 self.on_frame_processed(result)
 
-    def process_frame(
-        self, frame: np.ndarray, metadata: FrameMetadata
-    ) -> ProcessingResult | None:
+    def process_frame(self, frame: np.ndarray, metadata: FrameMetadata) -> ProcessingResult | None:
         """Procesa un único frame.
 
         Args:

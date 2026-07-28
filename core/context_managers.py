@@ -1,27 +1,25 @@
-"""
-Context managers especializados para gestión de recursos
-"""
+"""Context managers especializados para gestión de recursos."""
 
-import time
-import gc
-import threading
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Optional, Generator, Any, Dict, Callable, TypeVar, Union
+import gc
 from pathlib import Path
+import threading
+import time
+from typing import Any, TypeVar
+
 import cv2
 import numpy as np
 
+from utils.helpers import get_memory_usage
 from utils.logger import LoggerMixin
-from utils.helpers import get_memory_usage, force_garbage_collection
-from core.constants.pipeline import MEMORY_CHECK_INTERVAL, GC_INTERVAL
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @contextmanager
 def timer_context(name: str = "operation") -> Generator[float, None, None]:
-    """
-    Context manager para medir tiempo de ejecución
+    """Context manager para medir tiempo de ejecución.
 
     Args:
         name: Nombre de la operación a medir
@@ -34,13 +32,11 @@ def timer_context(name: str = "operation") -> Generator[float, None, None]:
         yield 0.0
     finally:
         elapsed = time.perf_counter() - start_time
-        pass
 
 
 @contextmanager
-def memory_tracker_context(name: str = "memory") -> Generator[Dict[str, float], None, None]:
-    """
-    Context manager para monitorear uso de memoria
+def memory_tracker_context(name: str = "memory") -> Generator[dict[str, float], None, None]:
+    """Context manager para monitorear uso de memoria.
 
     Args:
         name: Nombre del contexto
@@ -72,9 +68,8 @@ def memory_tracker_context(name: str = "memory") -> Generator[Dict[str, float], 
 
 
 @contextmanager
-def video_capture_context(source: Union[str, int]) -> Generator[cv2.VideoCapture, None, None]:
-    """
-    Context manager para captura de video con manejo automático de recursos
+def video_capture_context(source: str | int) -> Generator[cv2.VideoCapture, None, None]:
+    """Context manager para captura de video con manejo automático de recursos.
 
     Args:
         source: Fuente de video (número de dispositivo o ruta)
@@ -103,8 +98,7 @@ def video_capture_context(source: Union[str, int]) -> Generator[cv2.VideoCapture
 
 @contextmanager
 def image_window_context(window_name: str) -> Generator[None, None, None]:
-    """
-    Context manager para ventanas de imagen con limpieza automática
+    """Context manager para ventanas de imagen con limpieza automática.
 
     Args:
         window_name: Nombre de la ventana
@@ -119,9 +113,10 @@ def image_window_context(window_name: str) -> Generator[None, None, None]:
 
 
 @contextmanager
-def lock_context(lock: threading.Lock, timeout: Optional[float] = None) -> Generator[bool, None, None]:
-    """
-    Context manager para locks con timeout opcional
+def lock_context(
+    lock: threading.Lock, timeout: float | None = None
+) -> Generator[bool, None, None]:
+    """Context manager para locks con timeout opcional.
 
     Args:
         lock: Objeto Lock a adquirir
@@ -145,9 +140,10 @@ def lock_context(lock: threading.Lock, timeout: Optional[float] = None) -> Gener
 
 
 @contextmanager
-def file_context(filepath: str, mode: str = "r", encoding: str = "utf-8") -> Generator[Any, None, None]:
-    """
-    Context manager para archivos con manejo automático
+def file_context(
+    filepath: str, mode: str = "r", encoding: str = "utf-8"
+) -> Generator[Any, None, None]:
+    """Context manager para archivos con manejo automático.
 
     Args:
         filepath: Ruta del archivo
@@ -171,9 +167,8 @@ def file_context(filepath: str, mode: str = "r", encoding: str = "utf-8") -> Gen
 
 
 @contextmanager
-def gc_context(aggressive: bool = False) -> Generator[Dict[str, int], None, None]:
-    """
-    Context manager para control de garbage collection
+def gc_context(aggressive: bool = False) -> Generator[dict[str, int], None, None]:
+    """Context manager para control de garbage collection.
 
     Args:
         aggressive: Si usar limpieza agresiva
@@ -204,9 +199,8 @@ def gc_context(aggressive: bool = False) -> Generator[Dict[str, int], None, None
 
 
 @contextmanager
-def performance_context(name: str = "operation") -> Generator[Dict[str, Any], None, None]:
-    """
-    Context manager para medir rendimiento completo (tiempo + memoria)
+def performance_context(name: str = "operation") -> Generator[dict[str, Any], None, None]:
+    """Context manager para medir rendimiento completo (tiempo + memoria).
 
     Args:
         name: Nombre de la operación
@@ -238,15 +232,13 @@ def performance_context(name: str = "operation") -> Generator[Dict[str, Any], No
 
 
 class VideoCaptureContext(LoggerMixin):
-    """
-    Context manager avanzado para captura de video con reconexión automática
-    """
+    """Context manager avanzado para captura de video con reconexión automática."""
 
     def __init__(
         self,
-        source: Union[str, int],
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        source: str | int,
+        width: int | None = None,
+        height: int | None = None,
         reconnect_attempts: int = 3,
         reconnect_delay: float = 1.0,
     ) -> None:
@@ -255,27 +247,24 @@ class VideoCaptureContext(LoggerMixin):
         self.height = height
         self.reconnect_attempts = reconnect_attempts
         self.reconnect_delay = reconnect_delay
-        self.cap: Optional[cv2.VideoCapture] = None
+        self.cap: cv2.VideoCapture | None = None
         self._is_open = False
 
         self.logger.info(
-            "Inicializando VideoCaptureContext",
-            source=source,
-            width=width,
-            height=height
+            "Inicializando VideoCaptureContext", source=source, width=width, height=height
         )
 
     def __enter__(self) -> "VideoCaptureContext":
-        """Abre la captura de video"""
+        """Abre la captura de video."""
         self._open()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Cierra la captura de video"""
+        """Cierra la captura de video."""
         self.close()
 
     def _open(self) -> None:
-        """Abre la captura con reintentos"""
+        """Abre la captura con reintentos."""
         for attempt in range(self.reconnect_attempts):
             try:
                 if isinstance(self.source, str) and self.source.isdigit():
@@ -298,10 +287,12 @@ class VideoCaptureContext(LoggerMixin):
                 if attempt < self.reconnect_attempts - 1:
                     time.sleep(self.reconnect_delay)
 
-        raise RuntimeError(f"No se pudo abrir la fuente después de {self.reconnect_attempts} intentos")
+        raise RuntimeError(
+            f"No se pudo abrir la fuente después de {self.reconnect_attempts} intentos"
+        )
 
     def _configure_capture(self) -> None:
-        """Configura la captura"""
+        """Configura la captura."""
         if self.cap is None:
             return
 
@@ -311,7 +302,7 @@ class VideoCaptureContext(LoggerMixin):
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
 
     def read(self) -> tuple:
-        """Lee un frame de la captura"""
+        """Lee un frame de la captura."""
         if not self._is_open or self.cap is None:
             self.logger.warning("Intento de lectura con captura cerrada")
             return False, None
@@ -326,13 +317,13 @@ class VideoCaptureContext(LoggerMixin):
             return False, None
 
     def get_fps(self) -> float:
-        """Obtiene el FPS de la captura"""
+        """Obtiene el FPS de la captura."""
         if self.cap is None:
             return 0.0
         return self.cap.get(cv2.CAP_PROP_FPS)
 
     def get_frame_size(self) -> tuple:
-        """Obtiene el tamaño del frame"""
+        """Obtiene el tamaño del frame."""
         if self.cap is None:
             return (0, 0)
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -340,11 +331,11 @@ class VideoCaptureContext(LoggerMixin):
         return (width, height)
 
     def is_opened(self) -> bool:
-        """Verifica si la captura está abierta"""
+        """Verifica si la captura está abierta."""
         return self._is_open and self.cap is not None and self.cap.isOpened()
 
     def close(self) -> None:
-        """Cierra la captura"""
+        """Cierra la captura."""
         if self.cap is not None:
             try:
                 self.cap.release()
@@ -356,26 +347,23 @@ class VideoCaptureContext(LoggerMixin):
                 self._is_open = False
 
     def __del__(self) -> None:
-        """Limpieza al destruir el objeto"""
+        """Limpieza al destruir el objeto."""
         self.close()
 
 
 class ResourcePool(LoggerMixin):
-    """
-    Pool de recursos para reutilización de objetos costosos
-    """
+    """Pool de recursos para reutilización de objetos costosos."""
 
     def __init__(self, max_size: int = 10, timeout: float = 30.0) -> None:
         self.max_size = max_size
         self.timeout = timeout
-        self._pool: Dict[str, list] = {}
+        self._pool: dict[str, list] = {}
         self._lock = threading.Lock()
 
         self.logger.info("ResourcePool inicializado", max_size=max_size, timeout=timeout)
 
-    def get(self, resource_type: str, creator: Callable[[], T]) -> Optional[T]:
-        """
-        Obtiene un recurso del pool o crea uno nuevo
+    def get(self, resource_type: str, creator: Callable[[], T]) -> T | None:
+        """Obtiene un recurso del pool o crea uno nuevo.
 
         Args:
             resource_type: Tipo de recurso
@@ -405,12 +393,13 @@ class ResourcePool(LoggerMixin):
                 self.logger.debug("Recurso creado", resource_type=resource_type)
                 return resource
             except Exception as e:
-                self.logger.error("Error creando recurso", resource_type=resource_type, error=str(e))
+                self.logger.error(
+                    "Error creando recurso", resource_type=resource_type, error=str(e)
+                )
                 return None
 
     def release(self, resource_type: str, resource: T) -> bool:
-        """
-        Libera un recurso de vuelta al pool
+        """Libera un recurso de vuelta al pool.
 
         Args:
             resource_type: Tipo de recurso
@@ -421,7 +410,9 @@ class ResourcePool(LoggerMixin):
         """
         with lock_context(self._lock, timeout=self.timeout) as acquired:
             if not acquired:
-                self.logger.warning("Timeout adquiriendo lock para release", resource_type=resource_type)
+                self.logger.warning(
+                    "Timeout adquiriendo lock para release", resource_type=resource_type
+                )
                 return False
 
             if resource_type not in self._pool:
@@ -438,7 +429,7 @@ class ResourcePool(LoggerMixin):
             return False
 
     def _is_valid(self, resource: Any) -> bool:
-        """Verifica si un recurso es válido para reutilización"""
+        """Verifica si un recurso es válido para reutilización."""
         if resource is None:
             return False
 
@@ -451,7 +442,7 @@ class ResourcePool(LoggerMixin):
         return True
 
     def _cleanup_resource(self, resource: Any) -> None:
-        """Limpia un recurso antes de descartarlo"""
+        """Limpia un recurso antes de descartarlo."""
         try:
             if isinstance(resource, cv2.VideoCapture):
                 resource.release()
@@ -460,9 +451,8 @@ class ResourcePool(LoggerMixin):
         except Exception as e:
             self.logger.debug("Error limpiando recurso", error=str(e))
 
-    def clear(self, resource_type: Optional[str] = None) -> None:
-        """
-        Limpia el pool
+    def clear(self, resource_type: str | None = None) -> None:
+        """Limpia el pool.
 
         Args:
             resource_type: Tipo específico a limpiar, o None para todos
@@ -478,15 +468,15 @@ class ResourcePool(LoggerMixin):
                 self._clear_pool(resource_type)
 
     def _clear_pool(self, resource_type: str) -> None:
-        """Limpia un pool específico"""
+        """Limpia un pool específico."""
         pool = self._pool.get(resource_type, [])
         for resource in pool:
             self._cleanup_resource(resource)
         pool.clear()
         self.logger.debug("Pool limpiado", resource_type=resource_type)
 
-    def stats(self) -> Dict[str, Any]:
-        """Obtiene estadísticas del pool"""
+    def stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del pool."""
         with lock_context(self._lock) as acquired:
             if not acquired:
                 return {}
@@ -494,8 +484,6 @@ class ResourcePool(LoggerMixin):
             return {
                 "total_types": len(self._pool),
                 "total_resources": sum(len(pool) for pool in self._pool.values()),
-                "resources_by_type": {
-                    rt: len(pool) for rt, pool in self._pool.items()
-                },
+                "resources_by_type": {rt: len(pool) for rt, pool in self._pool.items()},
                 "max_size": self.max_size,
             }

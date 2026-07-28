@@ -1,17 +1,16 @@
-"""
-Gestor de modelos para el detector YOLO.
+"""Gestor de modelos para el detector YOLO.
 
 Maneja la carga, gestión y cambio entre diferentes formatos de modelo
 (PyTorch y ONNX).
 """
 
 import os
-from typing import Optional
 
 from ultralytics import YOLO
 
 try:
     import onnxruntime as ort
+
     ONNX_AVAILABLE = True
 except ImportError:
     ONNX_AVAILABLE = False
@@ -22,12 +21,11 @@ from utils.logger import LoggerMixin
 
 class ModelLoadError(Exception):
     """Error al cargar un modelo."""
-    pass
+
 
 
 class ModelManager(LoggerMixin):
-    """
-    Gestor de modelos para YOLO.
+    """Gestor de modelos para YOLO.
 
     Responsabilidades:
     - Cargar modelos PyTorch (.pt)
@@ -58,24 +56,20 @@ class ModelManager(LoggerMixin):
         self.imgsz = imgsz
         self.vehicle_classes = vehicle_classes or [2, 3, 5, 7]
 
-        self._pytorch_model: Optional[YOLO] = None
-        self._onnx_session: Optional[ort.InferenceSession] = None
+        self._pytorch_model: YOLO | None = None
+        self._onnx_session: ort.InferenceSession | None = None
         self._onnx_available = False
         self._pytorch_available = False
 
-        self._input_name: Optional[str] = None
-        self._output_names: Optional[list] = None
+        self._input_name: str | None = None
+        self._output_names: list | None = None
 
         self.logger.info(
-            "ModelManager inicializado",
-            model_path=model_path,
-            device=device,
-            imgsz=imgsz
+            "ModelManager inicializado", model_path=model_path, device=device, imgsz=imgsz
         )
 
     def load_pytorch(self) -> bool:
-        """
-        Carga el modelo PyTorch.
+        """Carga el modelo PyTorch.
 
         Returns:
             bool: True si se cargó correctamente
@@ -93,9 +87,7 @@ class ModelManager(LoggerMixin):
                     self._pytorch_model.to(self.device)
                     self.logger.debug(f"Modelo movido a {self.device}")
                 except Exception as e:
-                    self.logger.warning(
-                        f"No se pudo mover a {self.device}, usando CPU: {e}"
-                    )
+                    self.logger.warning(f"No se pudo mover a {self.device}, usando CPU: {e}")
                     self.device = "cpu"
 
             self._pytorch_model.conf = 0.35
@@ -111,9 +103,8 @@ class ModelManager(LoggerMixin):
             self._pytorch_available = False
             return False
 
-    def load_onnx(self, onnx_path: Optional[str] = None) -> bool:
-        """
-        Carga el modelo ONNX.
+    def load_onnx(self, onnx_path: str | None = None) -> bool:
+        """Carga el modelo ONNX.
 
         Args:
             onnx_path: Ruta al archivo ONNX (opcional)
@@ -138,18 +129,14 @@ class ModelManager(LoggerMixin):
             sess_options = ort.SessionOptions()
             sess_options.enable_cpu_mem_arena = True
             sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            sess_options.graph_optimization_level = (
-                ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            )
+            sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
-            providers = ['CPUExecutionProvider']
-            if 'CUDAExecutionProvider' in ort.get_available_providers():
-                providers.insert(0, 'CUDAExecutionProvider')
+            providers = ["CPUExecutionProvider"]
+            if "CUDAExecutionProvider" in ort.get_available_providers():
+                providers.insert(0, "CUDAExecutionProvider")
 
             self._onnx_session = ort.InferenceSession(
-                onnx_path,
-                providers=providers,
-                sess_options=sess_options
+                onnx_path, providers=providers, sess_options=sess_options
             )
 
             self._input_name = self._onnx_session.get_inputs()[0].name
@@ -157,8 +144,7 @@ class ModelManager(LoggerMixin):
 
             self._onnx_available = True
             self.logger.info(
-                "✅ Modelo ONNX cargado correctamente",
-                providers=self._onnx_session.get_providers()
+                "✅ Modelo ONNX cargado correctamente", providers=self._onnx_session.get_providers()
             )
             return True
 
@@ -167,19 +153,19 @@ class ModelManager(LoggerMixin):
             self._onnx_available = False
             return False
 
-    def get_pytorch_model(self) -> Optional[YOLO]:
+    def get_pytorch_model(self) -> YOLO | None:
         """Obtiene el modelo PyTorch."""
         return self._pytorch_model
 
-    def get_onnx_session(self) -> Optional[ort.InferenceSession]:
+    def get_onnx_session(self) -> ort.InferenceSession | None:
         """Obtiene la sesión ONNX."""
         return self._onnx_session
 
-    def get_onnx_input_name(self) -> Optional[str]:
+    def get_onnx_input_name(self) -> str | None:
         """Obtiene el nombre del input ONNX."""
         return self._input_name
 
-    def get_onnx_output_names(self) -> Optional[list]:
+    def get_onnx_output_names(self) -> list | None:
         """Obtiene los nombres de los outputs ONNX."""
         return self._output_names
 

@@ -1,31 +1,31 @@
-"""
-Renderizador principal de frames.
+"""Renderizador principal de frames.
 
 Coordina el dibujo de todos los elementos visuales en el frame,
 delegando en sub-renderizadores especializados.
 """
 
 import time
-from typing import Dict, Any, Optional, Tuple, List, Final, TypedDict
+from typing import Any, Final, TypedDict
 
 import cv2
 import numpy as np
 
-from core.pipeline.renderer_config import RendererConfig
-from core.pipeline.render_pipeline import RenderPipeline, RenderLayer
-from core.pipeline.text_utils import TextMetricsCache
-from core.pipeline.system_info import SystemInfoCollector
-from core.pipeline.system_info_renderer import SystemInfoRenderer
 from core.pipeline.dashboard import DashboardRenderer
 from core.pipeline.overlay import OverlayRenderer
+from core.pipeline.render_pipeline import RenderLayer, RenderPipeline
+from core.pipeline.renderer_config import RendererConfig
+from core.pipeline.system_info import SystemInfoCollector
+from core.pipeline.system_info_renderer import SystemInfoRenderer
+from core.pipeline.text_utils import TextMetricsCache
 from utils.logger import LoggerMixin
 
 
 class RenderStats(TypedDict):
     """Estadísticas de renderizado."""
+
     frames_rendered: int
     avg_render_time_ms: float
-    render_times: List[float]
+    render_times: list[float]
     errors: int
     last_render_time_ms: float
     min_render_time_ms: float
@@ -33,8 +33,7 @@ class RenderStats(TypedDict):
 
 
 class FrameRenderer(LoggerMixin):
-    """
-    Renderizador principal que coordina el dibujo de todos los elementos.
+    """Renderizador principal que coordina el dibujo de todos los elementos.
 
     Características:
     - Sistema de capas para renderizado modular
@@ -60,13 +59,12 @@ class FrameRenderer(LoggerMixin):
         "_initialized",
     )
 
-    DEFAULT_FRAME_SHAPE: Final[Tuple[int, int]] = (480, 640)
+    DEFAULT_FRAME_SHAPE: Final[tuple[int, int]] = (480, 640)
     MAX_RENDER_TIMES: Final[int] = 100
     ERROR_COOLDOWN: Final[float] = 1.0
 
     def __init__(self, config=None):
-        """
-        Inicializa el renderizador.
+        """Inicializa el renderizador.
 
         Args:
             config: Configuración del sistema
@@ -98,7 +96,7 @@ class FrameRenderer(LoggerMixin):
         }
 
         self._pipeline = None
-        self._last_valid_frame: Optional[np.ndarray] = None
+        self._last_valid_frame: np.ndarray | None = None
         self._max_render_times = self.MAX_RENDER_TIMES
         self._last_error_time = 0.0
         self._error_cooldown = self.ERROR_COOLDOWN
@@ -128,14 +126,13 @@ class FrameRenderer(LoggerMixin):
     def render(
         self,
         frame: np.ndarray,
-        tracks: Dict[int, Dict[str, Any]],
-        stats: Dict[str, Any],
+        tracks: dict[int, dict[str, Any]],
+        stats: dict[str, Any],
         fps: float = 0.0,
         processing_time_ms: float = 0.0,
         frame_number: int = 0,
     ) -> np.ndarray:
-        """
-        Renderiza todos los elementos en el frame.
+        """Renderiza todos los elementos en el frame.
 
         Args:
             frame: Frame base a renderizar
@@ -177,8 +174,7 @@ class FrameRenderer(LoggerMixin):
             return self._create_error_frame(valid_frame, str(e)[:50])
 
     def _render_overlays(self, frame: np.ndarray, **kwargs) -> np.ndarray:
-        """
-        Renderiza los overlays (tracks, líneas, predicciones).
+        """Renderiza los overlays (tracks, líneas, predicciones).
 
         Args:
             frame: Frame base
@@ -206,8 +202,7 @@ class FrameRenderer(LoggerMixin):
         return result
 
     def _prepare_frame(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Prepara el frame para renderizado, asegurando que sea válido.
+        """Prepara el frame para renderizado, asegurando que sea válido.
 
         Args:
             frame: Frame a preparar
@@ -231,8 +226,7 @@ class FrameRenderer(LoggerMixin):
         return frame.copy()
 
     def _create_error_frame(self, base_frame: np.ndarray, error_message: str) -> np.ndarray:
-        """
-        Crea un frame de error con mensaje.
+        """Crea un frame de error con mensaje.
 
         Args:
             base_frame: Frame base (puede ser None)
@@ -299,8 +293,7 @@ class FrameRenderer(LoggerMixin):
             return result
 
     def _get_pipeline_status(self):
-        """
-        Obtiene el estado actual del pipeline.
+        """Obtiene el estado actual del pipeline.
         """
         if self._pipeline is not None:
             if hasattr(self._pipeline, "is_running") and not self._pipeline.is_running:
@@ -313,16 +306,15 @@ class FrameRenderer(LoggerMixin):
                 state_str = str(self._pipeline.state)
                 if "PAUSED" in state_str:
                     return "PAUSED"
-                elif "STOPPED" in state_str or "STOPPING" in state_str:
+                if "STOPPED" in state_str or "STOPPING" in state_str:
                     return "STOPPED"
-                elif "ERROR" in state_str:
+                if "ERROR" in state_str:
                     return "ERROR"
 
         return "RUNNING"
 
     def _update_stats(self, render_time_ms: float) -> None:
-        """
-        Actualiza estadísticas de renderizado.
+        """Actualiza estadísticas de renderizado.
 
         Args:
             render_time_ms: Tiempo de renderizado en milisegundos
@@ -331,17 +323,15 @@ class FrameRenderer(LoggerMixin):
         self._stats["render_times"].append(render_time_ms)
         self._stats["last_render_time_ms"] = render_time_ms
 
-        if render_time_ms < self._stats["min_render_time_ms"]:
-            self._stats["min_render_time_ms"] = render_time_ms
-        if render_time_ms > self._stats["max_render_time_ms"]:
-            self._stats["max_render_time_ms"] = render_time_ms
+        self._stats["min_render_time_ms"] = min(self._stats["min_render_time_ms"], render_time_ms)
+        self._stats["max_render_time_ms"] = max(self._stats["max_render_time_ms"], render_time_ms)
 
         if len(self._stats["render_times"]) > self._max_render_times:
-            self._stats["render_times"] = self._stats["render_times"][-self._max_render_times:]
+            self._stats["render_times"] = self._stats["render_times"][-self._max_render_times :]
 
         if self._stats["render_times"]:
-            self._stats["avg_render_time_ms"] = (
-                sum(self._stats["render_times"]) / len(self._stats["render_times"])
+            self._stats["avg_render_time_ms"] = sum(self._stats["render_times"]) / len(
+                self._stats["render_times"]
             )
 
     def set_pipeline_reference(self, pipeline) -> None:
@@ -353,7 +343,7 @@ class FrameRenderer(LoggerMixin):
         """Obtiene estadísticas del renderizador."""
         return self._stats
 
-    def get_last_frame(self) -> Optional[np.ndarray]:
+    def get_last_frame(self) -> np.ndarray | None:
         """Obtiene el último frame renderizado válido."""
         return self._last_valid_frame
 

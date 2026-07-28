@@ -1,5 +1,4 @@
-"""
-Validador de detecciones de objetos.
+"""Validador de detecciones de objetos.
 
 Proporciona funciones para validar detecciones individuales y listas,
 asegurando que cumplan con los requisitos del sistema.
@@ -7,31 +6,35 @@ asegurando que cumplan con los requisitos del sistema.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
 from dataclasses import dataclass
+from typing import Any
 
+from core.constants.vision import (
+    MAX_DETECTION_CONFIDENCE,
+    MIN_DETECTION_AREA,
+    MIN_DETECTION_CONFIDENCE,
+)
 from core.validators.bbox_validator import validate_bbox, validate_centroid
-from core.constants.vision import MIN_DETECTION_AREA, MIN_DETECTION_CONFIDENCE, MAX_DETECTION_CONFIDENCE
 
 
 @dataclass
 class DetectionValidationResult:
     """Resultado de la validación de una detección."""
+
     is_valid: bool
-    errors: List[str]
-    warnings: List[str]
+    errors: list[str]
+    warnings: list[str]
     score: float
 
 
 def validate_detection(
-    detection: Dict[str, Any],
+    detection: dict[str, Any],
     min_confidence: float = MIN_DETECTION_CONFIDENCE,
     max_confidence: float = MAX_DETECTION_CONFIDENCE,
     min_area: int = MIN_DETECTION_AREA,
-    require_all_fields: bool = True
+    require_all_fields: bool = True,
 ) -> DetectionValidationResult:
-    """
-    Valida una detección completa.
+    """Valida una detección completa.
 
     Args:
         detection: Diccionario de detección.
@@ -115,13 +118,12 @@ def validate_detection(
 
 
 def validate_detection_list(
-    detections: List[Dict[str, Any]],
+    detections: list[dict[str, Any]],
     min_confidence: float = MIN_DETECTION_CONFIDENCE,
     max_confidence: float = MAX_DETECTION_CONFIDENCE,
-    min_area: int = MIN_DETECTION_AREA
-) -> Tuple[List[Dict[str, Any]], List[DetectionValidationResult]]:
-    """
-    Valida una lista de detecciones.
+    min_area: int = MIN_DETECTION_AREA,
+) -> tuple[list[dict[str, Any]], list[DetectionValidationResult]]:
+    """Valida una lista de detecciones.
 
     Args:
         detections: Lista de detecciones a validar.
@@ -138,11 +140,7 @@ def validate_detection_list(
 
     for detection in detections:
         result = validate_detection(
-            detection,
-            min_confidence,
-            max_confidence,
-            min_area,
-            require_all_fields=True
+            detection, min_confidence, max_confidence, min_area, require_all_fields=True
         )
         results.append(result)
         if result.is_valid:
@@ -151,9 +149,8 @@ def validate_detection_list(
     return valid_detections, results
 
 
-def validate_detection_required_fields(detection: Dict[str, Any]) -> bool:
-    """
-    Verifica rápidamente si una detección tiene todos los campos requeridos.
+def validate_detection_required_fields(detection: dict[str, Any]) -> bool:
+    """Verifica rápidamente si una detección tiene todos los campos requeridos.
 
     Args:
         detection: Detección a verificar.
@@ -166,12 +163,11 @@ def validate_detection_required_fields(detection: Dict[str, Any]) -> bool:
 
 
 def filter_valid_detections(
-    detections: List[Dict[str, Any]],
+    detections: list[dict[str, Any]],
     min_confidence: float = MIN_DETECTION_CONFIDENCE,
-    min_area: int = MIN_DETECTION_AREA
-) -> List[Dict[str, Any]]:
-    """
-    Filtra detecciones válidas según confianza y área.
+    min_area: int = MIN_DETECTION_AREA,
+) -> list[dict[str, Any]]:
+    """Filtra detecciones válidas según confianza y área.
 
     Args:
         detections: Lista de detecciones.
@@ -202,11 +198,8 @@ def filter_valid_detections(
     return valid
 
 
-def get_detection_stats(
-    detections: List[Dict[str, Any]]
-) -> Dict[str, Any]:
-    """
-    Obtiene estadísticas de una lista de detecciones.
+def get_detection_stats(detections: list[dict[str, Any]]) -> dict[str, Any]:
+    """Obtiene estadísticas de una lista de detecciones.
 
     Args:
         detections: Lista de detecciones.

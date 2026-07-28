@@ -4,7 +4,6 @@ Este backend es rápido y no requiere GPU, ideal para CPU.
 Combina histogramas de color, textura y momentos.
 """
 
-
 import cv2
 import numpy as np
 

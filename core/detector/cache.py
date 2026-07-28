@@ -1,32 +1,32 @@
-"""
-Sistema de caché para detecciones de objetos.
+"""Sistema de caché para detecciones de objetos.
 
 Implementa un caché LRU con gestión de memoria para almacenar
 resultados de detección y evitar procesamiento redundante.
 """
 
-import time
+from collections import OrderedDict
 import hashlib
-from typing import Dict, Optional, List, Any, OrderedDict
+import time
+from typing import Any
 
 import cv2
 import numpy as np
 
-from utils.logger import LoggerMixin
 from core.constants.pipeline import (
+    CACHE_CLEANUP_THRESHOLD,
     DEFAULT_CACHE_SIZE,
     MAX_CACHE_MEMORY_MB,
-    CACHE_CLEANUP_THRESHOLD,
 )
+from utils.logger import LoggerMixin
 
-DetectionList = List[Dict[str, Any]]
+DetectionList = list[dict[str, Any]]
 FrameHash = str
 
 
 class CacheEntry:
     """Entrada en el caché de detecciones."""
 
-    __slots__ = ('detections', 'timestamp', 'size', 'access_count')
+    __slots__ = ("detections", "timestamp", "size", "access_count")
 
     def __init__(self, detections: DetectionList):
         self.detections = detections
@@ -45,8 +45,7 @@ class CacheEntry:
 
 
 class DetectionCache(LoggerMixin):
-    """
-    Caché LRU para detecciones de objetos.
+    """Caché LRU para detecciones de objetos.
 
     Características:
     - Política LRU (Least Recently Used)
@@ -67,10 +66,9 @@ class DetectionCache(LoggerMixin):
         max_size: int = DEFAULT_CACHE_SIZE,
         max_age_seconds: float = 3.0,
         max_memory_mb: int = MAX_CACHE_MEMORY_MB,
-        cleanup_threshold: float = CACHE_CLEANUP_THRESHOLD
+        cleanup_threshold: float = CACHE_CLEANUP_THRESHOLD,
     ):
-        """
-        Inicializa el caché de detecciones.
+        """Inicializa el caché de detecciones.
 
         Args:
             max_size: Número máximo de entradas
@@ -97,12 +95,11 @@ class DetectionCache(LoggerMixin):
             "DetectionCache inicializado",
             max_size=max_size,
             max_age_seconds=max_age_seconds,
-            max_memory_mb=max_memory_mb
+            max_memory_mb=max_memory_mb,
         )
 
     def compute_key(self, frame: np.ndarray) -> str:
-        """
-        Calcula una clave única para el frame.
+        """Calcula una clave única para el frame.
 
         Args:
             frame: Imagen a procesar
@@ -116,9 +113,8 @@ class DetectionCache(LoggerMixin):
         except Exception:
             return str(time.perf_counter())
 
-    def get(self, key: str) -> Optional[DetectionList]:
-        """
-        Obtiene detecciones del caché.
+    def get(self, key: str) -> DetectionList | None:
+        """Obtiene detecciones del caché.
 
         Args:
             key: Clave del frame
@@ -141,17 +137,12 @@ class DetectionCache(LoggerMixin):
         self._cache.move_to_end(key)
         self._hits += 1
 
-        self.logger.debug(
-            "Cache hit",
-            key=key[:8],
-            detections=len(entry.detections)
-        )
+        self.logger.debug("Cache hit", key=key[:8], detections=len(entry.detections))
 
         return entry.detections
 
     def put(self, key: str, detections: DetectionList) -> None:
-        """
-        Almacena detecciones en el caché.
+        """Almacena detecciones en el caché.
 
         Args:
             key: Clave del frame
@@ -178,7 +169,7 @@ class DetectionCache(LoggerMixin):
             key=key[:8],
             detections=len(detections),
             cache_size=len(self._cache),
-            memory_mb=self._memory_usage / (1024 * 1024)
+            memory_mb=self._memory_usage / (1024 * 1024),
         )
 
     def _remove(self, key: str) -> None:
@@ -195,11 +186,7 @@ class DetectionCache(LoggerMixin):
 
         oldest_key = next(iter(self._cache))
         self._remove(oldest_key)
-        self.logger.debug(
-            "Evicted oldest entry",
-            key=oldest_key[:8],
-            cache_size=len(self._cache)
-        )
+        self.logger.debug("Evicted oldest entry", key=oldest_key[:8], cache_size=len(self._cache))
 
     def _periodic_cleanup(self) -> None:
         """Limpieza periódica de entradas expiradas."""
@@ -210,22 +197,17 @@ class DetectionCache(LoggerMixin):
         self._last_cleanup = current_time
 
         expired_keys = [
-            key for key, entry in self._cache.items()
-            if not entry.is_valid(self.max_age_seconds)
+            key for key, entry in self._cache.items() if not entry.is_valid(self.max_age_seconds)
         ]
 
         for key in expired_keys:
             self._remove(key)
 
         if expired_keys:
-            self.logger.debug(
-                "Cleaned expired entries",
-                count=len(expired_keys)
-            )
+            self.logger.debug("Cleaned expired entries", count=len(expired_keys))
 
     def _cleanup(self, aggressive: bool = False) -> None:
-        """
-        Limpieza de caché.
+        """Limpieza de caché.
 
         Args:
             aggressive: Si es True, limpia más entradas
@@ -234,21 +216,15 @@ class DetectionCache(LoggerMixin):
             return
 
         if aggressive:
-            keys_to_remove = list(self._cache.keys())[:len(self._cache) // 2]
+            keys_to_remove = list(self._cache.keys())[: len(self._cache) // 2]
             for key in keys_to_remove:
                 self._remove(key)
-            self.logger.debug(
-                "Aggressive cleanup",
-                removed=len(keys_to_remove)
-            )
+            self.logger.debug("Aggressive cleanup", removed=len(keys_to_remove))
         else:
-            keys_to_remove = list(self._cache.keys())[:int(len(self._cache) * 0.3)]
+            keys_to_remove = list(self._cache.keys())[: int(len(self._cache) * 0.3)]
             for key in keys_to_remove:
                 self._remove(key)
-            self.logger.debug(
-                "Partial cleanup",
-                removed=len(keys_to_remove)
-            )
+            self.logger.debug("Partial cleanup", removed=len(keys_to_remove))
 
     def clear(self) -> None:
         """Limpia todo el caché."""
@@ -259,7 +235,7 @@ class DetectionCache(LoggerMixin):
         self._misses = 0
         self.logger.info("Cache cleared", entries=count)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del caché."""
         total_requests = self._hits + self._misses
 

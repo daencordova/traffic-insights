@@ -1,22 +1,24 @@
-"""
-Sistema de validación de tracks para asegurar calidad
+"""Sistema de validación de tracks para asegurar calidad
 """
 
-import numpy as np
-from typing import List, Dict, Any, Callable, Tuple
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
-from utils.logger import LoggerMixin
-from utils.geometry import euclidean_distance
+import numpy as np
+
 from core.constants.tracking import (
-    TRACK_VALIDATION_MIN_CONFIDENCE,
     TRACK_VALIDATION_MAX_SPEED_CHANGE,
+    TRACK_VALIDATION_MIN_CONFIDENCE,
 )
+from utils.geometry import euclidean_distance
+from utils.logger import LoggerMixin
 
 
 class ValidationSeverity(Enum):
     """Severidad de las violaciones de validación"""
+
     WARNING = "warning"
     ERROR = "error"
     CRITICAL = "critical"
@@ -25,10 +27,11 @@ class ValidationSeverity(Enum):
 @dataclass
 class ValidationResult:
     """Resultado de una validación"""
+
     passed: bool
-    violations: List[Dict[str, Any]] = field(default_factory=list)
+    violations: list[dict[str, Any]] = field(default_factory=list)
     score: float = 1.0
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 class ValidationRule:
@@ -46,9 +49,8 @@ class ValidationRule:
         self.severity = severity
         self.threshold = threshold
 
-    def validate(self, track) -> Tuple[bool, float, Dict[str, Any]]:
-        """
-        Valida un track
+    def validate(self, track) -> tuple[bool, float, dict[str, Any]]:
+        """Valida un track
 
         Returns:
             (passed, score, details)
@@ -61,8 +63,7 @@ class ValidationRule:
 
 
 class TrackValidator(LoggerMixin):
-    """
-    Validador de tracks con múltiples reglas y puntuación
+    """Validador de tracks con múltiples reglas y puntuación
 
     Reglas de validación:
     1. Consistencia de movimiento (velocidad no cambia abruptamente)
@@ -73,51 +74,50 @@ class TrackValidator(LoggerMixin):
     """
 
     def __init__(
-            self,
-            min_confidence: float = TRACK_VALIDATION_MIN_CONFIDENCE,
-            max_speed_change: float = TRACK_VALIDATION_MAX_SPEED_CHANGE
+        self,
+        min_confidence: float = TRACK_VALIDATION_MIN_CONFIDENCE,
+        max_speed_change: float = TRACK_VALIDATION_MAX_SPEED_CHANGE,
     ):
         self.min_confidence = min_confidence
         self.max_speed_change = max_speed_change
 
-        self.rules: List[ValidationRule] = [
+        self.rules: list[ValidationRule] = [
             ValidationRule(
                 "motion_consistency",
                 self._check_motion_consistency,
                 ValidationSeverity.WARNING,
-                threshold=0.6
+                threshold=0.6,
             ),
             ValidationRule(
                 "trajectory_smoothness",
                 self._check_trajectory_smoothness,
                 ValidationSeverity.WARNING,
-                threshold=0.5
+                threshold=0.5,
             ),
             ValidationRule(
                 "shape_consistency",
                 self._check_shape_consistency,
                 ValidationSeverity.WARNING,
-                threshold=0.4
+                threshold=0.4,
             ),
             ValidationRule(
                 "position_validity",
                 self._check_position_validity,
                 ValidationSeverity.ERROR,
-                threshold=0.8
+                threshold=0.8,
             ),
             ValidationRule(
                 "confidence_filter",
                 self._check_confidence,
                 ValidationSeverity.WARNING,
-                threshold=0.7
+                threshold=0.7,
             ),
         ]
 
         self.logger.info("TrackValidator inicializado", rules=len(self.rules))
 
     def validate(self, track) -> ValidationResult:
-        """
-        Valida un track contra todas las reglas
+        """Valida un track contra todas las reglas
 
         Args:
             track: TrackState a validar
@@ -133,12 +133,14 @@ class TrackValidator(LoggerMixin):
             passed, score, details = rule.validate(track)
 
             if not passed:
-                violations.append({
-                    "rule": rule.name,
-                    "severity": rule.severity.value,
-                    "score": score,
-                    "details": details,
-                })
+                violations.append(
+                    {
+                        "rule": rule.name,
+                        "severity": rule.severity.value,
+                        "score": score,
+                        "details": details,
+                    }
+                )
 
             total_score += score
 
@@ -147,8 +149,7 @@ class TrackValidator(LoggerMixin):
         passed = avg_score >= 0.4 and len(violations) <= 2
 
         critical_violations = [
-            v for v in violations
-            if v["severity"] == ValidationSeverity.CRITICAL.value
+            v for v in violations if v["severity"] == ValidationSeverity.CRITICAL.value
         ]
         if critical_violations:
             passed = False
@@ -161,12 +162,11 @@ class TrackValidator(LoggerMixin):
                 "total_rules": num_rules,
                 "passed_rules": num_rules - len(violations),
                 "violations_count": len(violations),
-            }
+            },
         )
 
-    def _check_motion_consistency(self, track) -> Tuple[bool, float, Dict]:
-        """
-        Verifica que el movimiento sea consistente
+    def _check_motion_consistency(self, track) -> tuple[bool, float, dict]:
+        """Verifica que el movimiento sea consistente
 
         Calcula variación de velocidad y aceleración
         """
@@ -175,8 +175,8 @@ class TrackValidator(LoggerMixin):
 
         velocities = []
         for i in range(1, len(track.history)):
-            dx = track.history[i][0] - track.history[i-1][0]
-            dy = track.history[i][1] - track.history[i-1][1]
+            dx = track.history[i][0] - track.history[i - 1][0]
+            dy = track.history[i][1] - track.history[i - 1][1]
             velocities.append(np.sqrt(dx**2 + dy**2))
 
         if len(velocities) < 2:
@@ -200,9 +200,8 @@ class TrackValidator(LoggerMixin):
 
         return passed, score, details
 
-    def _check_trajectory_smoothness(self, track) -> Tuple[bool, float, Dict]:
-        """
-        Verifica que la trayectoria sea suave (sin zigzags extremos)
+    def _check_trajectory_smoothness(self, track) -> tuple[bool, float, dict]:
+        """Verifica que la trayectoria sea suave (sin zigzags extremos)
 
         Usa la desviación de una línea recta
         """
@@ -240,16 +239,15 @@ class TrackValidator(LoggerMixin):
         except Exception as e:
             return True, 0.5, {"error": str(e)}
 
-    def _check_shape_consistency(self, track) -> Tuple[bool, float, Dict]:
-        """
-        Verifica que la forma del objeto sea consistente
+    def _check_shape_consistency(self, track) -> tuple[bool, float, dict]:
+        """Verifica que la forma del objeto sea consistente
 
         Analiza aspect ratio y área a través del tiempo
         """
         if len(track.history) < 3:
             return True, 1.0, {"reason": "insufficient_history"}
 
-        if not hasattr(track, 'bbox_history') or len(track.bbox_history) < 3:
+        if not hasattr(track, "bbox_history") or len(track.bbox_history) < 3:
             return True, 1.0, {"reason": "no_bbox_history"}
 
         aspect_ratios = []
@@ -282,13 +280,12 @@ class TrackValidator(LoggerMixin):
 
         return passed, score, details
 
-    def _check_position_validity(self, track) -> Tuple[bool, float, Dict]:
-        """
-        Verifica que la posición del track sea válida
+    def _check_position_validity(self, track) -> tuple[bool, float, dict]:
+        """Verifica que la posición del track sea válida
 
         Comprueba que esté dentro de límites razonables
         """
-        if not hasattr(track, 'centroid'):
+        if not hasattr(track, "centroid"):
             return False, 0.0, {"error": "no_centroid"}
 
         x, y = track.centroid
@@ -323,11 +320,10 @@ class TrackValidator(LoggerMixin):
 
         return passed, score, details
 
-    def _check_confidence(self, track) -> Tuple[bool, float, Dict]:
+    def _check_confidence(self, track) -> tuple[bool, float, dict]:
+        """Verifica que la confianza del track sea suficiente
         """
-        Verifica que la confianza del track sea suficiente
-        """
-        confidence = getattr(track, 'confidence', 0.0)
+        confidence = getattr(track, "confidence", 0.0)
 
         score = min(1.0, confidence / self.min_confidence)
         passed = confidence >= self.min_confidence
@@ -339,9 +335,8 @@ class TrackValidator(LoggerMixin):
 
         return passed, score, details
 
-    def validate_batch(self, tracks: List) -> Dict[int, ValidationResult]:
-        """
-        Valida múltiples tracks
+    def validate_batch(self, tracks: list) -> dict[int, ValidationResult]:
+        """Valida múltiples tracks
 
         Args:
             tracks: Lista de tracks a validar
@@ -351,12 +346,12 @@ class TrackValidator(LoggerMixin):
         """
         results = {}
         for track in tracks:
-            track_id = getattr(track, 'track_id', id(track))
+            track_id = getattr(track, "track_id", id(track))
             results[track_id] = self.validate(track)
 
         return results
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del validador"""
         return {
             "rules_count": len(self.rules),

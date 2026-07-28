@@ -1,19 +1,19 @@
-"""
-Detector de estados de trayectoria.
+"""Detector de estados de trayectoria.
 
 Detecta el estado de movimiento de un objeto basado en
 su historial de posiciones y velocidades.
 """
 
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any
+
 import numpy as np
 
 
 class TrajectoryState(Enum):
+    """Estados posibles de la trayectoria de un objeto.
     """
-    Estados posibles de la trayectoria de un objeto.
-    """
+
     MOVING = "moving"
     STOPPED = "stopped"
     ACCELERATING = "accelerating"
@@ -24,8 +24,7 @@ class TrajectoryState(Enum):
 
 
 class StateDetector:
-    """
-    Detector de estados de trayectoria.
+    """Detector de estados de trayectoria.
 
     Responsabilidades:
     - Detectar el estado de movimiento de un objeto
@@ -38,7 +37,7 @@ class StateDetector:
     """
 
     def __init__(self):
-        self._state_history: Dict[int, List[TrajectoryState]] = {}
+        self._state_history: dict[int, list[TrajectoryState]] = {}
         self._stats = {
             "total_detections": 0,
             "state_distribution": {state.value: 0 for state in TrajectoryState},
@@ -46,14 +45,9 @@ class StateDetector:
         }
 
     def detect_state(
-        self,
-        track_id: int,
-        positions: np.ndarray,
-        velocities: np.ndarray,
-        timestamps: np.ndarray
+        self, track_id: int, positions: np.ndarray, velocities: np.ndarray, timestamps: np.ndarray
     ) -> TrajectoryState:
-        """
-        Detecta el estado de trayectoria de un objeto.
+        """Detecta el estado de trayectoria de un objeto.
 
         Args:
             track_id: ID del track
@@ -65,6 +59,7 @@ class StateDetector:
             TrajectoryState: Estado detectado
         """
         import time
+
         start_time = time.perf_counter()
 
         if len(positions) < 3 or len(velocities) < 2:
@@ -82,24 +77,23 @@ class StateDetector:
                     state = TrajectoryState.ACCELERATING
                 elif avg_accel < -1.0:
                     state = TrajectoryState.DECELERATING
-                else:
-                    if len(positions) > 3:
-                        curvature = self._compute_curvature(positions)
-                        if curvature > 0.3:
-                            state = TrajectoryState.TURNING
-                        else:
-                            headings = self._compute_headings(positions)
-                            if len(headings) > 1:
-                                heading_changes = np.abs(np.diff(headings))
-                                avg_change = np.mean(heading_changes)
-                                if avg_change > 1.0:
-                                    state = TrajectoryState.ERRATIC
-                                else:
-                                    state = TrajectoryState.MOVING
+                elif len(positions) > 3:
+                    curvature = self._compute_curvature(positions)
+                    if curvature > 0.3:
+                        state = TrajectoryState.TURNING
+                    else:
+                        headings = self._compute_headings(positions)
+                        if len(headings) > 1:
+                            heading_changes = np.abs(np.diff(headings))
+                            avg_change = np.mean(heading_changes)
+                            if avg_change > 1.0:
+                                state = TrajectoryState.ERRATIC
                             else:
                                 state = TrajectoryState.MOVING
-                    else:
-                        state = TrajectoryState.MOVING
+                        else:
+                            state = TrajectoryState.MOVING
+                else:
+                    state = TrajectoryState.MOVING
 
         if track_id not in self._state_history:
             self._state_history[track_id] = []
@@ -113,15 +107,13 @@ class StateDetector:
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         self._stats["detection_time_ms"] = (
-            (self._stats["detection_time_ms"] * (self._stats["total_detections"] - 1) + elapsed_ms) /
-            self._stats["total_detections"]
-        )
+            self._stats["detection_time_ms"] * (self._stats["total_detections"] - 1) + elapsed_ms
+        ) / self._stats["total_detections"]
 
         return state
 
     def _compute_curvature(self, positions: np.ndarray) -> float:
-        """
-        Calcula la curvatura de una trayectoria.
+        """Calcula la curvatura de una trayectoria.
 
         Args:
             positions: Array de posiciones [N, 2]
@@ -146,8 +138,7 @@ class StateDetector:
             return 0.0
 
     def _compute_headings(self, positions: np.ndarray) -> np.ndarray:
-        """
-        Calcula los headings de una trayectoria.
+        """Calcula los headings de una trayectoria.
 
         Args:
             positions: Array de posiciones [N, 2]
@@ -160,16 +151,15 @@ class StateDetector:
 
         headings = []
         for i in range(1, len(positions)):
-            dx = positions[i, 0] - positions[i-1, 0]
-            dy = positions[i, 1] - positions[i-1, 1]
+            dx = positions[i, 0] - positions[i - 1, 0]
+            dy = positions[i, 1] - positions[i - 1, 1]
             heading = np.arctan2(dy, dx)
             headings.append(heading)
 
         return np.array(headings)
 
-    def get_last_state(self, track_id: int) -> Optional[TrajectoryState]:
-        """
-        Obtiene el último estado detectado para un track.
+    def get_last_state(self, track_id: int) -> TrajectoryState | None:
+        """Obtiene el último estado detectado para un track.
 
         Args:
             track_id: ID del track
@@ -181,9 +171,8 @@ class StateDetector:
             return None
         return self._state_history[track_id][-1]
 
-    def get_state_history(self, track_id: int) -> List[TrajectoryState]:
-        """
-        Obtiene el historial de estados de un track.
+    def get_state_history(self, track_id: int) -> list[TrajectoryState]:
+        """Obtiene el historial de estados de un track.
 
         Args:
             track_id: ID del track
@@ -193,9 +182,8 @@ class StateDetector:
         """
         return self._state_history.get(track_id, [])
 
-    def get_most_common_state(self, track_id: int) -> Optional[TrajectoryState]:
-        """
-        Obtiene el estado más común de un track.
+    def get_most_common_state(self, track_id: int) -> TrajectoryState | None:
+        """Obtiene el estado más común de un track.
 
         Args:
             track_id: ID del track
@@ -208,10 +196,11 @@ class StateDetector:
             return None
 
         from collections import Counter
+
         counter = Counter(history)
         return max(counter, key=counter.get)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del detector."""
         return {
             **self._stats,

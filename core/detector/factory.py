@@ -1,32 +1,28 @@
-"""
-Fábrica para crear detectores de objetos.
+"""Fábrica para crear detectores de objetos.
 
 Proporciona una interfaz unificada para crear diferentes tipos de detectores.
 """
 
-from typing import Optional
 
 from core.detector.base import YOLODetector
-from core.detector.optimized import OptimizedYOLODetector
 from core.detector.config import DetectorConfig
+from core.detector.optimized import OptimizedYOLODetector
 from utils.logger import LoggerMixin
 
 
 class DetectorFactory(LoggerMixin):
-    """
-    Fábrica de detectores de objetos.
+    """Fábrica de detectores de objetos.
 
     Crea detectores según la configuración y disponibilidad.
     """
 
     @staticmethod
     def create(
-        config: Optional[DetectorConfig] = None,
+        config: DetectorConfig | None = None,
         force_optimized: bool = False,
-        force_standard: bool = False
+        force_standard: bool = False,
     ) -> YOLODetector:
-        """
-        Crea un detector de objetos.
+        """Crea un detector de objetos.
 
         Args:
             config: Configuración del detector (opcional)
@@ -61,11 +57,8 @@ class DetectorFactory(LoggerMixin):
         return YOLODetector(config)
 
     @staticmethod
-    def create_optimized(
-        config: Optional[DetectorConfig] = None
-    ) -> OptimizedYOLODetector:
-        """
-        Crea un detector optimizado para CPU.
+    def create_optimized(config: DetectorConfig | None = None) -> OptimizedYOLODetector:
+        """Crea un detector optimizado para CPU.
 
         Args:
             config: Configuración del detector (opcional)
@@ -85,11 +78,8 @@ class DetectorFactory(LoggerMixin):
             raise RuntimeError(f"No se pudo crear detector optimizado: {e}")
 
     @staticmethod
-    def create_standard(
-        config: Optional[DetectorConfig] = None
-    ) -> YOLODetector:
-        """
-        Crea un detector estándar.
+    def create_standard(config: DetectorConfig | None = None) -> YOLODetector:
+        """Crea un detector estándar.
 
         Args:
             config: Configuración del detector (opcional)
@@ -103,11 +93,8 @@ class DetectorFactory(LoggerMixin):
         return YOLODetector(config)
 
     @staticmethod
-    def create_best_available(
-        config: Optional[DetectorConfig] = None
-    ) -> YOLODetector:
-        """
-        Crea el mejor detector disponible según el hardware.
+    def create_best_available(config: DetectorConfig | None = None) -> YOLODetector:
+        """Crea el mejor detector disponible según el hardware.
 
         Args:
             config: Configuración del detector (opcional)

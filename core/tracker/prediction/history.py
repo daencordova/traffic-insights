@@ -1,20 +1,18 @@
-"""
-Gestión de historiales de trayectoria.
+"""Gestión de historiales de trayectoria.
 
 Mantiene el historial de posiciones, velocidades y otros datos
 para cada track.
 """
 
-import time
-from typing import Dict, List, Tuple, Optional, Any
 from collections import deque
+import time
+from typing import Any
 
 import numpy as np
 
 
 class TrajectorySample:
-    """
-    Muestra de trayectoria para entrenamiento/predicción.
+    """Muestra de trayectoria para entrenamiento/predicción.
 
     Attributes:
         position: Posición (x, y)
@@ -25,18 +23,26 @@ class TrajectorySample:
         confidence: Confianza de la muestra
         metadata: Metadatos adicionales
     """
-    __slots__ = ('position', 'timestamp', 'velocity', 'acceleration',
-                     'heading', 'confidence', 'metadata')
+
+    __slots__ = (
+        "position",
+        "timestamp",
+        "velocity",
+        "acceleration",
+        "heading",
+        "confidence",
+        "metadata",
+    )
 
     def __init__(
         self,
-        position: Tuple[float, float],
+        position: tuple[float, float],
         timestamp: float,
-        velocity: Tuple[float, float] = (0.0, 0.0),
-        acceleration: Tuple[float, float] = (0.0, 0.0),
+        velocity: tuple[float, float] = (0.0, 0.0),
+        acceleration: tuple[float, float] = (0.0, 0.0),
         heading: float = 0.0,
         confidence: float = 1.0,
-        metadata: Dict[str, Any] = None
+        metadata: dict[str, Any] = None,
     ):
         self.position = position
         self.timestamp = timestamp
@@ -46,7 +52,7 @@ class TrajectorySample:
         self.confidence = confidence
         self.metadata = metadata or {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convierte a diccionario."""
         return {
             "position": self.position,
@@ -60,8 +66,7 @@ class TrajectorySample:
 
 
 class TrajectoryHistory:
-    """
-    Gestor de historiales de trayectoria.
+    """Gestor de historiales de trayectoria.
 
     Responsabilidades:
     - Almacenar historiales por track
@@ -76,14 +81,13 @@ class TrajectoryHistory:
     """
 
     def __init__(self, history_length: int = 30):
-        """
-        Inicializa el gestor de historiales.
+        """Inicializa el gestor de historiales.
 
         Args:
             history_length: Longitud máxima del historial
         """
         self.history_length = history_length
-        self._histories: Dict[int, deque] = {}
+        self._histories: dict[int, deque] = {}
         self._stats = {
             "total_tracks": 0,
             "active_tracks": 0,
@@ -93,15 +97,14 @@ class TrajectoryHistory:
     def update(
         self,
         track_id: int,
-        position: Tuple[float, float],
-        velocity: Optional[Tuple[float, float]] = None,
-        acceleration: Optional[Tuple[float, float]] = None,
+        position: tuple[float, float],
+        velocity: tuple[float, float] | None = None,
+        acceleration: tuple[float, float] | None = None,
         confidence: float = 1.0,
-        timestamp: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        timestamp: float | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
-        """
-        Actualiza el historial de un track.
+        """Actualiza el historial de un track.
 
         Args:
             track_id: ID del track
@@ -146,9 +149,8 @@ class TrajectoryHistory:
 
         return True
 
-    def get_history(self, track_id: int) -> Optional[List[TrajectorySample]]:
-        """
-        Obtiene el historial completo de un track.
+    def get_history(self, track_id: int) -> list[TrajectorySample] | None:
+        """Obtiene el historial completo de un track.
 
         Args:
             track_id: ID del track
@@ -161,12 +163,9 @@ class TrajectoryHistory:
         return list(self._histories[track_id])
 
     def get_recent_history(
-        self,
-        track_id: int,
-        n_samples: int = 10
-    ) -> Optional[List[TrajectorySample]]:
-        """
-        Obtiene los últimos N samples de un track.
+        self, track_id: int, n_samples: int = 10
+    ) -> list[TrajectorySample] | None:
+        """Obtiene los últimos N samples de un track.
 
         Args:
             track_id: ID del track
@@ -180,9 +179,8 @@ class TrajectoryHistory:
             return None
         return history[-n_samples:]
 
-    def get_positions(self, track_id: int) -> Optional[List[Tuple[float, float]]]:
-        """
-        Obtiene las posiciones del historial de un track.
+    def get_positions(self, track_id: int) -> list[tuple[float, float]] | None:
+        """Obtiene las posiciones del historial de un track.
 
         Args:
             track_id: ID del track
@@ -195,9 +193,8 @@ class TrajectoryHistory:
             return None
         return [s.position for s in history]
 
-    def get_velocities(self, track_id: int) -> Optional[List[Tuple[float, float]]]:
-        """
-        Obtiene las velocidades del historial de un track.
+    def get_velocities(self, track_id: int) -> list[tuple[float, float]] | None:
+        """Obtiene las velocidades del historial de un track.
 
         Args:
             track_id: ID del track
@@ -210,9 +207,8 @@ class TrajectoryHistory:
             return None
         return [s.velocity for s in history]
 
-    def get_timestamps(self, track_id: int) -> Optional[List[float]]:
-        """
-        Obtiene los timestamps del historial de un track.
+    def get_timestamps(self, track_id: int) -> list[float] | None:
+        """Obtiene los timestamps del historial de un track.
 
         Args:
             track_id: ID del track
@@ -225,9 +221,8 @@ class TrajectoryHistory:
             return None
         return [s.timestamp for s in history]
 
-    def get_confidence(self, track_id: int) -> Optional[List[float]]:
-        """
-        Obtiene las confianzas del historial de un track.
+    def get_confidence(self, track_id: int) -> list[float] | None:
+        """Obtiene las confianzas del historial de un track.
 
         Args:
             track_id: ID del track
@@ -241,8 +236,7 @@ class TrajectoryHistory:
         return [s.confidence for s in history]
 
     def get_average_speed(self, track_id: int) -> float:
-        """
-        Calcula la velocidad promedio de un track.
+        """Calcula la velocidad promedio de un track.
 
         Args:
             track_id: ID del track
@@ -254,12 +248,11 @@ class TrajectoryHistory:
         if not velocities:
             return 0.0
 
-        speeds = [np.sqrt(v[0]**2 + v[1]**2) for v in velocities]
+        speeds = [np.sqrt(v[0] ** 2 + v[1] ** 2) for v in velocities]
         return float(np.mean(speeds)) if speeds else 0.0
 
-    def get_last_position(self, track_id: int) -> Optional[Tuple[float, float]]:
-        """
-        Obtiene la última posición de un track.
+    def get_last_position(self, track_id: int) -> tuple[float, float] | None:
+        """Obtiene la última posición de un track.
 
         Args:
             track_id: ID del track
@@ -272,9 +265,8 @@ class TrajectoryHistory:
             return None
         return history[-1].position
 
-    def get_last_velocity(self, track_id: int) -> Optional[Tuple[float, float]]:
-        """
-        Obtiene la última velocidad de un track.
+    def get_last_velocity(self, track_id: int) -> tuple[float, float] | None:
+        """Obtiene la última velocidad de un track.
 
         Args:
             track_id: ID del track
@@ -296,8 +288,7 @@ class TrajectoryHistory:
         return ((p2[0] - p1[0]) / dt, (p2[1] - p1[1]) / dt)
 
     def get_history_length(self, track_id: int) -> int:
-        """
-        Obtiene la longitud del historial de un track.
+        """Obtiene la longitud del historial de un track.
 
         Args:
             track_id: ID del track
@@ -310,8 +301,7 @@ class TrajectoryHistory:
         return len(self._histories[track_id])
 
     def is_valid_for_prediction(self, track_id: int, min_samples: int = 5) -> bool:
-        """
-        Verifica si un track tiene suficientes muestras para predicción.
+        """Verifica si un track tiene suficientes muestras para predicción.
 
         Args:
             track_id: ID del track
@@ -334,7 +324,7 @@ class TrajectoryHistory:
         self._stats["active_tracks"] = 0
         self._stats["total_samples"] = 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del gestor."""
         total_samples = sum(len(h) for h in self._histories.values())
         return {

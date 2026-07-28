@@ -1,13 +1,13 @@
-"""
-Estado del pipeline y gestión de transiciones.
+"""Estado del pipeline y gestión de transiciones.
 """
 
-import time
 from enum import Enum, auto
+import time
 
 
 class PipelineStatus(Enum):
     """Estados posibles del pipeline."""
+
     IDLE = auto()
     RUNNING = auto()
     PAUSED = auto()
@@ -25,8 +25,7 @@ class PipelineStatus(Enum):
 
 
 class PipelineState:
-    """
-    Gestor de estado del pipeline.
+    """Gestor de estado del pipeline.
 
     Responsabilidades:
     - Mantener el estado actual
@@ -46,8 +45,7 @@ class PipelineState:
         self._start_time = time.time()
 
     def set_status(self, new_status: PipelineStatus) -> bool:
-        """
-        Cambia el estado del pipeline si la transición es válida.
+        """Cambia el estado del pipeline si la transición es válida.
 
         Args:
             new_status: Nuevo estado deseado
@@ -68,14 +66,25 @@ class PipelineState:
         """Verifica si la transición de estado es válida."""
         valid_transitions = {
             PipelineStatus.IDLE: [PipelineStatus.RUNNING, PipelineStatus.STOPPED],
-            PipelineStatus.RUNNING: [PipelineStatus.PAUSED, PipelineStatus.STOPPING,
-                                     PipelineStatus.ERROR, PipelineStatus.STOPPED],
-            PipelineStatus.PAUSED: [PipelineStatus.RUNNING, PipelineStatus.STOPPING,
-                                    PipelineStatus.ERROR, PipelineStatus.STOPPED],
+            PipelineStatus.RUNNING: [
+                PipelineStatus.PAUSED,
+                PipelineStatus.STOPPING,
+                PipelineStatus.ERROR,
+                PipelineStatus.STOPPED,
+            ],
+            PipelineStatus.PAUSED: [
+                PipelineStatus.RUNNING,
+                PipelineStatus.STOPPING,
+                PipelineStatus.ERROR,
+                PipelineStatus.STOPPED,
+            ],
             PipelineStatus.STOPPING: [PipelineStatus.STOPPED],
             PipelineStatus.STOPPED: [PipelineStatus.IDLE, PipelineStatus.RUNNING],
-            PipelineStatus.ERROR: [PipelineStatus.IDLE, PipelineStatus.RUNNING,
-                                   PipelineStatus.STOPPED],
+            PipelineStatus.ERROR: [
+                PipelineStatus.IDLE,
+                PipelineStatus.RUNNING,
+                PipelineStatus.STOPPED,
+            ],
         }
 
         return new_status in valid_transitions.get(self._status, [])

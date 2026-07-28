@@ -1,18 +1,17 @@
-"""
-Agregador de features para aprendizaje en línea.
+"""Agregador de features para aprendizaje en línea.
 
 Maneja la agregación y fusión de features de diferentes fuentes.
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 import numpy as np
 
 from core.tracker.learning.statistics import FeatureStatistics
 
 
 class FeatureAggregator:
-    """
-    Agregador de features.
+    """Agregador de features.
 
     Responsabilidades:
     - Agregar features de diferentes fuentes
@@ -31,12 +30,9 @@ class FeatureAggregator:
         }
 
     def aggregate_features(
-        self,
-        features_list: List[np.ndarray],
-        weights: Optional[List[float]] = None
-    ) -> Optional[np.ndarray]:
-        """
-        Agrega múltiples features en uno solo.
+        self, features_list: list[np.ndarray], weights: list[float] | None = None
+    ) -> np.ndarray | None:
+        """Agrega múltiples features en uno solo.
 
         Args:
             features_list: Lista de features a agregar
@@ -69,12 +65,9 @@ class FeatureAggregator:
         return aggregated
 
     def merge_statistics(
-        self,
-        target_stats: FeatureStatistics,
-        source_stats: FeatureStatistics
+        self, target_stats: FeatureStatistics, source_stats: FeatureStatistics
     ) -> FeatureStatistics:
-        """
-        Fusiona dos conjuntos de estadísticas.
+        """Fusiona dos conjuntos de estadísticas.
 
         Args:
             target_stats: Estadísticas destino
@@ -91,8 +84,7 @@ class FeatureAggregator:
         weight_source = source_stats.n_samples / total_samples
 
         target_stats.mean_features = (
-            weight_target * target_stats.mean_features +
-            weight_source * source_stats.mean_features
+            weight_target * target_stats.mean_features + weight_source * source_stats.mean_features
         )
         target_stats.n_samples = total_samples
         target_stats.total_updates += source_stats.total_updates
@@ -107,21 +99,18 @@ class FeatureAggregator:
             target_stats.timestamps.append(ts)
 
         target_stats.quality_score = (
-            weight_target * target_stats.quality_score +
-            weight_source * source_stats.quality_score
+            weight_target * target_stats.quality_score + weight_source * source_stats.quality_score
         )
 
         self._stats["total_merges"] += 1
         self._stats["avg_merge_size"] = (
-            (self._stats["avg_merge_size"] * (self._stats["total_merges"] - 1) +
-             total_samples) / self._stats["total_merges"]
-        )
+            self._stats["avg_merge_size"] * (self._stats["total_merges"] - 1) + total_samples
+        ) / self._stats["total_merges"]
 
         return target_stats
 
     def compute_quality_score(self, stats: FeatureStatistics) -> float:
-        """
-        Calcula una puntuación de calidad para las estadísticas.
+        """Calcula una puntuación de calidad para las estadísticas.
 
         Args:
             stats: Estadísticas a evaluar
@@ -142,10 +131,10 @@ class FeatureAggregator:
             history = list(stats.feature_history)
             similarities = []
             for i in range(1, len(history)):
-                norm1 = np.linalg.norm(history[i-1])
+                norm1 = np.linalg.norm(history[i - 1])
                 norm2 = np.linalg.norm(history[i])
                 if norm1 > 0 and norm2 > 0:
-                    sim = np.dot(history[i-1], history[i]) / (norm1 * norm2)
+                    sim = np.dot(history[i - 1], history[i]) / (norm1 * norm2)
                     similarities.append(max(0.0, sim))
             if similarities:
                 stability_score = float(np.mean(similarities))
@@ -153,15 +142,15 @@ class FeatureAggregator:
         drift_score = 0.0 if stats.concept_drift_detected else 1.0
 
         quality = (
-            0.30 * sample_score +
-            0.25 * confidence_score +
-            0.25 * stability_score +
-            0.20 * drift_score
+            0.30 * sample_score
+            + 0.25 * confidence_score
+            + 0.25 * stability_score
+            + 0.20 * drift_score
         )
 
         return max(0.0, min(1.0, quality))
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del agregador."""
         return self._stats
 

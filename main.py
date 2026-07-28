@@ -10,14 +10,14 @@ Características de robustez implementadas:
 """
 
 import argparse
+from collections.abc import Callable
 import gc
 import logging
 import os
+from pathlib import Path
 import signal
 import sys
 import time
-from collections.abc import Callable
-from pathlib import Path
 from typing import NoReturn
 
 import cv2
@@ -52,6 +52,7 @@ def setup_signal_handlers(logger: logging.Logger) -> None:
     Args:
         logger: Logger para registrar eventos.
     """
+
     def signal_handler(signum: int, _frame) -> None:
         """Manejador de señales para terminación controlada."""
         signal_name = signal.Signals(signum).name
@@ -61,7 +62,7 @@ def setup_signal_handlers(logger: logging.Logger) -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    if hasattr(signal, 'SIGBREAK'):
+    if hasattr(signal, "SIGBREAK"):
         signal.signal(signal.SIGBREAK, signal_handler)
 
 
@@ -74,6 +75,7 @@ def create_recovery_callbacks(logger: logging.Logger) -> dict[str, Callable]:
     Returns:
         Dict[str, callable]: Diccionario de callbacks de recuperación.
     """
+
     def recover_pipeline() -> None:
         """Recuperación del pipeline principal."""
         logger.info("🔄 Intentando recuperar pipeline...")
@@ -231,11 +233,7 @@ def configure_environment(args: argparse.Namespace, logger: logging.Logger) -> t
 
 
 def create_pipeline(
-    args: argparse.Namespace,
-    workers: int,
-    buffer_size: int,
-    batch: bool,
-    logger: logging.Logger
+    args: argparse.Namespace, workers: int, buffer_size: int, batch: bool, logger: logging.Logger
 ):
     """Crea el pipeline según el modo seleccionado.
 
@@ -255,18 +253,14 @@ def create_pipeline(
             buffer_size=buffer_size,
             num_workers=workers,
             enable_batch_processing=batch,
-            batch_size=args.batch_size if batch else 1
+            batch_size=args.batch_size if batch else 1,
         )
     logger.info("🚀 Iniciando pipeline SÍNCRONO (legacy)...")
     logger.warning("⚠️ El modo síncrono es legacy. Se recomienda usar el modo asíncrono.")
     return SyncPipeline()
 
 
-def run_main_loop(
-    pipeline,
-    args: argparse.Namespace,
-    logger: logging.Logger
-) -> None:
+def run_main_loop(pipeline, args: argparse.Namespace, logger: logging.Logger) -> None:
     """Ejecuta el bucle principal del pipeline.
 
     Args:
@@ -277,19 +271,17 @@ def run_main_loop(
     last_stats_time = time.time()
     stats_interval = args.stats_interval or 5.0
 
-    if hasattr(pipeline, 'on_frame_processed') and args.verbose:
+    if hasattr(pipeline, "on_frame_processed") and args.verbose:
         pipeline.on_frame_processed = lambda result: logger.debug(
-            f"Frame {result.frame_number} procesado "
-            f"({result.processing_time_ms:.1f}ms)"
+            f"Frame {result.frame_number} procesado ({result.processing_time_ms:.1f}ms)"
         )
 
-    if hasattr(pipeline, 'on_error'):
+    if hasattr(pipeline, "on_error"):
         pipeline.on_error = lambda error: global_error_handler.handle_exception(
-            error,
-            {"component": "pipeline"}
+            error, {"component": "pipeline"}
         )
 
-    if hasattr(pipeline, 'start'):
+    if hasattr(pipeline, "start"):
         pipeline.start(source=args.source)
         logger.info("✅ Pipeline iniciado correctamente")
         logger.info("   Presiona 'q' o ESC para salir")
@@ -314,10 +306,10 @@ def run_main_loop(
 def _log_pipeline_stats(pipeline, health, logger):
     """Registra estadísticas del pipeline."""
     stats = pipeline.get_stats()
-    fps = stats.get('current_fps', 0.0)
-    frames = stats.get('total_frames_processed', 0)
-    buffer_size_current = stats.get('buffer', {}).get('size', 0)
-    buffer_max = stats.get('buffer', {}).get('max_size', 1)
+    fps = stats.get("current_fps", 0.0)
+    frames = stats.get("total_frames_processed", 0)
+    buffer_size_current = stats.get("buffer", {}).get("size", 0)
+    buffer_max = stats.get("buffer", {}).get("max_size", 1)
     buffer_usage = (buffer_size_current / buffer_max * 100) if buffer_max > 0 else 0
 
     logger.info(
@@ -329,18 +321,14 @@ def _log_pipeline_stats(pipeline, health, logger):
     )
 
     mem = get_memory_usage()
-    if mem.get('percent', 0) > MEMORY_WARNING_THRESHOLD:
+    if mem.get("percent", 0) > MEMORY_WARNING_THRESHOLD:
         logger.warning(
-            f"⚠️ Memoria alta: {mem.get('percent', 0):.1f}% "
-            f"({mem.get('rss_mb', 0):.0f} MB)"
+            f"⚠️ Memoria alta: {mem.get('percent', 0):.1f}% ({mem.get('rss_mb', 0):.0f} MB)"
         )
 
 
 def handle_pipeline_error(
-    error: Exception,
-    args: argparse.Namespace,
-    pipeline,
-    logger: logging.Logger
+    error: Exception, args: argparse.Namespace, pipeline, logger: logging.Logger
 ) -> bool:
     """Maneja errores del pipeline con recuperación.
 
@@ -379,10 +367,7 @@ def handle_pipeline_error(
 
 
 def print_final_report(
-    pipeline,
-    start_time: float,
-    error_stats: dict,
-    logger: logging.Logger
+    pipeline, start_time: float, error_stats: dict, logger: logging.Logger
 ) -> None:
     """Imprime el reporte final del sistema."""
     elapsed = time.time() - start_time
@@ -427,21 +412,23 @@ Ejemplos:
   python main.py -s rtsp://192.168.1.100:554 # Fuente RTSP
   python main.py --async --workers 8         # Pipeline asíncrono con 8 workers
   python main.py --cpu-mode --threads 4      # Modo CPU con 4 threads
-        """
+        """,
     )
 
     parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         type=str,
         default="config.yaml",
-        help="Ruta al archivo de configuración (default: config.yaml)"
+        help="Ruta al archivo de configuración (default: config.yaml)",
     )
 
     parser.add_argument(
-        "-s", "--source",
+        "-s",
+        "--source",
         type=str,
         default=None,
-        help="Fuente de video (número de cámara, ruta de archivo o URL RTSP)"
+        help="Fuente de video (número de cámara, ruta de archivo o URL RTSP)",
     )
 
     parser.add_argument(
@@ -449,82 +436,74 @@ Ejemplos:
         dest="use_async",
         action="store_true",
         default=True,
-        help="Usar pipeline asíncrono (predeterminado)"
+        help="Usar pipeline asíncrono (predeterminado)",
     )
 
     parser.add_argument(
         "--sync",
         dest="use_async",
         action="store_false",
-        help="Usar pipeline síncrono (modo legacy)"
+        help="Usar pipeline síncrono (modo legacy)",
     )
 
     parser.add_argument(
-        "-w", "--workers",
+        "-w",
+        "--workers",
         type=int,
         default=None,
-        help="Número de workers (auto-ajustado para CPU/GPU)"
+        help="Número de workers (auto-ajustado para CPU/GPU)",
     )
 
     parser.add_argument(
-        "-b", "--buffer",
+        "-b",
+        "--buffer",
         type=int,
         default=None,
-        help="Tamaño del buffer (auto-ajustado para CPU/GPU)"
+        help="Tamaño del buffer (auto-ajustado para CPU/GPU)",
     )
 
     parser.add_argument(
-        "--batch",
-        action="store_true",
-        default=None,
-        help="Habilitar procesamiento por lotes"
+        "--batch", action="store_true", default=None, help="Habilitar procesamiento por lotes"
     )
 
     parser.add_argument(
         "--no-batch",
         dest="batch",
         action="store_false",
-        help="Deshabilitar procesamiento por lotes"
+        help="Deshabilitar procesamiento por lotes",
     )
 
     parser.add_argument(
         "--batch-size",
         type=int,
         default=4,
-        help="Tamaño del lote para procesamiento por lotes (default: 4)"
+        help="Tamaño del lote para procesamiento por lotes (default: 4)",
     )
 
     parser.add_argument(
-        "--threads",
-        type=int,
-        default=None,
-        help="Número de threads para CPU (solo modo CPU)"
+        "--threads", type=int, default=None, help="Número de threads para CPU (solo modo CPU)"
     )
 
     parser.add_argument(
         "--cpu-mode",
         action="store_true",
         default=False,
-        help="Forzar modo CPU con límites optimizados"
+        help="Forzar modo CPU con límites optimizados",
     )
 
     parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Activar modo verbose (logging DEBUG)"
+        "-v", "--verbose", action="store_true", help="Activar modo verbose (logging DEBUG)"
     )
 
     parser.add_argument(
         "--stats-interval",
         type=float,
         default=5.0,
-        help="Intervalo para mostrar estadísticas en segundos (default: 5.0)"
+        help="Intervalo para mostrar estadísticas en segundos (default: 5.0)",
     )
 
     parser.add_argument(
-        "--version",
-        action="version",
-        version="Sistema de seguimiento de tráfico v0.2.0"
+        "--version", action="version", version="Sistema de seguimiento de tráfico v0.2.0"
     )
 
     return parser.parse_args()
@@ -542,7 +521,7 @@ def main() -> NoReturn:
     logger = setup_logger(
         name="main",
         log_file="data/logs/system.log",
-        level=logging.DEBUG if args.verbose else logging.INFO
+        level=logging.DEBUG if args.verbose else logging.INFO,
     )
 
     setup_signal_handlers(logger)

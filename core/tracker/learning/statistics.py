@@ -1,21 +1,19 @@
-"""
-Estadísticas de features para aprendizaje en línea.
+"""Estadísticas de features para aprendizaje en línea.
 
 Mantiene las estadísticas de features por track.
 """
 
-from typing import Optional, Dict, Any
-from dataclasses import dataclass, field
 from collections import deque
+from dataclasses import dataclass, field
 import time
+from typing import Any
 
 import numpy as np
 
 
 @dataclass
 class FeatureStatistics:
-    """
-    Estadísticas de features para aprendizaje en línea.
+    """Estadísticas de features para aprendizaje en línea.
 
     Attributes:
         mean_features: Vector de features promedio
@@ -29,8 +27,9 @@ class FeatureStatistics:
         concept_drift_detected: Flag de detección de cambio de concepto
         quality_score: Puntuación de calidad del modelo
     """
+
     mean_features: np.ndarray
-    covariance: Optional[np.ndarray] = None
+    covariance: np.ndarray | None = None
     n_samples: int = 0
     feature_history: deque = field(default_factory=lambda: deque(maxlen=50))
     timestamps: deque = field(default_factory=lambda: deque(maxlen=50))
@@ -41,13 +40,9 @@ class FeatureStatistics:
     quality_score: float = 0.0
 
     def add_sample(
-        self,
-        features: np.ndarray,
-        confidence: float,
-        timestamp: Optional[float] = None
+        self, features: np.ndarray, confidence: float, timestamp: float | None = None
     ) -> None:
-        """
-        Añade una nueva muestra a las estadísticas.
+        """Añade una nueva muestra a las estadísticas.
 
         Args:
             features: Vector de features
@@ -64,9 +59,8 @@ class FeatureStatistics:
         self.total_updates += 1
         self.last_update_time = timestamp
 
-    def get_average_feature(self) -> Optional[np.ndarray]:
-        """
-        Obtiene el feature promedio del historial.
+    def get_average_feature(self) -> np.ndarray | None:
+        """Obtiene el feature promedio del historial.
 
         Returns:
             Optional[np.ndarray]: Feature promedio o None
@@ -82,8 +76,7 @@ class FeatureStatistics:
         return avg_feature
 
     def get_average_confidence(self) -> float:
-        """
-        Obtiene la confianza promedio del historial.
+        """Obtiene la confianza promedio del historial.
 
         Returns:
             float: Confianza promedio
@@ -96,7 +89,7 @@ class FeatureStatistics:
         """Obtiene la longitud del historial."""
         return len(self.feature_history)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convierte a diccionario."""
         return {
             "n_samples": self.n_samples,

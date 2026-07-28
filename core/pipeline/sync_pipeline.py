@@ -1,5 +1,4 @@
-"""
-Pipeline síncrono del sistema de seguimiento de tráfico.
+"""Pipeline síncrono del sistema de seguimiento de tráfico.
 
 Este módulo implementa el pipeline síncrono (legacy) para el sistema
 de seguimiento de tráfico. Se recomienda usar el pipeline asíncrono para
@@ -9,35 +8,33 @@ mejor rendimiento.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 import cv2
 import numpy as np
 
-from core.detector import YOLODetector
-from core.tracker import MultiObjectTracker
-from core.counter import VehicleCounter
-from core.pipeline.renderer import FrameRenderer
-from core.pipeline.controls import ControlHandler
-from core.context_managers import VideoCaptureContext
-from utils.logger import LoggerMixin
-from utils.helpers import get_memory_usage, force_garbage_collection
-from core.pipeline.system_info import set_system_status
-from core.validators import validate_frame, ensure_valid_frame
 from core.constants.pipeline import (
-    MEMORY_CHECK_INTERVAL,
     GC_INTERVAL,
+    MEMORY_CHECK_INTERVAL,
+    MIN_ACCEPTABLE_FPS,
     TARGET_FPS,
-    MIN_ACCEPTABLE_FPS
 )
 from core.constants.vision import (
     WINDOW_NAME,
 )
+from core.context_managers import VideoCaptureContext
+from core.counter import VehicleCounter
+from core.detector import YOLODetector
+from core.pipeline.controls import ControlHandler
+from core.pipeline.renderer import FrameRenderer
+from core.pipeline.system_info import set_system_status
+from core.tracker import MultiObjectTracker
+from core.validators import ensure_valid_frame, validate_frame
+from utils.helpers import force_garbage_collection, get_memory_usage
+from utils.logger import LoggerMixin
 
 
 class SyncPipeline(LoggerMixin):
-    """
-    Pipeline síncrono del sistema de seguimiento de tráfico.
+    """Pipeline síncrono del sistema de seguimiento de tráfico.
 
     Este pipeline procesa frames de forma secuencial (bloqueante).
     Para mejor rendimiento, usar AsyncPipeline.
@@ -60,6 +57,7 @@ class SyncPipeline(LoggerMixin):
     def __init__(self) -> None:
         """Inicializa el pipeline síncrono."""
         from config.manager import config_manager
+
         self.config = config_manager.config
         self.logger.info("Inicializando SyncPipeline")
 
@@ -71,23 +69,18 @@ class SyncPipeline(LoggerMixin):
 
     def _init_components(self) -> None:
         """Inicializa los componentes del pipeline."""
-        use_optimized = getattr(
-            self.config.optimization,
-            "use_optimized_detector",
-            True
-        )
+        use_optimized = getattr(self.config.optimization, "use_optimized_detector", True)
         self._using_optimized_detector = False
 
         if use_optimized:
             try:
                 from core.detector import OptimizedYOLODetector
+
                 self.detector = OptimizedYOLODetector()
                 self._using_optimized_detector = True
                 self.logger.info("✅ Detector optimizado activado")
             except (ImportError, Exception) as e:
-                self.logger.warning(
-                    f"Detector optimizado no disponible: {e}. Usando estándar."
-                )
+                self.logger.warning(f"Detector optimizado no disponible: {e}. Usando estándar.")
                 self.detector = YOLODetector()
         else:
             self.detector = YOLODetector()
@@ -117,9 +110,8 @@ class SyncPipeline(LoggerMixin):
         self._consecutive_errors = 0
         self._max_consecutive_errors = 5
 
-    def run(self, source: Optional[str] = None) -> None:
-        """
-        Ejecuta el pipeline principal.
+    def run(self, source: str | None = None) -> None:
+        """Ejecuta el pipeline principal.
 
         Args:
             source: Fuente de video (opcional, usa config por defecto)
@@ -135,7 +127,6 @@ class SyncPipeline(LoggerMixin):
                 reconnect_attempts=self.config.camera.reconnect_attempts,
                 reconnect_delay=self.config.camera.reconnect_delay,
             ) as capture:
-
                 if not self._initialize_capture(capture, source):
                     return
 
@@ -154,8 +145,7 @@ class SyncPipeline(LoggerMixin):
             self._cleanup()
 
     def _run_main_loop(self, capture: VideoCaptureContext) -> None:
-        """
-        Bucle principal de procesamiento.
+        """Bucle principal de procesamiento.
 
         Args:
             capture: Contexto de captura de video
@@ -194,8 +184,7 @@ class SyncPipeline(LoggerMixin):
                 continue
 
     def _initialize_capture(self, capture: VideoCaptureContext, source: str) -> bool:
-        """
-        Inicializa y verifica la captura.
+        """Inicializa y verifica la captura.
 
         Args:
             capture: Contexto de captura
@@ -215,9 +204,8 @@ class SyncPipeline(LoggerMixin):
         self.logger.info("✅ Fuente verificada correctamente")
         return True
 
-    def _read_frame_safely(self, capture: VideoCaptureContext) -> Optional[np.ndarray]:
-        """
-        Lee un frame de la captura con manejo de errores.
+    def _read_frame_safely(self, capture: VideoCaptureContext) -> np.ndarray | None:
+        """Lee un frame de la captura con manejo de errores.
 
         Args:
             capture: Contexto de captura
@@ -240,8 +228,7 @@ class SyncPipeline(LoggerMixin):
         return frame
 
     def _verify_capture(self, capture: VideoCaptureContext) -> bool:
-        """
-        Verifica que la captura funcione correctamente.
+        """Verifica que la captura funcione correctamente.
 
         Args:
             capture: Contexto de captura
@@ -267,8 +254,7 @@ class SyncPipeline(LoggerMixin):
         return True
 
     def _handle_read_error(self, capture: VideoCaptureContext) -> None:
-        """
-        Maneja errores de lectura de frames con reconexión.
+        """Maneja errores de lectura de frames con reconexión.
 
         Args:
             capture: Contexto de captura
@@ -297,9 +283,8 @@ class SyncPipeline(LoggerMixin):
 
         self.logger.error("No se pudo recuperar la fuente")
 
-    def _process_frame_safely(self, frame: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Procesa un frame con manejo de errores.
+    def _process_frame_safely(self, frame: np.ndarray) -> np.ndarray | None:
+        """Procesa un frame con manejo de errores.
 
         Args:
             frame: Frame a procesar
@@ -321,9 +306,8 @@ class SyncPipeline(LoggerMixin):
             time.sleep(0.05)
             return None
 
-    def process_frame(self, frame: np.ndarray) -> Optional[np.ndarray]:
-        """
-        Procesa un frame individual.
+    def process_frame(self, frame: np.ndarray) -> np.ndarray | None:
+        """Procesa un frame individual.
 
         Args:
             frame: Frame a procesar
@@ -352,8 +336,7 @@ class SyncPipeline(LoggerMixin):
         return result
 
     def _safe_detect(self, frame: np.ndarray) -> list:
-        """
-        Ejecuta detección con manejo de errores.
+        """Ejecuta detección con manejo de errores.
 
         Args:
             frame: Frame a procesar
@@ -368,8 +351,7 @@ class SyncPipeline(LoggerMixin):
             return []
 
     def _safe_track(self, detections: list, frame: np.ndarray) -> dict:
-        """
-        Ejecuta tracking con manejo de errores.
+        """Ejecuta tracking con manejo de errores.
 
         Args:
             detections: Lista de detecciones
@@ -389,8 +371,7 @@ class SyncPipeline(LoggerMixin):
             return {}
 
     def _safe_count(self, tracks: dict, frame: np.ndarray) -> dict:
-        """
-        Ejecuta conteo con manejo de errores.
+        """Ejecuta conteo con manejo de errores.
 
         Args:
             tracks: Diccionario de tracks
@@ -405,9 +386,8 @@ class SyncPipeline(LoggerMixin):
             self.logger.error(f"Error en conteo: {e}")
             return self.counter.get_stats()
 
-    def _safe_render(self, frame: np.ndarray, tracks: dict, stats: dict) -> Optional[np.ndarray]:
-        """
-        Ejecuta renderizado con manejo de errores.
+    def _safe_render(self, frame: np.ndarray, tracks: dict, stats: dict) -> np.ndarray | None:
+        """Ejecuta renderizado con manejo de errores.
 
         Args:
             frame: Frame a renderizar
@@ -419,12 +399,7 @@ class SyncPipeline(LoggerMixin):
         """
         try:
             return self.renderer.render(
-                frame,
-                tracks,
-                stats,
-                self.fps,
-                self.processing_time,
-                self.frame_count
+                frame, tracks, stats, self.fps, self.processing_time, self.frame_count
             )
         except Exception as e:
             self.logger.error(f"Error en renderizado: {e}")
@@ -437,15 +412,14 @@ class SyncPipeline(LoggerMixin):
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
                     (0, 0, 255),
-                    2
+                    2,
                 )
             except Exception:
                 pass
             return result
 
-    def _display_frame_safely(self, processed: Optional[np.ndarray]) -> None:
-        """
-        Muestra un frame procesado con manejo de errores.
+    def _display_frame_safely(self, processed: np.ndarray | None) -> None:
+        """Muestra un frame procesado con manejo de errores.
 
         Args:
             processed: Frame procesado a mostrar
@@ -458,8 +432,7 @@ class SyncPipeline(LoggerMixin):
             self._display_fallback_frame()
 
     def _display_frame(self, frame: np.ndarray) -> None:
-        """
-        Muestra un frame en la ventana.
+        """Muestra un frame en la ventana.
 
         Args:
             frame: Frame a mostrar
@@ -482,8 +455,7 @@ class SyncPipeline(LoggerMixin):
             self._show_error_frame("Error procesando frame")
 
     def _show_error_frame(self, message: str) -> None:
-        """
-        Muestra un frame de error con un mensaje.
+        """Muestra un frame de error con un mensaje.
 
         Args:
             message: Mensaje de error a mostrar
@@ -497,41 +469,33 @@ class SyncPipeline(LoggerMixin):
                 intensity = int(20 + 10 * (i / h))
                 error_frame[i, :] = [0, 0, intensity]
 
-            cv2.rectangle(error_frame, (0, 0), (w-1, h-1), (0, 0, 255), 3)
+            cv2.rectangle(error_frame, (0, 0), (w - 1, h - 1), (0, 0, 255), 3)
 
-            cv2.circle(error_frame, (w//2, h//2 - 40), 30, (0, 0, 255), 3)
+            cv2.circle(error_frame, (w // 2, h // 2 - 40), 30, (0, 0, 255), 3)
             cv2.line(
-                error_frame,
-                (w//2 - 15, h//2 - 55),
-                (w//2 + 15, h//2 - 25),
-                (0, 0, 255),
-                3
+                error_frame, (w // 2 - 15, h // 2 - 55), (w // 2 + 15, h // 2 - 25), (0, 0, 255), 3
             )
             cv2.line(
-                error_frame,
-                (w//2 - 15, h//2 - 25),
-                (w//2 + 15, h//2 - 55),
-                (0, 0, 255),
-                3
+                error_frame, (w // 2 - 15, h // 2 - 25), (w // 2 + 15, h // 2 - 55), (0, 0, 255), 3
             )
 
             cv2.putText(
                 error_frame,
                 message[:40],
-                (w//2 - 150, h//2 + 40),
+                (w // 2 - 150, h // 2 + 40),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
                 (0, 0, 255),
-                2
+                2,
             )
             cv2.putText(
                 error_frame,
                 "Presiona 'q' para salir",
-                (w//2 - 100, h//2 + 80),
+                (w // 2 - 100, h // 2 + 80),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
                 (128, 128, 128),
-                1
+                1,
             )
 
             cv2.imshow(WINDOW_NAME, error_frame)
@@ -540,8 +504,7 @@ class SyncPipeline(LoggerMixin):
             self.logger.debug(f"Error mostrando frame de error: {e}")
 
     def _handle_paused_state(self, capture: VideoCaptureContext) -> None:
-        """
-        Maneja el estado de pausa.
+        """Maneja el estado de pausa.
 
         Args:
             capture: Contexto de captura
@@ -561,39 +524,32 @@ class SyncPipeline(LoggerMixin):
         h, w = pause_frame.shape[:2]
 
         overlay = pause_frame.copy()
-        cv2.rectangle(
-            overlay,
-            (w//4, h//3),
-            (3*w//4, 2*h//3),
-            (0, 0, 0),
-            -1
-        )
+        cv2.rectangle(overlay, (w // 4, h // 3), (3 * w // 4, 2 * h // 3), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.5, pause_frame, 0.5, 0, pause_frame)
 
         cv2.putText(
             pause_frame,
             "PAUSADO",
-            (w//2 - 80, h//2 - 10),
+            (w // 2 - 80, h // 2 - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
             1.2,
             (0, 255, 255),
-            3
+            3,
         )
         cv2.putText(
             pause_frame,
             "Presiona ESPACIO para reanudar",
-            (w//2 - 120, h//2 + 40),
+            (w // 2 - 120, h // 2 + 40),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,
             (255, 255, 255),
-            2
+            2,
         )
 
         cv2.imshow(WINDOW_NAME, pause_frame)
 
     def _handle_keyboard(self) -> bool:
-        """
-        Maneja las teclas presionadas.
+        """Maneja las teclas presionadas.
 
         Returns:
             bool: True si el sistema debe continuar ejecutándose
@@ -602,8 +558,7 @@ class SyncPipeline(LoggerMixin):
         return self.controls.process_key(key)
 
     def _validate_frame(self, frame: np.ndarray) -> bool:
-        """
-        Valida que el frame sea válido.
+        """Valida que el frame sea válido.
 
         Args:
             frame: Frame a validar
@@ -614,8 +569,7 @@ class SyncPipeline(LoggerMixin):
         return validate_frame(frame, min_width=10, min_height=10)
 
     def _check_memory(self) -> None:
-        """
-        Verifica el uso de memoria y realiza limpieza si es necesario.
+        """Verifica el uso de memoria y realiza limpieza si es necesario.
         """
         current_time = time.time()
 
@@ -627,6 +581,7 @@ class SyncPipeline(LoggerMixin):
             self._last_gc_time = current_time
             try:
                 import gc
+
                 gc.collect()
             except Exception:
                 pass
@@ -638,14 +593,13 @@ class SyncPipeline(LoggerMixin):
             mem_percent = mem.get("percent", 0)
 
             if mem_percent > 75:
-                self.logger.warning(
-                    f"Memoria alta: {mem_percent:.1f}%, limpiando..."
-                )
+                self.logger.warning(f"Memoria alta: {mem_percent:.1f}%, limpiando...")
                 self._cleanup_memory()
 
                 if mem_percent > 85:
                     self.logger.warning("Memoria crítica, limpieza agresiva")
                     import gc
+
                     gc.collect()
                     force_garbage_collection()
 
@@ -713,7 +667,7 @@ class SyncPipeline(LoggerMixin):
             "Pipeline detenido",
             runtime_seconds=f"{runtime:.1f}",
             frames=self.frame_count,
-            fps=self.fps
+            fps=self.fps,
         )
         self._print_final_report()
 
@@ -768,9 +722,13 @@ class SyncPipeline(LoggerMixin):
         self.logger.info(f"📐 Resolución: {self.config.camera.width}x{self.config.camera.height}")
         self.logger.info(f"🤖 Modelo: {self.config.model.model_path}")
         self.logger.info(f"📏 Líneas: {len(self.config.counting_lines)}")
-        self.logger.info(f"⚡ Device: {self.detector.device if hasattr(self.detector, 'device') else 'cpu'}")
+        self.logger.info(
+            f"⚡ Device: {self.detector.device if hasattr(self.detector, 'device') else 'cpu'}"
+        )
         self.logger.info(f"🎯 FPS objetivo: {TARGET_FPS}")
-        self.logger.info(f"⚡ Detector optimizado: {'✅' if self._using_optimized_detector else '❌'}")
+        self.logger.info(
+            f"⚡ Detector optimizado: {'✅' if self._using_optimized_detector else '❌'}"
+        )
         self.logger.info("=" * 60)
 
     def _print_final_report(self) -> None:
@@ -799,10 +757,7 @@ class SyncPipeline(LoggerMixin):
         if line_counts and self.config.counting_lines:
             self.logger.info("📏 Conteo por línea:")
             for line_id, count in line_counts.items():
-                line = next(
-                    (l for l in self.config.counting_lines if l.get("id") == line_id),
-                    {}
-                )
+                line = next((l for l in self.config.counting_lines if l.get("id") == line_id), {})
                 name = line.get("name", line_id)
                 self.logger.info(f"   {name}: {count}")
 

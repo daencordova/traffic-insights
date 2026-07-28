@@ -1,17 +1,14 @@
-"""
-Configuración para el renderizador de frames.
+"""Configuración para el renderizador de frames.
 """
 
 from dataclasses import dataclass
-from typing import Tuple
 
 import cv2
 
 
 @dataclass(frozen=True)
 class RendererConfig:
-    """
-    Configuración inmutable del renderizador.
+    """Configuración inmutable del renderizador.
 
     Attributes:
         default_width: Ancho por defecto del frame
@@ -41,13 +38,13 @@ class RendererConfig:
     font: int = cv2.FONT_HERSHEY_SIMPLEX
     font_scale: float = 0.38
     font_thickness: int = 1
-    info_color: Tuple[int, int, int] = (200, 200, 200)
-    help_color: Tuple[int, int, int] = (128, 128, 128)
-    error_color: Tuple[int, int, int] = (0, 0, 255)
-    status_color_running: Tuple[int, int, int] = (0, 255, 0)
-    status_color_paused: Tuple[int, int, int] = (0, 255, 255)
-    status_color_stopped: Tuple[int, int, int] = (0, 0, 255)
-    status_color_error: Tuple[int, int, int] = (0, 0, 255)
+    info_color: tuple[int, int, int] = (200, 200, 200)
+    help_color: tuple[int, int, int] = (128, 128, 128)
+    error_color: tuple[int, int, int] = (0, 0, 255)
+    status_color_running: tuple[int, int, int] = (0, 255, 0)
+    status_color_paused: tuple[int, int, int] = (0, 255, 255)
+    status_color_stopped: tuple[int, int, int] = (0, 0, 255)
+    status_color_error: tuple[int, int, int] = (0, 0, 255)
     show_controls_help: bool = True
     show_system_info: bool = True
     show_velocity_vectors: bool = True

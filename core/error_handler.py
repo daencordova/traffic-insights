@@ -1,36 +1,34 @@
-"""
-Manejador global de errores para el sistema.
+"""Manejador global de errores para el sistema.
 Proporciona recuperación y logging consistente.
 """
 
+from collections.abc import Callable
+from datetime import datetime
+import logging
 import sys
 import traceback
-import logging
-from typing import Optional, Dict, Any, Callable
-from datetime import datetime
+from typing import Any
 
-from core.exceptions import VehicleCountingError
 from core.circuit_breaker import circuit_breaker_registry
+from core.exceptions import VehicleCountingError
 
 
 class GlobalErrorHandler:
-    """
-    Manejador global de errores que captura excepciones no manejadas
+    """Manejador global de errores que captura excepciones no manejadas
     y proporciona recuperación automática cuando es posible.
     """
 
-    def __init__(self, logger: Optional[logging.Logger] = None):
+    def __init__(self, logger: logging.Logger | None = None):
         self.logger = logger or logging.getLogger("error_handler")
         self._error_count = 0
-        self._last_error_time: Optional[datetime] = None
+        self._last_error_time: datetime | None = None
         self._error_threshold = 10
         self._error_window = 60.0
-        self._recovery_callbacks: Dict[str, Callable] = {}
+        self._recovery_callbacks: dict[str, Callable] = {}
         self._is_recovering = False
 
     def register_recovery(self, name: str, callback: Callable) -> None:
-        """
-        Registra un callback para recuperación automática.
+        """Registra un callback para recuperación automática.
 
         Args:
             name: Identificador del callback.
@@ -38,9 +36,8 @@ class GlobalErrorHandler:
         """
         self._recovery_callbacks[name] = callback
 
-    def handle_exception(self, exc: Exception, context: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Maneja una excepción y decide si se puede recuperar.
+    def handle_exception(self, exc: Exception, context: dict[str, Any] | None = None) -> bool:
+        """Maneja una excepción y decide si se puede recuperar.
 
         Args:
             exc: Excepción capturada.
@@ -80,7 +77,7 @@ class GlobalErrorHandler:
                 "Posible degradación del sistema."
             )
 
-    def _log_error(self, exc: Exception, context: Optional[Dict[str, Any]]) -> None:
+    def _log_error(self, exc: Exception, context: dict[str, Any] | None) -> None:
         """Registra el error con contexto detallado."""
         error_type = type(exc).__name__
         error_msg = str(exc) if str(exc) else "No details available"
@@ -98,16 +95,16 @@ class GlobalErrorHandler:
         if isinstance(exc, VehicleCountingError) and exc.details:
             log_data["details"] = exc.details
 
-        self.logger.error(
-            f"Error no manejado: {error_type}: {error_msg}",
-            extra=log_data
-        )
+        self.logger.error(f"Error no manejado: {error_type}: {error_msg}", extra=log_data)
 
     def _can_recover(self, exc: Exception) -> bool:
         """Determina si un error es recuperable."""
         from core.exceptions import (
-            CameraError, CaptureError, ConnectionError,
-            TimeoutError, IOError
+            CameraError,
+            CaptureError,
+            ConnectionError,
+            IOError,
+            TimeoutError,
         )
 
         recoverable_types = (
@@ -161,7 +158,7 @@ class GlobalErrorHandler:
         self.logger.warning(f"Error del sistema, intentando recuperación: {exc}")
         return self._attempt_recovery(exc)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del manejador de errores."""
         return {
             "total_errors": self._error_count,
@@ -172,8 +169,7 @@ class GlobalErrorHandler:
         }
 
     def attempt_recovery(self, error: Exception) -> bool:
-        """
-        Intenta recuperar el sistema después de un error.
+        """Intenta recuperar el sistema después de un error.
 
         Args:
             error: Excepción que causó el error.
@@ -188,18 +184,18 @@ global_error_handler = GlobalErrorHandler()
 
 
 def setup_global_exception_handler():
-    """
-    Configura el manejador global de excepciones.
+    """Configura el manejador global de excepciones.
     Debe llamarse al inicio del programa.
     """
+
     def global_handler(exc_type, exc_value, exc_traceback):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
 
-        global_error_handler.handle_exception(exc_value, {
-            "exc_type": exc_type.__name__,
-            "traceback": traceback.format_tb(exc_traceback)
-        })
+        global_error_handler.handle_exception(
+            exc_value,
+            {"exc_type": exc_type.__name__, "traceback": traceback.format_tb(exc_traceback)},
+        )
 
     sys.excepthook = global_handler

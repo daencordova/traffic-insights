@@ -1,17 +1,16 @@
-"""
-Exportador de modelos a ONNX.
+"""Exportador de modelos a ONNX.
 
 Maneja la exportación de modelos YOLO a formato ONNX para
 inferencia optimizada en CPU.
 """
 
 import os
-from typing import Optional
 
 from ultralytics import YOLO
 
 try:
     import onnxruntime as ort
+
     ONNX_AVAILABLE = True
 except ImportError:
     ONNX_AVAILABLE = False
@@ -20,8 +19,7 @@ from utils.logger import LoggerMixin
 
 
 class ModelExporter(LoggerMixin):
-    """
-    Exportador de modelos a ONNX.
+    """Exportador de modelos a ONNX.
 
     Responsabilidades:
     - Exportar modelos PyTorch a ONNX
@@ -46,19 +44,15 @@ class ModelExporter(LoggerMixin):
         self.opset = opset
         self.simplify = simplify
 
-        self._exported_path: Optional[str] = None
+        self._exported_path: str | None = None
         self._export_success = False
 
         self.logger.info(
-            "ModelExporter inicializado",
-            model_path=model_path,
-            imgsz=imgsz,
-            opset=opset
+            "ModelExporter inicializado", model_path=model_path, imgsz=imgsz, opset=opset
         )
 
-    def export(self, force: bool = False) -> Optional[str]:
-        """
-        Exporta el modelo a ONNX.
+    def export(self, force: bool = False) -> str | None:
+        """Exporta el modelo a ONNX.
 
         Args:
             force: Forzar exportación aunque el archivo exista
@@ -98,18 +92,16 @@ class ModelExporter(LoggerMixin):
                 self._export_success = True
                 self.logger.info("✅ Modelo exportado a ONNX correctamente")
                 return onnx_path
-            else:
-                self.logger.error("Exportación falló - archivo no creado")
-                return None
+            self.logger.error("Exportación falló - archivo no creado")
+            return None
 
         except Exception as e:
             self.logger.error(f"Error exportando a ONNX: {e}")
             self._export_success = False
             return None
 
-    def verify_export(self, onnx_path: Optional[str] = None) -> bool:
-        """
-        Verifica que el archivo ONNX sea válido.
+    def verify_export(self, onnx_path: str | None = None) -> bool:
+        """Verifica que el archivo ONNX sea válido.
 
         Args:
             onnx_path: Ruta al archivo ONNX (opcional)
@@ -140,7 +132,7 @@ class ModelExporter(LoggerMixin):
             return False
 
     @property
-    def exported_path(self) -> Optional[str]:
+    def exported_path(self) -> str | None:
         return self._exported_path
 
     @property

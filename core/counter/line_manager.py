@@ -1,17 +1,15 @@
-"""
-Gestor de líneas de conteo.
+"""Gestor de líneas de conteo.
 
 Maneja la configuración, validación y acceso a las líneas de conteo.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
 class CountingLine:
-    """
-    Representa una línea de conteo.
+    """Representa una línea de conteo.
 
     Attributes:
         id: Identificador único de la línea
@@ -23,20 +21,21 @@ class CountingLine:
         enabled: Si la línea está activa
         metadata: Metadatos adicionales
     """
+
     id: str
     name: str
-    points: List[Tuple[int, int]]
-    color: Tuple[int, int, int]
+    points: list[tuple[int, int]]
+    color: tuple[int, int, int]
     direction: str
     y_position: int
     enabled: bool = True
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
 
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convierte la línea a diccionario."""
         return {
             "id": self.id,
@@ -51,8 +50,7 @@ class CountingLine:
 
 
 class LineManager:
-    """
-    Gestor de líneas de conteo.
+    """Gestor de líneas de conteo.
 
     Responsabilidades:
     - Validar configuraciones de líneas
@@ -63,19 +61,17 @@ class LineManager:
         lines: Lista de líneas de conteo
     """
 
-    def __init__(self, config_lines: List[Dict[str, Any]]):
-        """
-        Inicializa el gestor de líneas.
+    def __init__(self, config_lines: list[dict[str, Any]]):
+        """Inicializa el gestor de líneas.
 
         Args:
             config_lines: Lista de configuraciones de líneas
         """
-        self.lines: List[CountingLine] = []
+        self.lines: list[CountingLine] = []
         self._initialize_lines(config_lines)
 
-    def _initialize_lines(self, config_lines: List[Dict[str, Any]]) -> None:
-        """
-        Inicializa las líneas desde la configuración.
+    def _initialize_lines(self, config_lines: list[dict[str, Any]]) -> None:
+        """Inicializa las líneas desde la configuración.
 
         Args:
             config_lines: Lista de configuraciones de líneas
@@ -99,9 +95,8 @@ class LineManager:
             )
             self.lines.append(line)
 
-    def _validate_line_config(self, config: Dict[str, Any]) -> bool:
-        """
-        Valida una configuración de línea.
+    def _validate_line_config(self, config: dict[str, Any]) -> bool:
+        """Valida una configuración de línea.
 
         Args:
             config: Configuración a validar
@@ -126,9 +121,8 @@ class LineManager:
 
         return True
 
-    def get_line(self, line_id: str) -> Optional[CountingLine]:
-        """
-        Obtiene una línea por su ID.
+    def get_line(self, line_id: str) -> CountingLine | None:
+        """Obtiene una línea por su ID.
 
         Args:
             line_id: ID de la línea
@@ -141,9 +135,8 @@ class LineManager:
                 return line
         return None
 
-    def get_line_by_index(self, index: int) -> Optional[CountingLine]:
-        """
-        Obtiene una línea por su índice.
+    def get_line_by_index(self, index: int) -> CountingLine | None:
+        """Obtiene una línea por su índice.
 
         Args:
             index: Índice de la línea
@@ -155,7 +148,7 @@ class LineManager:
             return self.lines[index]
         return None
 
-    def get_all_lines(self) -> List[CountingLine]:
+    def get_all_lines(self) -> list[CountingLine]:
         """Obtiene todas las líneas activas."""
         return [line for line in self.lines if line.enabled]
 
@@ -176,8 +169,7 @@ class LineManager:
         return self.get_line_count() > 0
 
     def add_line(self, line: CountingLine) -> None:
-        """
-        Añade una nueva línea.
+        """Añade una nueva línea.
 
         Args:
             line: Línea a añadir
@@ -185,8 +177,7 @@ class LineManager:
         self.lines.append(line)
 
     def remove_line(self, line_id: str) -> bool:
-        """
-        Elimina una línea por su ID.
+        """Elimina una línea por su ID.
 
         Args:
             line_id: ID de la línea a eliminar
@@ -201,8 +192,7 @@ class LineManager:
         return False
 
     def toggle_line(self, line_id: str) -> bool:
-        """
-        Activa o desactiva una línea.
+        """Activa o desactiva una línea.
 
         Args:
             line_id: ID de la línea
@@ -216,11 +206,11 @@ class LineManager:
             return True
         return False
 
-    def to_dict(self) -> List[Dict[str, Any]]:
+    def to_dict(self) -> list[dict[str, Any]]:
         """Convierte todas las líneas a diccionario."""
         return [line.to_dict() for line in self.lines]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del gestor."""
         return {
             "total_lines": self.get_total_lines(),

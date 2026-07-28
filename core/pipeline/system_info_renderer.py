@@ -1,8 +1,6 @@
-"""
-Renderizador de la información del sistema.
+"""Renderizador de la información del sistema.
 """
 
-from typing import Tuple
 
 import cv2
 import numpy as np
@@ -13,8 +11,7 @@ from core.pipeline.text_utils import TextMetricsCache
 
 
 class SystemInfoRenderer:
-    """
-    Renderiza la información del sistema (estado, FPS, CPU, memoria, etc.)
+    """Renderiza la información del sistema (estado, FPS, CPU, memoria, etc.)
     en la parte inferior del frame.
     """
 
@@ -32,8 +29,7 @@ class SystemInfoRenderer:
         self._pipeline_status = "RUNNING"
 
     def render(self, frame: np.ndarray, **kwargs) -> np.ndarray:
-        """
-        Renderiza la información del sistema en el frame.
+        """Renderiza la información del sistema en el frame.
         """
         if frame is None or not isinstance(frame, np.ndarray) or frame.size == 0:
             return frame
@@ -56,8 +52,7 @@ class SystemInfoRenderer:
         return frame
 
     def _draw_status_line(self, frame: np.ndarray, status, info: SystemInfo) -> None:
-        """
-        Dibuja la línea de estado e información del sistema.
+        """Dibuja la línea de estado e información del sistema.
         """
         try:
             h, w = frame.shape[:2]
@@ -104,29 +99,25 @@ class SystemInfoRenderer:
                 cv2.LINE_AA,
             )
 
-        except Exception as e:
+        except Exception:
             pass
 
-    def _get_status_color(self, status, info: SystemInfo) -> Tuple[int, int, int]:
-        """
-        Obtiene el color para el estado del pipeline.
+    def _get_status_color(self, status, info: SystemInfo) -> tuple[int, int, int]:
+        """Obtiene el color para el estado del pipeline.
         """
         status_value = status.value if hasattr(status, "value") else status
 
         if status_value == "STOPPED":
             return self._config.status_color_stopped
-        elif status_value == "PAUSED":
+        if status_value == "PAUSED":
             return self._config.status_color_paused
-        elif status_value == "ERROR":
+        if status_value == "ERROR":
             return self._config.status_color_error
 
-        return self._system_info_collector.get_color_for_performance(
-            info.fps, info.cpu_percent
-        )
+        return self._system_info_collector.get_color_for_performance(info.fps, info.cpu_percent)
 
     def _get_pipeline_status(self):
-        """
-        Obtiene el estado actual del pipeline.
+        """Obtiene el estado actual del pipeline.
         """
         return self._pipeline_status
 

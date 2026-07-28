@@ -4,7 +4,6 @@ Utiliza SIFT (Scale-Invariant Feature Transform) para extraer
 features locales de la imagen.
 """
 
-
 import cv2
 import numpy as np
 

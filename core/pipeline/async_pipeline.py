@@ -1,5 +1,4 @@
-"""
-Pipeline asíncrono para procesamiento de video en tiempo real.
+"""Pipeline asíncrono para procesamiento de video en tiempo real.
 
 Este módulo implementa el pipeline asíncrono del sistema que permite
 el procesamiento paralelo de frames para máximo rendimiento.
@@ -14,15 +13,14 @@ El pipeline asíncrono utiliza un orquestador que coordina:
 
 from __future__ import annotations
 
-from typing import Optional, Callable
+from collections.abc import Callable
 
 from core.pipeline.orchestrator import PipelineOrchestrator
 from utils.logger import LoggerMixin
 
 
 class AsyncPipeline(LoggerMixin):
-    """
-    Pipeline asíncrono para procesamiento de video en tiempo real.
+    """Pipeline asíncrono para procesamiento de video en tiempo real.
 
     Este pipeline utiliza múltiples workers y buffers para procesar
     frames de forma paralela, maximizando el rendimiento en sistemas
@@ -41,11 +39,7 @@ class AsyncPipeline(LoggerMixin):
         _orchestrator: Orquestador del pipeline.
 
     Example:
-        >>> pipeline = AsyncPipeline(
-        ...     buffer_size=30,
-        ...     num_workers=4,
-        ...     enable_batch_processing=True
-        ... )
+        >>> pipeline = AsyncPipeline(buffer_size=30, num_workers=4, enable_batch_processing=True)
         >>> pipeline.start(source="0")
         >>> # Presiona 'q' para salir
         >>> pipeline.stop()
@@ -60,10 +54,9 @@ class AsyncPipeline(LoggerMixin):
         num_workers: int = 4,
         enable_batch_processing: bool = False,
         batch_size: int = 4,
-        render_callback: Optional[Callable] = None,
+        render_callback: Callable | None = None,
     ):
-        """
-        Inicializa el pipeline asíncrono.
+        """Inicializa el pipeline asíncrono.
 
         Args:
             detector: Detector de objetos (opcional).
@@ -81,6 +74,7 @@ class AsyncPipeline(LoggerMixin):
             - num_workers: máximo 4
         """
         from config.manager import config_manager
+
         self.config = config_manager.config
         self.logger.info("Inicializando AsyncPipeline")
 
@@ -98,14 +92,13 @@ class AsyncPipeline(LoggerMixin):
             tracker=self.tracker,
             counter=self.counter,
             renderer=self.renderer,
-            controls=self.controls
+            controls=self.controls,
         )
 
         self.logger.info("Pipeline asíncrono inicializado")
 
     def _init_components(self, detector, tracker, counter, render_callback):
-        """
-        Inicializa los componentes del pipeline.
+        """Inicializa los componentes del pipeline.
 
         Args:
             detector: Detector de objetos (opcional).
@@ -117,21 +110,18 @@ class AsyncPipeline(LoggerMixin):
             Si algún componente no se proporciona, se crea automáticamente
             con la configuración global del sistema.
         """
-        from core.detector import YOLODetector
-        from core.tracker import MultiObjectTracker
         from core.counter import VehicleCounter
-        from core.pipeline.renderer import FrameRenderer
+        from core.detector import YOLODetector
         from core.pipeline.controls import ControlHandler
+        from core.pipeline.renderer import FrameRenderer
+        from core.tracker import MultiObjectTracker
 
-        use_optimized = getattr(
-            self.config.optimization,
-            "use_optimized_detector",
-            True
-        )
+        use_optimized = getattr(self.config.optimization, "use_optimized_detector", True)
 
         if use_optimized:
             try:
                 from core.detector import OptimizedYOLODetector
+
                 self.detector = detector or OptimizedYOLODetector()
                 self.logger.info("✅ Detector optimizado activado")
             except Exception as e:
@@ -148,9 +138,8 @@ class AsyncPipeline(LoggerMixin):
         if render_callback:
             self.renderer._custom_render = render_callback
 
-    def start(self, source: Optional[str] = None) -> None:
-        """
-        Inicia el pipeline.
+    def start(self, source: str | None = None) -> None:
+        """Inicia el pipeline.
 
         Args:
             source: Fuente de video (número de cámara, archivo o URL RTSP).
@@ -176,8 +165,7 @@ class AsyncPipeline(LoggerMixin):
         self._orchestrator.resume()
 
     def get_stats(self) -> dict:
-        """
-        Obtiene estadísticas del pipeline.
+        """Obtiene estadísticas del pipeline.
 
         Returns:
             dict: Estadísticas del pipeline incluyendo:
@@ -209,11 +197,10 @@ class AsyncPipeline(LoggerMixin):
 
     @property
     def fps(self) -> float:
-        """
-        FPS actual del pipeline.
+        """FPS actual del pipeline.
 
         Returns:
             float: FPS calculado a partir de las estadísticas de captura.
         """
         stats = self.get_stats()
-        return stats.get('capture', {}).get('fps', 0.0)
+        return stats.get("capture", {}).get("fps", 0.0)

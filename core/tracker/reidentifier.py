@@ -1,5 +1,4 @@
-"""
-Sistema de re-identificación robusto con persistencia de features.
+"""Sistema de re-identificación robusto con persistencia de features.
 
 Este módulo implementa un sistema de re-identificación que permite
 recuperar objetos perdidos utilizando features visuales almacenados
@@ -14,27 +13,28 @@ Características principales:
 - Historial de re-identificaciones para depuración
 """
 
-import time
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
+import time
+from typing import Any
 
 import numpy as np
 
-from utils.logger import LoggerMixin
-from models.feature_extractor import FeatureExtractor
-from core.tracker.feature_cache import FeatureCacheManager
 from core.constants.tracking import (
+    REID_CACHE_SIZE,
+    REID_MAX_AGE_SECONDS,
+    REID_MIN_FEATURES,
     REID_SIMILARITY_THRESHOLD,
     REID_SPATIAL_THRESHOLD,
-    REID_MAX_AGE_SECONDS,
-    REID_CACHE_SIZE,
-    REID_MIN_FEATURES,
 )
+from core.tracker.feature_cache import FeatureCacheManager
+from models.feature_extractor import FeatureExtractor
+from utils.logger import LoggerMixin
 
 
 @dataclass
 class ReIdentificationCandidate:
     """Candidato para re-identificación."""
+
     track_id: int
     features: np.ndarray
     confidence: float
@@ -45,8 +45,7 @@ class ReIdentificationCandidate:
 
 
 class ReIDSystem(LoggerMixin):
-    """
-    Sistema avanzado de re-identificación.
+    """Sistema avanzado de re-identificación.
 
     Este sistema permite recuperar objetos perdidos utilizando
     features visuales almacenados en caché durante el tracking.
@@ -79,15 +78,14 @@ class ReIDSystem(LoggerMixin):
 
     def __init__(
         self,
-        feature_extractor: Optional[FeatureExtractor] = None,
+        feature_extractor: FeatureExtractor | None = None,
         max_cache_size: int = REID_CACHE_SIZE,
         max_age_seconds: float = REID_MAX_AGE_SECONDS,
         similarity_threshold: float = REID_SIMILARITY_THRESHOLD,
         spatial_threshold: float = REID_SPATIAL_THRESHOLD,
         min_features_for_reid: int = REID_MIN_FEATURES,
     ):
-        """
-        Inicializa el sistema de re-identificación.
+        """Inicializa el sistema de re-identificación.
 
         Args:
             feature_extractor: Extractor de features visuales.
@@ -108,7 +106,7 @@ class ReIDSystem(LoggerMixin):
             max_age_seconds=max_age_seconds,
         )
 
-        self.reid_history: List[Dict[str, Any]] = []
+        self.reid_history: list[dict[str, Any]] = []
         self.max_history = 100
 
         self.stats = {
@@ -119,7 +117,7 @@ class ReIDSystem(LoggerMixin):
             "avg_time_ms": 0.0,
         }
 
-        self._recently_reid: Dict[int, float] = {}
+        self._recently_reid: dict[int, float] = {}
         self._cooldown_seconds = 2.0
 
         self.logger.info(
@@ -131,8 +129,7 @@ class ReIDSystem(LoggerMixin):
         )
 
     def add_lost_track(self, track_id: int, features: np.ndarray, confidence: float) -> None:
-        """
-        Añade un track perdido al caché para posible re-identificación.
+        """Añade un track perdido al caché para posible re-identificación.
 
         Args:
             track_id: ID del track perdido.
@@ -146,7 +143,7 @@ class ReIDSystem(LoggerMixin):
         self.logger.debug(
             "Track añadido al caché de re-identificación",
             track_id=track_id,
-            cache_size=self.feature_cache.size
+            cache_size=self.feature_cache.size,
         )
 
     def clear_cache(self) -> None:
@@ -157,13 +154,12 @@ class ReIDSystem(LoggerMixin):
 
     def attempt_reidentification(
         self,
-        detection: Dict[str, Any],
+        detection: dict[str, Any],
         frame: np.ndarray,
-        current_tracks: Dict[int, Any],
+        current_tracks: dict[int, Any],
         max_candidates: int = 5,
-    ) -> Optional[int]:
-        """
-        Intenta re-identificar una detección con un track perdido.
+    ) -> int | None:
+        """Intenta re-identificar una detección con un track perdido.
 
         Args:
             detection: Detección actual.
@@ -216,20 +212,15 @@ class ReIDSystem(LoggerMixin):
                 track_id=track_id,
                 similarity=f"{best_candidate.similarity_score:.3f}",
                 confidence=f"{best_candidate.confidence:.3f}",
-                time_ms=f"{elapsed_ms:.1f}"
+                time_ms=f"{elapsed_ms:.1f}",
             )
 
             return track_id
 
         return None
 
-    def _get_features(
-        self,
-        detection: Dict[str, Any],
-        frame: np.ndarray
-    ) -> Optional[np.ndarray]:
-        """
-        Obtiene features de una detección.
+    def _get_features(self, detection: dict[str, Any], frame: np.ndarray) -> np.ndarray | None:
+        """Obtiene features de una detección.
 
         Args:
             detection: Detección actual.
@@ -252,13 +243,9 @@ class ReIDSystem(LoggerMixin):
         return det_features
 
     def _find_candidates(
-        self,
-        features: np.ndarray,
-        centroid: Tuple[float, float],
-        max_candidates: int
-    ) -> List[ReIdentificationCandidate]:
-        """
-        Busca candidatos en el caché de features.
+        self, features: np.ndarray, centroid: tuple[float, float], max_candidates: int
+    ) -> list[ReIdentificationCandidate]:
+        """Busca candidatos en el caché de features.
 
         Args:
             features: Features de la detección.
@@ -277,12 +264,9 @@ class ReIDSystem(LoggerMixin):
         )
 
     def _filter_candidates(
-        self,
-        candidates: List[ReIdentificationCandidate],
-        current_tracks: Dict[int, Any]
-    ) -> List[ReIdentificationCandidate]:
-        """
-        Filtra candidatos según criterios adicionales.
+        self, candidates: list[ReIdentificationCandidate], current_tracks: dict[int, Any]
+    ) -> list[ReIdentificationCandidate]:
+        """Filtra candidatos según criterios adicionales.
 
         Args:
             candidates: Lista de candidatos.
@@ -299,7 +283,8 @@ class ReIDSystem(LoggerMixin):
 
         current_time = time.time()
         candidates = [
-            c for c in candidates
+            c
+            for c in candidates
             if c.track_id not in self._recently_reid
             or current_time - self._recently_reid[c.track_id] > self._cooldown_seconds
         ]
@@ -307,12 +292,9 @@ class ReIDSystem(LoggerMixin):
         return candidates
 
     def _validate_reidentification(
-        self,
-        candidate: ReIdentificationCandidate,
-        detection: Dict[str, Any]
+        self, candidate: ReIdentificationCandidate, detection: dict[str, Any]
     ) -> bool:
-        """
-        Valida la calidad de una re-identificación.
+        """Valida la calidad de una re-identificación.
 
         Criterios:
         1. Similaridad de features suficiente
@@ -331,22 +313,21 @@ class ReIDSystem(LoggerMixin):
             self.logger.debug(
                 "Re-identificación rechazada: baja similitud",
                 similarity=candidate.similarity_score,
-                threshold=self.similarity_threshold
+                threshold=self.similarity_threshold,
             )
             return False
 
         det_confidence = detection.get("confidence", 0.0)
         if det_confidence < 0.3:
             self.logger.debug(
-                "Re-identificación rechazada: baja confianza",
-                confidence=det_confidence
+                "Re-identificación rechazada: baja confianza", confidence=det_confidence
             )
             return False
 
         if candidate.spatial_score < 0.3:
             self.logger.debug(
                 "Re-identificación rechazada: gran distancia espacial",
-                spatial_score=candidate.spatial_score
+                spatial_score=candidate.spatial_score,
             )
             return False
 
@@ -355,19 +336,16 @@ class ReIDSystem(LoggerMixin):
             self.logger.debug(
                 "Re-identificación rechazada: demasiado antiguo",
                 age_seconds=age_seconds,
-                max_age=self.max_age_seconds
+                max_age=self.max_age_seconds,
             )
             return False
 
         return True
 
     def _perform_reidentification(
-        self,
-        candidate: ReIdentificationCandidate,
-        detection: Dict[str, Any]
-    ) -> Optional[int]:
-        """
-        Ejecuta la re-identificación de un track.
+        self, candidate: ReIdentificationCandidate, detection: dict[str, Any]
+    ) -> int | None:
+        """Ejecuta la re-identificación de un track.
 
         Args:
             candidate: Candidato seleccionado.
@@ -385,8 +363,7 @@ class ReIDSystem(LoggerMixin):
         return track_id
 
     def _record_success(self, candidate: ReIdentificationCandidate, time_ms: float) -> None:
-        """
-        Registra una re-identificación exitosa en estadísticas.
+        """Registra una re-identificación exitosa en estadísticas.
 
         Args:
             candidate: Candidato seleccionado.
@@ -396,22 +373,19 @@ class ReIDSystem(LoggerMixin):
 
         n = self.stats["successful_reid"] + self.stats["failed_reid"]
         self.stats["avg_confidence"] = (
-            (self.stats["avg_confidence"] * (n - 1) + candidate.similarity_score) / n
-        )
+            self.stats["avg_confidence"] * (n - 1) + candidate.similarity_score
+        ) / n
 
-        self.stats["avg_time_ms"] = (
-            (self.stats["avg_time_ms"] * (n - 1) + time_ms) / n
-        )
+        self.stats["avg_time_ms"] = (self.stats["avg_time_ms"] * (n - 1) + time_ms) / n
 
     def _add_history_entry(
         self,
         track_id: int,
         candidate: ReIdentificationCandidate,
-        detection: Dict[str, Any],
-        time_ms: float
+        detection: dict[str, Any],
+        time_ms: float,
     ) -> None:
-        """
-        Añade entrada al historial de re-identificaciones.
+        """Añade entrada al historial de re-identificaciones.
 
         Args:
             track_id: ID del track re-identificado.
@@ -430,16 +404,15 @@ class ReIDSystem(LoggerMixin):
             "detection": {
                 "centroid": detection.get("centroid"),
                 "confidence": detection.get("confidence", 0.0),
-            }
+            },
         }
 
         self.reid_history.append(entry)
         if len(self.reid_history) > self.max_history:
-            self.reid_history = self.reid_history[-self.max_history:]
+            self.reid_history = self.reid_history[-self.max_history :]
 
-    def get_stats(self) -> Dict[str, Any]:
-        """
-        Obtiene estadísticas del sistema de re-identificación.
+    def get_stats(self) -> dict[str, Any]:
+        """Obtiene estadísticas del sistema de re-identificación.
 
         Returns:
             Dict[str, Any]: Estadísticas del sistema.
@@ -455,9 +428,8 @@ class ReIDSystem(LoggerMixin):
             "recently_reid": len(self._recently_reid),
         }
 
-    def get_history(self, limit: int = 50) -> List[Dict[str, Any]]:
-        """
-        Obtiene el historial de re-identificaciones.
+    def get_history(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Obtiene el historial de re-identificaciones.
 
         Args:
             limit: Número máximo de entradas a retornar.
@@ -467,9 +439,8 @@ class ReIDSystem(LoggerMixin):
         """
         return self.reid_history[-limit:] if self.reid_history else []
 
-    def get_last_successful_reid(self) -> Optional[Dict[str, Any]]:
-        """
-        Obtiene la última re-identificación exitosa.
+    def get_last_successful_reid(self) -> dict[str, Any] | None:
+        """Obtiene la última re-identificación exitosa.
 
         Returns:
             Optional[Dict[str, Any]]: Último evento exitoso.
@@ -480,8 +451,7 @@ class ReIDSystem(LoggerMixin):
         return None
 
     def is_track_in_cooldown(self, track_id: int) -> bool:
-        """
-        Verifica si un track está en período de cooldown.
+        """Verifica si un track está en período de cooldown.
 
         Args:
             track_id: ID del track.

@@ -1,21 +1,19 @@
-"""
-Gestor de caché para features de re-identificación
+"""Gestor de caché para features de re-identificación
 """
 
 import time
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 
 import numpy as np
 
-from utils.logger import LoggerMixin
 from utils.geometry import euclidean_distance
+from utils.logger import LoggerMixin
 
 
 class FeatureEntry:
     """Entrada en el caché de features"""
 
-    __slots__ = ('track_id', 'features', 'confidence', 'last_seen',
-                 'last_position', 'access_count')
+    __slots__ = ("track_id", "features", "confidence", "last_seen", "last_position", "access_count")
 
     def __init__(
         self,
@@ -23,7 +21,7 @@ class FeatureEntry:
         features: np.ndarray,
         confidence: float,
         last_seen: float,
-        last_position: Tuple[float, float]
+        last_position: tuple[float, float],
     ):
         self.track_id = track_id
         self.features = features.copy() if features is not None else None
@@ -43,8 +41,7 @@ class FeatureEntry:
 
 
 class FeatureCacheManager(LoggerMixin):
-    """
-    Gestor de caché para features con política LRU (Least Recently Used)
+    """Gestor de caché para features con política LRU (Least Recently Used)
 
     Características:
     - Límite de tamaño con LRU
@@ -63,8 +60,8 @@ class FeatureCacheManager(LoggerMixin):
         self.max_age_seconds = max_age_seconds
         self.cleanup_interval = cleanup_interval
 
-        self._entries: Dict[int, FeatureEntry] = {}
-        self._access_order: List[int] = []
+        self._entries: dict[int, FeatureEntry] = {}
+        self._access_order: list[int] = []
 
         self._hits = 0
         self._misses = 0
@@ -74,14 +71,11 @@ class FeatureCacheManager(LoggerMixin):
         self._last_cleanup = time.time()
 
         self.logger.info(
-            "FeatureCacheManager inicializado",
-            max_size=max_size,
-            max_age_seconds=max_age_seconds
+            "FeatureCacheManager inicializado", max_size=max_size, max_age_seconds=max_age_seconds
         )
 
     def add(self, track_id: int, features: np.ndarray, confidence: float = 0.5):
-        """
-        Añade un track al caché
+        """Añade un track al caché
         """
         if features is None or len(features) == 0:
             return
@@ -94,7 +88,7 @@ class FeatureCacheManager(LoggerMixin):
             features=features,
             confidence=confidence,
             last_seen=time.time(),
-            last_position=(0, 0)
+            last_position=(0, 0),
         )
 
         if track_id in self._entries:
@@ -111,9 +105,8 @@ class FeatureCacheManager(LoggerMixin):
             self._cleanup_expired()
             self._last_cleanup = time.time()
 
-    def get(self, track_id: int) -> Optional[FeatureEntry]:
-        """
-        Obtiene un track del caché
+    def get(self, track_id: int) -> FeatureEntry | None:
+        """Obtiene un track del caché
 
         Args:
             track_id: ID del track
@@ -154,13 +147,12 @@ class FeatureCacheManager(LoggerMixin):
     def find_candidates(
         self,
         query_features: np.ndarray,
-        query_position: Tuple[float, float],
+        query_position: tuple[float, float],
         max_candidates: int = 5,
         similarity_threshold: float = 0.6,
         spatial_threshold: float = 100.0,
-    ) -> List:
-        """
-        Encuentra los mejores candidatos para re-identificación
+    ) -> list:
+        """Encuentra los mejores candidatos para re-identificación
 
         Args:
             query_features: Features de la detección actual
@@ -205,10 +197,7 @@ class FeatureCacheManager(LoggerMixin):
             confidence_weight = 0.7 + 0.3 * entry.confidence
 
             combined_score = (
-                0.5 * similarity +
-                0.2 * spatial_score +
-                0.2 * age_score +
-                0.1 * confidence_weight
+                0.5 * similarity + 0.2 * spatial_score + 0.2 * age_score + 0.1 * confidence_weight
             )
 
             candidate = ReIdentificationCandidate(
@@ -258,7 +247,7 @@ class FeatureCacheManager(LoggerMixin):
         self._total_entries_removed += count
         self.logger.info("Caché limpiado", entries_removed=count)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del caché"""
         total_requests = self._hits + self._misses
 

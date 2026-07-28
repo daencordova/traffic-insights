@@ -1,5 +1,4 @@
-"""
-Validador de bounding boxes y centroides.
+"""Validador de bounding boxes y centroides.
 
 Proporciona funciones para validar bounding boxes y centroides,
 asegurando que cumplan con los requisitos del sistema.
@@ -7,24 +6,23 @@ asegurando que cumplan con los requisitos del sistema.
 
 from __future__ import annotations
 
-from typing import Any, Tuple, List, Optional
+from typing import Any
 
 import numpy as np
 
-from core.constants.vision import MIN_BOX_SIZE, MAX_BOX_SIZE
+from core.constants.vision import MAX_BOX_SIZE, MIN_BOX_SIZE
 
-BoundingBox = Tuple[int, int, int, int]
-Centroid = Tuple[int, int]
+BoundingBox = tuple[int, int, int, int]
+Centroid = tuple[int, int]
 
 
 def validate_bbox(
     bbox: Any,
     min_size: int = MIN_BOX_SIZE,
     max_size: int = MAX_BOX_SIZE,
-    image_shape: Optional[Tuple[int, int]] = None
+    image_shape: tuple[int, int] | None = None,
 ) -> bool:
-    """
-    Valida un bounding box.
+    """Valida un bounding box.
 
     Args:
         bbox: Bounding box a validar (x1, y1, x2, y2).
@@ -73,9 +71,8 @@ def validate_bbox(
         return False
 
 
-def validate_centroid(centroid: Any, image_shape: Optional[Tuple[int, int]] = None) -> bool:
-    """
-    Valida un centroide.
+def validate_centroid(centroid: Any, image_shape: tuple[int, int] | None = None) -> bool:
+    """Valida un centroide.
 
     Args:
         centroid: Centroide a validar (x, y).
@@ -110,9 +107,8 @@ def validate_centroid(centroid: Any, image_shape: Optional[Tuple[int, int]] = No
         return False
 
 
-def normalize_bbox(bbox: BoundingBox, image_shape: Tuple[int, int]) -> BoundingBox:
-    """
-    Normaliza un bounding box para que esté dentro de los límites de la imagen.
+def normalize_bbox(bbox: BoundingBox, image_shape: tuple[int, int]) -> BoundingBox:
+    """Normaliza un bounding box para que esté dentro de los límites de la imagen.
 
     Args:
         bbox: Bounding box a normalizar.
@@ -132,9 +128,8 @@ def normalize_bbox(bbox: BoundingBox, image_shape: Tuple[int, int]) -> BoundingB
     return (x1, y1, x2, y2)
 
 
-def validate_bbox_list(bboxes: List[Any]) -> List[bool]:
-    """
-    Valida una lista de bounding boxes.
+def validate_bbox_list(bboxes: list[Any]) -> list[bool]:
+    """Valida una lista de bounding boxes.
 
     Args:
         bboxes: Lista de bounding boxes a validar.
@@ -146,8 +141,7 @@ def validate_bbox_list(bboxes: List[Any]) -> List[bool]:
 
 
 def is_bbox_valid(bbox: Any) -> bool:
-    """
-    Verificación rápida de validez de bbox (alias de validate_bbox).
+    """Verificación rápida de validez de bbox (alias de validate_bbox).
 
     Args:
         bbox: Bounding box a verificar.
@@ -159,8 +153,7 @@ def is_bbox_valid(bbox: Any) -> bool:
 
 
 def bbox_to_numpy(bbox: BoundingBox) -> np.ndarray:
-    """
-    Convierte un bounding box a array numpy.
+    """Convierte un bounding box a array numpy.
 
     Args:
         bbox: Bounding box a convertir.
@@ -172,8 +165,7 @@ def bbox_to_numpy(bbox: BoundingBox) -> np.ndarray:
 
 
 def numpy_to_bbox(arr: np.ndarray) -> BoundingBox:
-    """
-    Convierte un array numpy a bounding box.
+    """Convierte un array numpy a bounding box.
 
     Args:
         arr: Array de 4 elementos.
@@ -185,8 +177,7 @@ def numpy_to_bbox(arr: np.ndarray) -> BoundingBox:
 
 
 def get_bbox_area(bbox: BoundingBox) -> int:
-    """
-    Calcula el área de un bounding box.
+    """Calcula el área de un bounding box.
 
     Args:
         bbox: Bounding box.

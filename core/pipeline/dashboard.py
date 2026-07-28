@@ -1,5 +1,4 @@
-"""
-Renderizador del dashboard con estadísticas en pantalla.
+"""Renderizador del dashboard con estadísticas en pantalla.
 
 Muestra información clave del sistema como:
 - Total de vehículos contados
@@ -9,29 +8,25 @@ Muestra información clave del sistema como:
 - Estado del sistema
 """
 
-from typing import Dict, Any
+from typing import Any
 
 import cv2
 import numpy as np
 
-from utils.logger import LoggerMixin
-from core.constants.visualization import (
-    DASHBOARD_WIDTH,
-    DASHBOARD_HEIGHT,
-    DASHBOARD_ALPHA,
-)
-from core.constants.pipeline import (
-    TARGET_FPS,
-    MIN_ACCEPTABLE_FPS
-)
+from core.constants.pipeline import MIN_ACCEPTABLE_FPS, TARGET_FPS
 from core.constants.vision import (
     COLORS,
 )
+from core.constants.visualization import (
+    DASHBOARD_ALPHA,
+    DASHBOARD_HEIGHT,
+    DASHBOARD_WIDTH,
+)
+from utils.logger import LoggerMixin
 
 
 class DashboardRenderer(LoggerMixin):
-    """
-    Renderizador del dashboard de estadísticas.
+    """Renderizador del dashboard de estadísticas.
 
     Responsabilidades:
     - Dibujar el panel de estadísticas
@@ -57,19 +52,18 @@ class DashboardRenderer(LoggerMixin):
             "DashboardRenderer inicializado",
             position=self.position,
             width=self.width,
-            height=self.height
+            height=self.height,
         )
 
     def render(
         self,
         frame: np.ndarray,
-        stats: Dict[str, Any],
+        stats: dict[str, Any],
         fps: float = 0.0,
         processing_time_ms: float = 0.0,
-        frame_number: int = 0
+        frame_number: int = 0,
     ) -> np.ndarray:
-        """
-        Renderiza el dashboard en el frame.
+        """Renderiza el dashboard en el frame.
 
         Args:
             frame: Frame base
@@ -112,23 +106,11 @@ class DashboardRenderer(LoggerMixin):
             dashboard_h = min(self.height, h - 20)
 
             overlay = frame.copy()
-            cv2.rectangle(
-                overlay,
-                (x, y),
-                (x + dashboard_w, y + dashboard_h),
-                COLORS["BLACK"],
-                -1
-            )
+            cv2.rectangle(overlay, (x, y), (x + dashboard_w, y + dashboard_h), COLORS["BLACK"], -1)
             cv2.addWeighted(overlay, DASHBOARD_ALPHA, frame, 1 - DASHBOARD_ALPHA, 0, frame)
 
             border_color = self._get_performance_color(fps)
-            cv2.rectangle(
-                frame,
-                (x, y),
-                (x + dashboard_w, y + dashboard_h),
-                border_color,
-                2
-            )
+            cv2.rectangle(frame, (x, y), (x + dashboard_w, y + dashboard_h), border_color, 2)
 
             y_offset = y + 25
 
@@ -147,7 +129,7 @@ class DashboardRenderer(LoggerMixin):
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
                     COLORS["LIGHT_GRAY"],
-                    1
+                    1,
                 )
                 cv2.putText(
                     frame,
@@ -156,7 +138,7 @@ class DashboardRenderer(LoggerMixin):
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
                     COLORS["WHITE"],
-                    1
+                    1,
                 )
                 y_offset += 22
 
@@ -175,18 +157,11 @@ class DashboardRenderer(LoggerMixin):
                     if x_pos + 50 < x + dashboard_w:
                         text = f"{line_name}:{count}"
                         cv2.putText(
-                            frame,
-                            text,
-                            (x_pos, y_offset),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.35,
-                            color,
-                            1
+                            frame, text, (x_pos, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1
                         )
 
         except Exception as e:
             self.logger.warning(f"Error en renderizado de dashboard: {e}")
-            pass
 
         return frame
 
@@ -215,10 +190,9 @@ class DashboardRenderer(LoggerMixin):
         """Obtiene el color del borde según el rendimiento."""
         if fps >= TARGET_FPS:
             return COLORS["GREEN"]
-        elif fps >= MIN_ACCEPTABLE_FPS:
+        if fps >= MIN_ACCEPTABLE_FPS:
             return COLORS["YELLOW"]
-        else:
-            return COLORS["RED"]
+        return COLORS["RED"]
 
     def _get_line_name(self, line_id: str) -> str:
         """Obtiene el nombre de una línea de conteo."""

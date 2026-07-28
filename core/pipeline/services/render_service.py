@@ -1,5 +1,4 @@
-"""
-Servicio de renderizado y visualización.
+"""Servicio de renderizado y visualización.
 
 Responsable de:
 - Renderizar overlays en los frames
@@ -8,32 +7,31 @@ Responsable de:
 - Gestionar la cola de renderizado
 """
 
-import time
+from collections.abc import Callable
 import threading
-from typing import Optional, Callable, List
+import time
 
 import cv2
 import numpy as np
 
-from core.pipeline.renderer import FrameRenderer
+from core.constants.vision import WINDOW_NAME
 from core.pipeline.controls import ControlHandler
+from core.pipeline.renderer import FrameRenderer
 from core.pipeline.services.processing_service import ProcessingResult
 from utils.logger import LoggerMixin
-from core.constants.vision import WINDOW_NAME
 
 
 class RenderService(LoggerMixin):
-    """
-    Servicio especializado en renderizado y visualización.
+    """Servicio especializado en renderizado y visualización.
     """
 
     def __init__(
         self,
         config,
-        renderer: Optional[FrameRenderer] = None,
-        controls: Optional[ControlHandler] = None,
+        renderer: FrameRenderer | None = None,
+        controls: ControlHandler | None = None,
         max_queue_size: int = 3,
-        on_key_pressed: Optional[Callable] = None,
+        on_key_pressed: Callable | None = None,
     ):
         self.config = config
         self.renderer = renderer or FrameRenderer(config)
@@ -41,21 +39,18 @@ class RenderService(LoggerMixin):
         self.max_queue_size = max_queue_size
         self.on_key_pressed = on_key_pressed
 
-        self._render_queue: List[ProcessingResult] = []
+        self._render_queue: list[ProcessingResult] = []
         self._queue_lock = threading.Lock()
-        self._last_valid_frame: Optional[np.ndarray] = None
+        self._last_valid_frame: np.ndarray | None = None
         self._running = False
         self._paused = False
 
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._frames_rendered = 0
         self._frames_dropped = 0
         self._errors = 0
 
-        self.logger.info(
-            "RenderService inicializado",
-            max_queue_size=max_queue_size
-        )
+        self.logger.info("RenderService inicializado", max_queue_size=max_queue_size)
 
     def start(self) -> None:
         """Inicia el servicio de renderizado."""
@@ -63,11 +58,7 @@ class RenderService(LoggerMixin):
             return
 
         self._running = True
-        self._thread = threading.Thread(
-            target=self._render_loop,
-            name="RenderService",
-            daemon=True
-        )
+        self._thread = threading.Thread(target=self._render_loop, name="RenderService", daemon=True)
         self._thread.start()
 
         try:
@@ -103,8 +94,7 @@ class RenderService(LoggerMixin):
         self.logger.debug("Renderizado reanudado")
 
     def enqueue_frame(self, result: ProcessingResult) -> None:
-        """
-        Encola un frame para renderizado.
+        """Encola un frame para renderizado.
 
         Args:
             result: Resultado del procesamiento
@@ -118,9 +108,7 @@ class RenderService(LoggerMixin):
             while len(self._render_queue) > self.max_queue_size:
                 dropped = self._render_queue.pop(0)
                 self._frames_dropped += 1
-                self.logger.debug(
-                    f"Frame {dropped.frame_number} descartado de cola de renderizado"
-                )
+                self.logger.debug(f"Frame {dropped.frame_number} descartado de cola de renderizado")
 
     def _render_loop(self) -> None:
         """Bucle principal de renderizado."""
@@ -152,7 +140,7 @@ class RenderService(LoggerMixin):
 
         self.logger.info("Bucle de renderizado terminado")
 
-    def _get_next_frame(self) -> Optional[ProcessingResult]:
+    def _get_next_frame(self) -> ProcessingResult | None:
         """Obtiene el siguiente frame de la cola."""
         with self._queue_lock:
             if self._render_queue:
@@ -160,8 +148,7 @@ class RenderService(LoggerMixin):
         return None
 
     def _display_frame(self, result: ProcessingResult) -> None:
-        """
-        Muestra un frame en la ventana.
+        """Muestra un frame en la ventana.
 
         Args:
             result: Resultado del procesamiento
@@ -176,7 +163,7 @@ class RenderService(LoggerMixin):
                 result.stats,
                 fps=0.0,
                 processing_time_ms=result.processing_time_ms,
-                frame_number=result.frame_number
+                frame_number=result.frame_number,
             )
 
             cv2.imshow(WINDOW_NAME, rendered_frame)
@@ -201,32 +188,26 @@ class RenderService(LoggerMixin):
                 h, w = pause_frame.shape[:2]
 
                 overlay = pause_frame.copy()
-                cv2.rectangle(
-                    overlay,
-                    (w//4, h//3),
-                    (3*w//4, 2*h//3),
-                    (0, 0, 0),
-                    -1
-                )
+                cv2.rectangle(overlay, (w // 4, h // 3), (3 * w // 4, 2 * h // 3), (0, 0, 0), -1)
                 cv2.addWeighted(overlay, 0.5, pause_frame, 0.5, 0, pause_frame)
 
                 cv2.putText(
                     pause_frame,
                     "PAUSADO",
-                    (w//2 - 80, h//2 - 10),
+                    (w // 2 - 80, h // 2 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1.2,
                     (0, 255, 255),
-                    3
+                    3,
                 )
                 cv2.putText(
                     pause_frame,
                     "Presiona ESPACIO para reanudar",
-                    (w//2 - 120, h//2 + 40),
+                    (w // 2 - 120, h // 2 + 40),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
                     (255, 255, 255),
-                    2
+                    2,
                 )
 
                 cv2.imshow(WINDOW_NAME, pause_frame)
@@ -243,13 +224,13 @@ class RenderService(LoggerMixin):
     def get_stats(self) -> dict:
         """Obtiene estadísticas del servicio."""
         return {
-            'frames_rendered': self._frames_rendered,
-            'frames_dropped': self._frames_dropped,
-            'errors': self._errors,
-            'queue_size': len(self._render_queue),
-            'max_queue_size': self.max_queue_size,
-            'is_running': self._running,
-            'is_paused': self._paused,
+            "frames_rendered": self._frames_rendered,
+            "frames_dropped": self._frames_dropped,
+            "errors": self._errors,
+            "queue_size": len(self._render_queue),
+            "max_queue_size": self.max_queue_size,
+            "is_running": self._running,
+            "is_paused": self._paused,
         }
 
     @property

@@ -1,5 +1,4 @@
-"""
-Motor de inferencia para YOLO.
+"""Motor de inferencia para YOLO.
 
 Maneja la inferencia con diferentes backends (PyTorch y ONNX)
 y proporciona una interfaz unificada.
@@ -12,6 +11,7 @@ from ultralytics import YOLO
 
 try:
     import onnxruntime as ort
+
     ONNX_AVAILABLE = True
 except ImportError:
     ONNX_AVAILABLE = False
@@ -26,23 +26,19 @@ class InferenceEngine(ABC):
     @abstractmethod
     def infer(self, frame: np.ndarray) -> np.ndarray:
         """Realiza inferencia en un frame."""
-        pass
 
     @abstractmethod
     def warmup(self) -> None:
         """Calienta el motor para reducir latencia inicial."""
-        pass
 
     @property
     @abstractmethod
     def is_available(self) -> bool:
         """Verifica si el motor está disponible."""
-        pass
 
 
 class PyTorchInferenceEngine(InferenceEngine, LoggerMixin):
-    """
-    Motor de inferencia con PyTorch.
+    """Motor de inferencia con PyTorch.
 
     Attributes:
         model: Modelo YOLO de PyTorch
@@ -66,15 +62,10 @@ class PyTorchInferenceEngine(InferenceEngine, LoggerMixin):
 
         self._warmed_up = False
 
-        self.logger.info(
-            "PyTorchInferenceEngine inicializado",
-            imgsz=imgsz,
-            device=device
-        )
+        self.logger.info("PyTorchInferenceEngine inicializado", imgsz=imgsz, device=device)
 
     def infer(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Realiza inferencia con PyTorch.
+        """Realiza inferencia con PyTorch.
 
         Args:
             frame: Imagen a procesar
@@ -122,8 +113,7 @@ class PyTorchInferenceEngine(InferenceEngine, LoggerMixin):
 
 
 class ONNXInferenceEngine(InferenceEngine, LoggerMixin):
-    """
-    Motor de inferencia con ONNX Runtime.
+    """Motor de inferencia con ONNX Runtime.
 
     Attributes:
         session: Sesión de ONNX Runtime
@@ -149,12 +139,11 @@ class ONNXInferenceEngine(InferenceEngine, LoggerMixin):
         self.logger.info(
             "ONNXInferenceEngine inicializado",
             imgsz=imgsz,
-            providers=session.get_providers() if session else []
+            providers=session.get_providers() if session else [],
         )
 
     def infer(self, frame: np.ndarray) -> np.ndarray:
-        """
-        Realiza inferencia con ONNX Runtime.
+        """Realiza inferencia con ONNX Runtime.
 
         Args:
             frame: Imagen a procesar

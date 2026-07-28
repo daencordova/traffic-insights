@@ -9,19 +9,19 @@ Proporciona componentes para la predicción de trayectorias:
 - Detector de colisiones
 """
 
+from core.tracker.prediction.collision_detector import CollisionDetector
 from core.tracker.prediction.history import TrajectoryHistory, TrajectorySample
+from core.tracker.prediction.model_selector import ModelSelector
 from core.tracker.prediction.motion_models import (
-    MotionModel,
-    LinearModel,
+    AdaptiveModel,
     CurvedModel,
     CyclicModel,
-    PolynomialModel,
-    AdaptiveModel,
+    LinearModel,
+    MotionModel,
     MotionModelFactory,
+    PolynomialModel,
 )
-from core.tracker.prediction.model_selector import ModelSelector
 from core.tracker.prediction.state_detector import StateDetector, TrajectoryState
-from core.tracker.prediction.collision_detector import CollisionDetector
 
 __all__ = [
     "TrajectoryHistory",

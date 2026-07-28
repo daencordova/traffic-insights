@@ -1,10 +1,9 @@
-"""
-Manejador de reconexión para captura de video.
+"""Manejador de reconexión para captura de video.
 
 Proporciona lógica de reconexión automática con reintentos y delays.
 """
 
-from typing import Optional, Union
+import time
 
 import cv2
 
@@ -12,8 +11,7 @@ from utils.logger import LoggerMixin
 
 
 class Reconnector(LoggerMixin):
-    """
-    Gestiona la reconexión a fuentes de video.
+    """Gestiona la reconexión a fuentes de video.
 
     Attributes:
         max_attempts: Número máximo de intentos de reconexión.
@@ -21,8 +19,7 @@ class Reconnector(LoggerMixin):
     """
 
     def __init__(self, max_attempts: int = 5, delay: float = 1.0):
-        """
-        Inicializa el reconector.
+        """Inicializa el reconector.
 
         Args:
             max_attempts: Número máximo de intentos.
@@ -32,19 +29,10 @@ class Reconnector(LoggerMixin):
         self.delay = delay
         self._attempts = 0
 
-        self.logger.info(
-            "Reconnector inicializado",
-            max_attempts=max_attempts,
-            delay=delay
-        )
+        self.logger.info("Reconnector inicializado", max_attempts=max_attempts, delay=delay)
 
-    def connect(
-        self,
-        source: Union[str, int],
-        config = None
-    ) -> Optional[cv2.VideoCapture]:
-        """
-        Intenta conectar a la fuente con reintentos.
+    def connect(self, source: str | int, config=None) -> cv2.VideoCapture | None:
+        """Intenta conectar a la fuente con reintentos.
 
         Args:
             source: Fuente de video (número o ruta).
@@ -67,9 +55,7 @@ class Reconnector(LoggerMixin):
                 if cap.isOpened():
                     self._configure_capture(cap, config)
                     self.logger.info(
-                        "Conectado exitosamente",
-                        source=source,
-                        attempts=self._attempts
+                        "Conectado exitosamente", source=source, attempts=self._attempts
                     )
                     self._attempts = 0
                     return cap
@@ -78,34 +64,28 @@ class Reconnector(LoggerMixin):
                     "Intento de conexión fallido",
                     source=source,
                     attempt=self._attempts,
-                    max_attempts=self.max_attempts
+                    max_attempts=self.max_attempts,
                 )
 
                 if self._attempts < self.max_attempts:
-                    import time
                     time.sleep(self.delay)
 
             except Exception as e:
                 self.logger.warning(
-                    "Error en conexión",
-                    source=source,
-                    attempt=self._attempts,
-                    error=str(e)
+                    "Error en conexión", source=source, attempt=self._attempts, error=str(e)
                 )
                 if self._attempts < self.max_attempts:
-                    import time
                     time.sleep(self.delay)
 
         self.logger.error(
             "No se pudo conectar después de múltiples intentos",
             source=source,
-            attempts=self.max_attempts
+            attempts=self.max_attempts,
         )
         return None
 
     def _configure_capture(self, cap: cv2.VideoCapture, config) -> None:
-        """
-        Configura la captura con los parámetros deseados.
+        """Configura la captura con los parámetros deseados.
 
         Args:
             cap: Captura a configurar.
@@ -121,7 +101,7 @@ class Reconnector(LoggerMixin):
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.height)
 
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 
     def reset(self) -> None:
         """Reinicia el contador de intentos."""

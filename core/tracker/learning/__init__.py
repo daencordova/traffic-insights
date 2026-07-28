@@ -8,17 +8,17 @@ Proporciona componentes para el aprendizaje en línea de features:
 - Agregación de features
 """
 
+from core.tracker.learning.aggregator import FeatureAggregator
+from core.tracker.learning.drift_detector import ConceptDriftDetector
 from core.tracker.learning.statistics import FeatureStatistics
 from core.tracker.learning.strategies import (
-    LearningStrategy,
-    IncrementalStrategy,
     AdaptiveStrategy,
     BatchStrategy,
     HybridStrategy,
+    IncrementalStrategy,
+    LearningStrategy,
     LearningStrategyFactory,
 )
-from core.tracker.learning.drift_detector import ConceptDriftDetector
-from core.tracker.learning.aggregator import FeatureAggregator
 
 __all__ = [
     "FeatureStatistics",

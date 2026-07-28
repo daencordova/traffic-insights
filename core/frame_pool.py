@@ -1,16 +1,15 @@
-"""
-Pool de frames para preasignación de memoria optimizado.
+"""Pool de frames para preasignación de memoria optimizado.
 """
 
 import threading
+
 import numpy as np
-from typing import Optional, Tuple, List
+
 from utils.logger import LoggerMixin
 
 
 class FramePool(LoggerMixin):
-    """
-    Pool de frames para reutilización de memoria optimizado.
+    """Pool de frames para reutilización de memoria optimizado.
 
     Características:
     - Memoria preasignada para evitar reallocaciones
@@ -23,11 +22,10 @@ class FramePool(LoggerMixin):
     def __init__(
         self,
         pool_size: int = 3,
-        frame_shape: Tuple[int, int, int] = (480, 640, 3),
-        dtype: np.dtype = np.uint8
+        frame_shape: tuple[int, int, int] = (480, 640, 3),
+        dtype: np.dtype = np.uint8,
     ) -> None:
-        """
-        Inicializa el pool de frames.
+        """Inicializa el pool de frames.
 
         Args:
             pool_size: Número de frames en el pool (reducido para ahorrar memoria).
@@ -38,7 +36,7 @@ class FramePool(LoggerMixin):
         self.frame_shape = frame_shape
         self.dtype = dtype
 
-        self._pool: List[np.ndarray] = []
+        self._pool: list[np.ndarray] = []
         self._lock = threading.Lock()
         self._idx = 0
 
@@ -55,10 +53,7 @@ class FramePool(LoggerMixin):
         self._preallocate()
 
         self.logger.info(
-            "FramePool inicializado",
-            pool_size=pool_size,
-            frame_shape=frame_shape,
-            dtype=str(dtype)
+            "FramePool inicializado", pool_size=pool_size, frame_shape=frame_shape, dtype=str(dtype)
         )
 
     def _preallocate(self) -> None:
@@ -69,8 +64,7 @@ class FramePool(LoggerMixin):
             self._stats["memory_used_mb"] += frame.nbytes / (1024 * 1024)
 
     def acquire(self) -> np.ndarray:
-        """
-        Adquiere un frame del pool.
+        """Adquiere un frame del pool.
 
         Returns:
             np.ndarray: Frame del pool.
@@ -91,8 +85,7 @@ class FramePool(LoggerMixin):
             return frame
 
     def release(self, frame: np.ndarray) -> bool:
-        """
-        Libera un frame de vuelta al pool.
+        """Libera un frame de vuelta al pool.
 
         Args:
             frame: Frame a liberar.
@@ -138,12 +131,12 @@ class FramePool(LoggerMixin):
             self._stats["memory_used_mb"] = 0
 
         import gc
+
         gc.collect()
         self.logger.info("FramePool limpiado y memoria liberada")
 
     def resize(self, new_size: int) -> None:
-        """
-        Cambia el tamaño del pool.
+        """Cambia el tamaño del pool.
 
         Args:
             new_size: Nuevo tamaño del pool.
@@ -167,11 +160,10 @@ class FramePool(LoggerMixin):
             self._stats["total_allocated"] = new_size
 
         import gc
+
         gc.collect()
         self.logger.info(
-            "FramePool redimensionado",
-            new_size=new_size,
-            current_used=self._stats["current_used"]
+            "FramePool redimensionado", new_size=new_size, current_used=self._stats["current_used"]
         )
 
     def __len__(self) -> int:

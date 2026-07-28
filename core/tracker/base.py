@@ -402,11 +402,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             return []
 
         valid = [
-            det for det in detections
-            if validate_detection(det, require_all_fields=True).is_valid
+            det for det in detections if validate_detection(det, require_all_fields=True).is_valid
         ]
 
-        return valid[:self.MAX_DETECTIONS_PER_FRAME]
+        return valid[: self.MAX_DETECTIONS_PER_FRAME]
 
     def _extract_features(self, detections: list[dict[str, Any]], frame: np.ndarray) -> None:
         """Extrae features para todas las detecciones.

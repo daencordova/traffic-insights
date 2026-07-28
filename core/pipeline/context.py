@@ -1,12 +1,10 @@
-"""
-Context manager para captura de video con manejo automático de recursos.
+"""Context manager para captura de video con manejo automático de recursos.
 
 Este módulo proporciona context managers para manejar capturas de video
 de forma segura, con reconexión automática y manejo de errores.
 """
 
 import time
-from typing import Optional, Union
 
 import cv2
 
@@ -14,8 +12,7 @@ from utils.logger import LoggerMixin
 
 
 class VideoCaptureContext(LoggerMixin):
-    """
-    Context manager para captura de video con reconexión automática.
+    """Context manager para captura de video con reconexión automática.
 
     Responsabilidades:
     - Abrir y cerrar automáticamente la captura
@@ -33,9 +30,9 @@ class VideoCaptureContext(LoggerMixin):
 
     def __init__(
         self,
-        source: Union[str, int],
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        source: str | int,
+        width: int | None = None,
+        height: int | None = None,
         reconnect_attempts: int = 3,
         reconnect_delay: float = 1.0,
     ):
@@ -45,16 +42,13 @@ class VideoCaptureContext(LoggerMixin):
         self.reconnect_attempts = reconnect_attempts
         self.reconnect_delay = reconnect_delay
 
-        self.cap: Optional[cv2.VideoCapture] = None
+        self.cap: cv2.VideoCapture | None = None
         self._is_open = False
         self._fps = 0.0
         self._frame_count = 0
 
         self.logger.info(
-            "VideoCaptureContext inicializado",
-            source=source,
-            width=width,
-            height=height
+            "VideoCaptureContext inicializado", source=source, width=width, height=height
         )
 
     def __enter__(self) -> "VideoCaptureContext":
@@ -81,26 +75,17 @@ class VideoCaptureContext(LoggerMixin):
                     self._fps = self.cap.get(cv2.CAP_PROP_FPS)
 
                     self.logger.info(
-                        "Captura abierta exitosamente",
-                        attempt=attempt + 1,
-                        fps=self._fps
+                        "Captura abierta exitosamente", attempt=attempt + 1, fps=self._fps
                     )
                     return
 
-                self.logger.warning(
-                    "Intento de apertura fallido",
-                    attempt=attempt + 1
-                )
+                self.logger.warning("Intento de apertura fallido", attempt=attempt + 1)
 
                 if attempt < self.reconnect_attempts - 1:
                     time.sleep(self.reconnect_delay)
 
             except Exception as e:
-                self.logger.warning(
-                    "Error abriendo captura",
-                    attempt=attempt + 1,
-                    error=str(e)
-                )
+                self.logger.warning("Error abriendo captura", attempt=attempt + 1, error=str(e))
                 if attempt < self.reconnect_attempts - 1:
                     time.sleep(self.reconnect_delay)
 
@@ -122,8 +107,7 @@ class VideoCaptureContext(LoggerMixin):
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     def read(self) -> tuple:
-        """
-        Lee un frame de la captura.
+        """Lee un frame de la captura.
 
         Returns:
             tuple: (ret, frame) donde ret es booleano y frame es la imagen
@@ -146,8 +130,7 @@ class VideoCaptureContext(LoggerMixin):
         return self._fps
 
     def get_frame_size(self) -> tuple:
-        """
-        Obtiene el tamaño del frame.
+        """Obtiene el tamaño del frame.
 
         Returns:
             tuple: (width, height)
@@ -175,8 +158,7 @@ class VideoCaptureContext(LoggerMixin):
         }
 
     def reconnect(self) -> bool:
-        """
-        Reconecta la captura.
+        """Reconecta la captura.
 
         Returns:
             bool: True si la reconexión fue exitosa

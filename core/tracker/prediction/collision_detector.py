@@ -1,11 +1,10 @@
-"""
-Detector de colisiones para predicción de trayectorias.
+"""Detector de colisiones para predicción de trayectorias.
 
 Detecta posibles colisiones entre tracks basado en
 sus predicciones de trayectoria.
 """
 
-from typing import Dict, List, Tuple, Any
+from typing import Any
 
 import numpy as np
 
@@ -13,8 +12,7 @@ from utils.geometry import euclidean_distance
 
 
 class CollisionDetector:
-    """
-    Detector de colisiones.
+    """Detector de colisiones.
 
     Responsabilidades:
     - Detectar posibles colisiones entre tracks
@@ -28,8 +26,7 @@ class CollisionDetector:
     """
 
     def __init__(self, distance_threshold: float = 30.0, history_size: int = 10):
-        """
-        Inicializa el detector de colisiones.
+        """Inicializa el detector de colisiones.
 
         Args:
             distance_threshold: Umbral de distancia para colisión (px)
@@ -38,7 +35,7 @@ class CollisionDetector:
         self.distance_threshold = distance_threshold
         self.history_size = history_size
 
-        self._collision_history: Dict[int, List[float]] = {}
+        self._collision_history: dict[int, list[float]] = {}
         self._stats = {
             "total_checks": 0,
             "collisions_detected": 0,
@@ -50,11 +47,10 @@ class CollisionDetector:
     def detect_collisions(
         self,
         track_id: int,
-        predictions: List[Tuple[float, float]],
-        all_predictions: Dict[int, List[Tuple[float, float]]]
+        predictions: list[tuple[float, float]],
+        all_predictions: dict[int, list[tuple[float, float]]],
     ) -> float:
-        """
-        Detecta posibles colisiones para un track.
+        """Detecta posibles colisiones para un track.
 
         Args:
             track_id: ID del track
@@ -65,6 +61,7 @@ class CollisionDetector:
             float: Riesgo de colisión (0-1)
         """
         import time
+
         start_time = time.perf_counter()
 
         if len(predictions) < 2:
@@ -98,29 +95,30 @@ class CollisionDetector:
 
         self._collision_history[track_id].append(risk)
         if len(self._collision_history[track_id]) > self.history_size:
-            self._collision_history[track_id] = self._collision_history[track_id][-self.history_size:]
+            self._collision_history[track_id] = self._collision_history[track_id][
+                -self.history_size :
+            ]
 
         self._stats["total_checks"] += 1
         if risk > 0.3:
             self._stats["collisions_detected"] += 1
 
-        avg_risk = np.mean(self._collision_history[track_id]) if self._collision_history[track_id] else 0
-        self._stats["avg_risk"] = (
-            (self._stats["avg_risk"] * (self._stats["total_checks"] - 1) + avg_risk) /
-            self._stats["total_checks"]
+        avg_risk = (
+            np.mean(self._collision_history[track_id]) if self._collision_history[track_id] else 0
         )
+        self._stats["avg_risk"] = (
+            self._stats["avg_risk"] * (self._stats["total_checks"] - 1) + avg_risk
+        ) / self._stats["total_checks"]
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
         self._stats["detection_time_ms"] = (
-            (self._stats["detection_time_ms"] * (self._stats["total_checks"] - 1) + elapsed_ms) /
-            self._stats["total_checks"]
-        )
+            self._stats["detection_time_ms"] * (self._stats["total_checks"] - 1) + elapsed_ms
+        ) / self._stats["total_checks"]
 
         return avg_risk
 
     def get_risk(self, track_id: int) -> float:
-        """
-        Obtiene el riesgo actual de un track.
+        """Obtiene el riesgo actual de un track.
 
         Args:
             track_id: ID del track
@@ -132,9 +130,8 @@ class CollisionDetector:
             return 0.0
         return float(np.mean(self._collision_history[track_id]))
 
-    def get_high_risk_tracks(self, threshold: float = 0.5) -> List[int]:
-        """
-        Obtiene tracks con alto riesgo de colisión.
+    def get_high_risk_tracks(self, threshold: float = 0.5) -> list[int]:
+        """Obtiene tracks con alto riesgo de colisión.
 
         Args:
             threshold: Umbral de riesgo
@@ -149,8 +146,7 @@ class CollisionDetector:
         return high_risk
 
     def get_risk_level(self, risk: float) -> str:
-        """
-        Obtiene el nivel de riesgo.
+        """Obtiene el nivel de riesgo.
 
         Args:
             risk: Valor de riesgo (0-1)
@@ -160,12 +156,11 @@ class CollisionDetector:
         """
         if risk < 0.3:
             return "low"
-        elif risk < 0.5:
+        if risk < 0.5:
             return "medium"
-        elif risk < 0.7:
+        if risk < 0.7:
             return "high"
-        else:
-            return "critical"
+        return "critical"
 
     def clear_track(self, track_id: int) -> None:
         """Elimina el historial de un track."""
@@ -176,7 +171,7 @@ class CollisionDetector:
         """Limpia todos los historiales."""
         self._collision_history.clear()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del detector."""
         return {
             **self._stats,

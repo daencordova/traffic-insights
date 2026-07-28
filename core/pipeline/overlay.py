@@ -1,5 +1,4 @@
-"""
-Renderizador de overlays para tracks, líneas y predicciones.
+"""Renderizador de overlays para tracks, líneas y predicciones.
 
 Dibuja todos los elementos visuales sobre el frame incluyendo:
 - Tracks activos con sus trayectorias
@@ -11,34 +10,33 @@ Dibuja todos los elementos visuales sobre el frame incluyendo:
 """
 
 import time
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Any
 
 import cv2
 import numpy as np
 
-from utils.logger import LoggerMixin
-from core.validators import ensure_valid_frame
-from utils.color_manager import get_color_manager
 from core.constants.visualization import (
     FONT_SCALE,
     LINE_THICKNESS,
-    TRACK_ARROW_LENGTH_MIN,
-    TRACK_ARROW_LENGTH_MAX,
-    TRACK_CIRCLE_RADIUS,
-    TRACK_CONFIDENCE_RADIUS_MIN,
-    TRACK_CONFIDENCE_RADIUS_MAX,
-    TRACK_TRAIL_THICKNESS_MIN,
-    TRACK_TRAIL_THICKNESS_MAX,
-    TRACK_BBOX_THICKNESS_MIN,
-    TRACK_BBOX_THICKNESS_MAX,
-    PREDICTION_POINT_RADIUS_MIN,
     PREDICTION_POINT_RADIUS_MAX,
+    PREDICTION_POINT_RADIUS_MIN,
+    TRACK_ARROW_LENGTH_MAX,
+    TRACK_ARROW_LENGTH_MIN,
+    TRACK_BBOX_THICKNESS_MAX,
+    TRACK_BBOX_THICKNESS_MIN,
+    TRACK_CIRCLE_RADIUS,
+    TRACK_CONFIDENCE_RADIUS_MAX,
+    TRACK_CONFIDENCE_RADIUS_MIN,
+    TRACK_TRAIL_THICKNESS_MAX,
+    TRACK_TRAIL_THICKNESS_MIN,
 )
+from core.validators import ensure_valid_frame
+from utils.color_manager import get_color_manager
+from utils.logger import LoggerMixin
 
 
 class OverlayRenderer(LoggerMixin):
-    """
-    Renderizador de overlays sobre el frame.
+    """Renderizador de overlays sobre el frame.
 
     Responsabilidades:
     - Dibujar tracks con sus trayectorias
@@ -60,16 +58,16 @@ class OverlayRenderer(LoggerMixin):
     """
 
     __slots__ = (
-        '_config',
-        'trail_length',
-        'show_trails',
-        'show_velocity_vectors',
-        'show_track_arrows',
-        'show_track_speed',
-        'show_track_confidence',
-        'track_circle_style',
-        '_default_frame_size',
-        '_color_manager',
+        "_config",
+        "trail_length",
+        "show_trails",
+        "show_velocity_vectors",
+        "show_track_arrows",
+        "show_track_speed",
+        "show_track_confidence",
+        "track_circle_style",
+        "_default_frame_size",
+        "_color_manager",
     )
 
     STATUS_COLORS = {
@@ -90,39 +88,28 @@ class OverlayRenderer(LoggerMixin):
     }
 
     def __init__(self, config=None):
-        """
-        Inicializa el renderizador de overlays.
+        """Inicializa el renderizador de overlays.
 
         Args:
             config: Configuración del sistema (opcional)
         """
         from config.manager import config_manager
+
         self._config = config_manager.config
 
         self.trail_length = self._config.visualization.trail_length
         self.show_trails = self._config.visualization.show_trails
         self.show_velocity_vectors = self._config.visualization.show_velocity_vectors
 
-        self.show_track_arrows = getattr(
-            self._config.visualization, 'show_track_arrows', True
-        )
-        self.show_track_speed = getattr(
-            self._config.visualization, 'show_track_speed', True
-        )
+        self.show_track_arrows = getattr(self._config.visualization, "show_track_arrows", True)
+        self.show_track_speed = getattr(self._config.visualization, "show_track_speed", True)
         self.show_track_confidence = getattr(
-            self._config.visualization, 'show_track_confidence', True
+            self._config.visualization, "show_track_confidence", True
         )
-        self.track_circle_style = getattr(
-            self._config.visualization, 'track_circle_style', 'solid'
-        )
-        self._show_track_ids = getattr(
-            self._config.visualization, 'show_track_ids', True
-        )
+        self.track_circle_style = getattr(self._config.visualization, "track_circle_style", "solid")
+        self._show_track_ids = getattr(self._config.visualization, "show_track_ids", True)
 
-        self._default_frame_size = (
-            self._config.camera.width,
-            self._config.camera.height
-        )
+        self._default_frame_size = (self._config.camera.width, self._config.camera.height)
 
         self._color_manager = get_color_manager()
 
@@ -133,17 +120,13 @@ class OverlayRenderer(LoggerMixin):
             show_velocity_vectors=self.show_velocity_vectors,
             show_track_arrows=self.show_track_arrows,
             show_track_speed=self.show_track_speed,
-            track_circle_style=self.track_circle_style
+            track_circle_style=self.track_circle_style,
         )
 
     def render(
-        self,
-        frame: np.ndarray,
-        tracks: Dict[int, Dict[str, Any]],
-        stats: Dict[str, Any]
+        self, frame: np.ndarray, tracks: dict[int, dict[str, Any]], stats: dict[str, Any]
     ) -> np.ndarray:
-        """
-        Renderiza todos los overlays en el frame.
+        """Renderiza todos los overlays en el frame.
 
         Args:
             frame: Frame base
@@ -154,8 +137,7 @@ class OverlayRenderer(LoggerMixin):
             np.ndarray: Frame con overlays (siempre retorna un array válido)
         """
         frame = ensure_valid_frame(
-            frame,
-            default_shape=(self._default_frame_size[1], self._default_frame_size[0], 3)
+            frame, default_shape=(self._default_frame_size[1], self._default_frame_size[0], 3)
         )
 
         result = frame.copy()
@@ -185,13 +167,8 @@ class OverlayRenderer(LoggerMixin):
 
         return result
 
-    def _draw_tracks(
-        self,
-        frame: np.ndarray,
-        tracks: Dict[int, Dict[str, Any]]
-    ) -> np.ndarray:
-        """
-        Dibuja todos los tracks activos con información mejorada.
+    def _draw_tracks(self, frame: np.ndarray, tracks: dict[int, dict[str, Any]]) -> np.ndarray:
+        """Dibuja todos los tracks activos con información mejorada.
 
         Args:
             frame: Frame donde dibujar
@@ -216,13 +193,12 @@ class OverlayRenderer(LoggerMixin):
         self,
         frame: np.ndarray,
         track_id: int,
-        track_data: Dict[str, Any],
-        colors: Dict[int, Tuple[int, int, int]],
+        track_data: dict[str, Any],
+        colors: dict[int, tuple[int, int, int]],
         h: int,
-        w: int
+        w: int,
     ) -> None:
-        """
-        Dibuja un track individual.
+        """Dibuja un track individual.
 
         Args:
             frame: Frame donde dibujar
@@ -249,23 +225,16 @@ class OverlayRenderer(LoggerMixin):
 
             history = track_data.get("history", [])
             self._draw_track_elements(
-                frame, track_id, track_data, history,
-                cx, cy, final_color, h, w
+                frame, track_id, track_data, history, cx, cy, final_color, h, w
             )
 
         except Exception as e:
-            self.logger.error(
-                f"Error dibujando track {track_id}: {e}",
-                exc_info=True
-            )
+            self.logger.error(f"Error dibujando track {track_id}: {e}", exc_info=True)
 
     def _get_final_color(
-        self,
-        track_data: Dict[str, Any],
-        base_color: Tuple[int, int, int]
-    ) -> Tuple[int, int, int]:
-        """
-        Obtiene el color final combinando base con estado.
+        self, track_data: dict[str, Any], base_color: tuple[int, int, int]
+    ) -> tuple[int, int, int]:
+        """Obtiene el color final combinando base con estado.
 
         Args:
             track_data: Datos del track
@@ -282,16 +251,15 @@ class OverlayRenderer(LoggerMixin):
         self,
         frame: np.ndarray,
         track_id: int,
-        track_data: Dict[str, Any],
-        history: List[Tuple[int, int]],
+        track_data: dict[str, Any],
+        history: list[tuple[int, int]],
         cx: int,
         cy: int,
-        color: Tuple[int, int, int],
+        color: tuple[int, int, int],
         h: int,
-        w: int
+        w: int,
     ) -> None:
-        """
-        Dibuja todos los elementos visuales de un track.
+        """Dibuja todos los elementos visuales de un track.
 
         Args:
             frame: Frame donde dibujar
@@ -312,9 +280,8 @@ class OverlayRenderer(LoggerMixin):
         self._draw_track_speed(frame, cx, cy, track_data, h, w)
         self._draw_track_prediction(frame, track_data, cx, cy, color)
 
-    def _get_status_icon(self, track_data: Dict[str, Any]) -> str:
-        """
-        Obtiene el icono del estado del track.
+    def _get_status_icon(self, track_data: dict[str, Any]) -> str:
+        """Obtiene el icono del estado del track.
 
         Args:
             track_data: Datos del track
@@ -327,12 +294,9 @@ class OverlayRenderer(LoggerMixin):
         return icon
 
     def _sanitize_point(
-        self,
-        point: Any,
-        frame_shape: Tuple[int, int]
-    ) -> Optional[Tuple[int, int]]:
-        """
-        Valida y sanitiza un punto (x, y) para estar dentro de los límites del frame.
+        self, point: Any, frame_shape: tuple[int, int]
+    ) -> tuple[int, int] | None:
+        """Valida y sanitiza un punto (x, y) para estar dentro de los límites del frame.
 
         Args:
             point: Punto a validar (tuple o list de 2 elementos)
@@ -361,13 +325,9 @@ class OverlayRenderer(LoggerMixin):
         return (x, y)
 
     def _sanitize_centroid(
-        self,
-        centroid: Any,
-        h: int,
-        w: int
-    ) -> Tuple[Optional[int], Optional[int]]:
-        """
-        Valida y sanitiza un centroide, asegurando que está dentro de los límites del frame.
+        self, centroid: Any, h: int, w: int
+    ) -> tuple[int | None, int | None]:
+        """Valida y sanitiza un centroide, asegurando que está dentro de los límites del frame.
 
         Args:
             centroid: Centroide a validar (tuple o list de 2 elementos)
@@ -391,9 +351,8 @@ class OverlayRenderer(LoggerMixin):
 
         return cx, cy
 
-    def _get_enhanced_status_info(self, status: str) -> Tuple[Tuple[int, int, int], str, str]:
-        """
-        Obtiene información visual según el estado del track.
+    def _get_enhanced_status_info(self, status: str) -> tuple[tuple[int, int, int], str, str]:
+        """Obtiene información visual según el estado del track.
 
         Args:
             status: Estado del track
@@ -409,9 +368,8 @@ class OverlayRenderer(LoggerMixin):
 
         return ((0, 165, 255), "❓", "Unknown")
 
-    def _get_prediction_color(self, state: str) -> Tuple[int, int, int]:
-        """
-        Obtiene el color según el estado de predicción.
+    def _get_prediction_color(self, state: str) -> tuple[int, int, int]:
+        """Obtiene el color según el estado de predicción.
 
         Args:
             state: Estado de la predicción
@@ -422,13 +380,9 @@ class OverlayRenderer(LoggerMixin):
         return self.PREDICTION_STATE_COLORS.get(state, (255, 255, 0))
 
     def _blend_colors(
-        self,
-        color1: Tuple[int, int, int],
-        color2: Tuple[int, int, int],
-        weight: float = 0.3
-    ) -> Tuple[int, int, int]:
-        """
-        Mezcla dos colores.
+        self, color1: tuple[int, int, int], color2: tuple[int, int, int], weight: float = 0.3
+    ) -> tuple[int, int, int]:
+        """Mezcla dos colores.
 
         Args:
             color1: Color base.
@@ -450,15 +404,14 @@ class OverlayRenderer(LoggerMixin):
     def _draw_track_arrow(
         self,
         frame: np.ndarray,
-        history: List[Tuple[int, int]],
+        history: list[tuple[int, int]],
         cx: int,
         cy: int,
-        color: Tuple[int, int, int],
+        color: tuple[int, int, int],
         w: int,
-        h: int
+        h: int,
     ) -> None:
-        """
-        Dibuja la flecha de dirección del track.
+        """Dibuja la flecha de dirección del track.
 
         Args:
             frame: Frame donde dibujar
@@ -478,8 +431,12 @@ class OverlayRenderer(LoggerMixin):
         prev_point = history[-2]
         curr_point = history[-1]
 
-        if not (isinstance(prev_point, (tuple, list)) and len(prev_point) == 2 and
-                isinstance(curr_point, (tuple, list)) and len(curr_point) == 2):
+        if not (
+            isinstance(prev_point, (tuple, list))
+            and len(prev_point) == 2
+            and isinstance(curr_point, (tuple, list))
+            and len(curr_point) == 2
+        ):
             return
 
         prev_sanitized = self._sanitize_point(prev_point, (h, w))
@@ -497,10 +454,7 @@ class OverlayRenderer(LoggerMixin):
         angle = np.arctan2(dy, dx)
         speed = np.sqrt(dx**2 + dy**2)
 
-        arrow_length = min(
-            TRACK_ARROW_LENGTH_MAX,
-            max(TRACK_ARROW_LENGTH_MIN, int(speed * 1.5))
-        )
+        arrow_length = min(TRACK_ARROW_LENGTH_MAX, max(TRACK_ARROW_LENGTH_MIN, int(speed * 1.5)))
 
         end_x = int(cx + arrow_length * np.cos(angle))
         end_y = int(cy + arrow_length * np.sin(angle))
@@ -509,13 +463,7 @@ class OverlayRenderer(LoggerMixin):
         end_y = max(0, min(h - 1, end_y))
 
         cv2.arrowedLine(
-            frame,
-            (cx, cy),
-            (end_x, end_y),
-            color,
-            2,
-            tipLength=0.3,
-            line_type=cv2.LINE_AA
+            frame, (cx, cy), (end_x, end_y), color, 2, tipLength=0.3, line_type=cv2.LINE_AA
         )
 
     def _draw_track_circle(
@@ -523,11 +471,10 @@ class OverlayRenderer(LoggerMixin):
         frame: np.ndarray,
         cx: int,
         cy: int,
-        color: Tuple[int, int, int],
-        track_data: Dict[str, Any]
+        color: tuple[int, int, int],
+        track_data: dict[str, Any],
     ) -> None:
-        """
-        Dibuja el círculo del track con su estilo (solid, outline, pulse).
+        """Dibuja el círculo del track con su estilo (solid, outline, pulse).
 
         Args:
             frame: Frame donde dibujar
@@ -548,8 +495,8 @@ class OverlayRenderer(LoggerMixin):
             cv2.circle(frame, (cx, cy), TRACK_CIRCLE_RADIUS, color, 2)
             if self.show_track_confidence:
                 inner_radius = int(
-                    TRACK_CONFIDENCE_RADIUS_MIN +
-                    (TRACK_CONFIDENCE_RADIUS_MAX - TRACK_CONFIDENCE_RADIUS_MIN) * confidence
+                    TRACK_CONFIDENCE_RADIUS_MIN
+                    + (TRACK_CONFIDENCE_RADIUS_MAX - TRACK_CONFIDENCE_RADIUS_MIN) * confidence
                 )
                 cv2.circle(frame, (cx, cy), max(2, inner_radius), color, -1)
 
@@ -562,10 +509,9 @@ class OverlayRenderer(LoggerMixin):
         cy: int,
         track_id: int,
         status_icon: str,
-        color: Tuple[int, int, int]
+        color: tuple[int, int, int],
     ) -> None:
-        """
-        Dibuja la etiqueta del track con su ID y estado.
+        """Dibuja la etiqueta del track con su ID y estado.
 
         Args:
             frame: Frame donde dibujar
@@ -584,37 +530,26 @@ class OverlayRenderer(LoggerMixin):
         label_x = min(w - 50, cx + 15)
         label_y = max(10, cy - 15)
 
-        (text_w, text_h), _ = cv2.getTextSize(
-            label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2
-        )
+        (text_w, text_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)
 
         cv2.rectangle(
             frame,
             (label_x - 2, label_y - text_h - 2),
             (label_x + text_w + 2, label_y + 2),
             (0, 0, 0),
-            -1
+            -1,
         )
 
-        cv2.putText(
-            frame,
-            label,
-            (label_x, label_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            color,
-            2
-        )
+        cv2.putText(frame, label, (label_x, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
     def _draw_track_trail(
         self,
         frame: np.ndarray,
-        history: List[Tuple[int, int]],
-        color: Tuple[int, int, int],
-        trail_length: int
+        history: list[tuple[int, int]],
+        color: tuple[int, int, int],
+        trail_length: int,
     ) -> None:
-        """
-        Dibuja la trayectoria (trail) del track.
+        """Dibuja la trayectoria (trail) del track.
 
         Args:
             frame: Frame donde dibujar
@@ -642,31 +577,17 @@ class OverlayRenderer(LoggerMixin):
                     continue
 
                 alpha = i / len(history)
-                thickness = max(
-                    TRACK_TRAIL_THICKNESS_MIN,
-                    int(TRACK_TRAIL_THICKNESS_MAX * alpha)
-                )
+                thickness = max(TRACK_TRAIL_THICKNESS_MIN, int(TRACK_TRAIL_THICKNESS_MAX * alpha))
                 color_fade = tuple(int(c * alpha) for c in color)
 
-                cv2.line(
-                    frame,
-                    prev,
-                    curr,
-                    color_fade,
-                    thickness,
-                    cv2.LINE_AA
-                )
+                cv2.line(frame, prev, curr, color_fade, thickness, cv2.LINE_AA)
             except Exception:
                 continue
 
     def _draw_track_bbox(
-        self,
-        frame: np.ndarray,
-        track_data: Dict[str, Any],
-        color: Tuple[int, int, int]
+        self, frame: np.ndarray, track_data: dict[str, Any], color: tuple[int, int, int]
     ) -> None:
-        """
-        Dibuja el bounding box del track con su confianza.
+        """Dibuja el bounding box del track con su confianza.
 
         Args:
             frame: Frame donde dibujar
@@ -687,34 +608,23 @@ class OverlayRenderer(LoggerMixin):
 
         confidence = track_data.get("confidence", 0.5)
 
-        border_thickness = max(
-            TRACK_BBOX_THICKNESS_MIN,
-            int(TRACK_BBOX_THICKNESS_MAX * confidence)
-        )
+        border_thickness = max(TRACK_BBOX_THICKNESS_MIN, int(TRACK_BBOX_THICKNESS_MAX * confidence))
 
-        cv2.rectangle(
-            frame,
-            (x1, y1),
-            (x2, y2),
-            color,
-            border_thickness
-        )
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, border_thickness)
 
         if self.show_track_confidence and confidence > 0.3:
             conf_text = f"{confidence:.0%}"
             conf_x = x1 + 2
             conf_y = y1 + 15
 
-            (text_w, text_h), _ = cv2.getTextSize(
-                conf_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1
-            )
+            (text_w, text_h), _ = cv2.getTextSize(conf_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
 
             cv2.rectangle(
                 frame,
                 (conf_x - 2, conf_y - text_h - 2),
                 (conf_x + text_w + 2, conf_y + 2),
                 (0, 0, 0),
-                -1
+                -1,
             )
 
             cv2.putText(
@@ -724,20 +634,13 @@ class OverlayRenderer(LoggerMixin):
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.35,
                 (255, 255, 255),
-                1
+                1,
             )
 
     def _draw_track_speed(
-        self,
-        frame: np.ndarray,
-        cx: int,
-        cy: int,
-        track_data: Dict[str, Any],
-        h: int,
-        w: int
+        self, frame: np.ndarray, cx: int, cy: int, track_data: dict[str, Any], h: int, w: int
     ) -> None:
-        """
-        Dibuja la velocidad del track.
+        """Dibuja la velocidad del track.
 
         Args:
             frame: Frame donde dibujar
@@ -754,7 +657,7 @@ class OverlayRenderer(LoggerMixin):
         if not isinstance(velocity, (tuple, list)) or len(velocity) != 2:
             return
 
-        speed = np.sqrt(velocity[0]**2 + velocity[1]**2)
+        speed = np.sqrt(velocity[0] ** 2 + velocity[1] ** 2)
 
         if speed <= 1.0:
             return
@@ -770,19 +673,18 @@ class OverlayRenderer(LoggerMixin):
             cv2.FONT_HERSHEY_SIMPLEX,
             0.35,
             (255, 255, 255),
-            1
+            1,
         )
 
     def _draw_track_prediction(
         self,
         frame: np.ndarray,
-        track_data: Dict[str, Any],
+        track_data: dict[str, Any],
         cx: int,
         cy: int,
-        color: Tuple[int, int, int]
+        color: tuple[int, int, int],
     ) -> None:
-        """
-        Dibuja la predicción de trayectoria del track.
+        """Dibuja la predicción de trayectoria del track.
 
         Args:
             frame: Frame donde dibujar
@@ -795,24 +697,12 @@ class OverlayRenderer(LoggerMixin):
         if not path_prediction or not isinstance(path_prediction, dict):
             return
 
-        self._draw_enhanced_path_prediction(
-            frame,
-            path_prediction,
-            cx,
-            cy,
-            color
-        )
+        self._draw_enhanced_path_prediction(frame, path_prediction, cx, cy, color)
 
     def _draw_enhanced_path_prediction(
-        self,
-        frame: np.ndarray,
-        prediction: Dict[str, Any],
-        cx: int,
-        cy: int,
-        color: tuple
+        self, frame: np.ndarray, prediction: dict[str, Any], cx: int, cy: int, color: tuple
     ) -> None:
-        """
-        Dibuja la predicción de trayectoria mejorada con efectos visuales.
+        """Dibuja la predicción de trayectoria mejorada con efectos visuales.
 
         Args:
             frame: Frame donde dibujar
@@ -847,8 +737,7 @@ class OverlayRenderer(LoggerMixin):
             color_pred = tuple(int(c * alpha) for c in pred_color)
 
             base_radius = max(
-                PREDICTION_POINT_RADIUS_MIN,
-                int(PREDICTION_POINT_RADIUS_MAX * (1 - uncertainty))
+                PREDICTION_POINT_RADIUS_MIN, int(PREDICTION_POINT_RADIUS_MAX * (1 - uncertainty))
             )
             radius = max(1, int(base_radius * (1 + alpha * 0.5)))
 
@@ -857,39 +746,24 @@ class OverlayRenderer(LoggerMixin):
 
             if i > 0:
                 prev_pos = sanitized_positions[i - 1]
-                cv2.line(
-                    frame,
-                    prev_pos,
-                    pos,
-                    color_pred,
-                    max(1, int(2 * alpha)),
-                    cv2.LINE_AA
-                )
+                cv2.line(frame, prev_pos, pos, color_pred, max(1, int(2 * alpha)), cv2.LINE_AA)
 
         state_text = f"🚦 {state}"
         state_x = min(w - 60, cx + 10)
         state_y = min(h - 10, cy + 40)
 
-        (text_w, text_h), _ = cv2.getTextSize(
-            state_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1
-        )
+        (text_w, text_h), _ = cv2.getTextSize(state_text, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
 
         cv2.rectangle(
             frame,
             (state_x - 2, state_y - text_h - 2),
             (state_x + text_w + 2, state_y + 2),
             (0, 0, 0),
-            -1
+            -1,
         )
 
         cv2.putText(
-            frame,
-            state_text,
-            (state_x, state_y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.35,
-            pred_color,
-            1
+            frame, state_text, (state_x, state_y), cv2.FONT_HERSHEY_SIMPLEX, 0.35, pred_color, 1
         )
 
         if collision_risk > 0.3:
@@ -901,26 +775,18 @@ class OverlayRenderer(LoggerMixin):
                 risk_x = min(w - 10, last_pos[0] + 10)
                 risk_y = max(10, last_pos[1] - 10)
 
-                (text_w, text_h), _ = cv2.getTextSize(
-                    risk_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1
-                )
+                (text_w, text_h), _ = cv2.getTextSize(risk_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
 
                 cv2.rectangle(
                     frame,
                     (risk_x - 2, risk_y - text_h - 2),
                     (risk_x + text_w + 2, risk_y + 2),
                     (0, 0, 0),
-                    -1
+                    -1,
                 )
 
                 cv2.putText(
-                    frame,
-                    risk_text,
-                    (risk_x, risk_y),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.4,
-                    risk_color,
-                    1
+                    frame, risk_text, (risk_x, risk_y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, risk_color, 1
                 )
 
                 if collision_risk > 0.6:
@@ -928,13 +794,8 @@ class OverlayRenderer(LoggerMixin):
                     radius = int(15 + 10 * pulse)
                     cv2.circle(frame, (cx, cy), radius, (0, 0, 255), 2)
 
-    def _draw_counting_lines(
-        self,
-        frame: np.ndarray,
-        stats: Dict[str, Any]
-    ) -> np.ndarray:
-        """
-        Dibuja las líneas de conteo con sus contadores.
+    def _draw_counting_lines(self, frame: np.ndarray, stats: dict[str, Any]) -> np.ndarray:
+        """Dibuja las líneas de conteo con sus contadores.
 
         Args:
             frame: Frame donde dibujar
@@ -970,44 +831,23 @@ class OverlayRenderer(LoggerMixin):
                 if isinstance(first_point, (list, tuple)) and len(first_point) == 2:
                     y_position = min(max(0, first_point[1]), h - 1)
 
-                    cv2.line(
-                        frame,
-                        (0, y_position),
-                        (w, y_position),
-                        color,
-                        LINE_THICKNESS
-                    )
+                    cv2.line(frame, (0, y_position), (w, y_position), color, LINE_THICKNESS)
 
                     label = f"{name}: {count}"
                     x_pos = min(max(10, first_point[0] + 10), w - 100)
                     y_pos = max(10, y_position - 10)
                     cv2.putText(
-                        frame,
-                        label,
-                        (x_pos, y_pos),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        FONT_SCALE,
-                        color,
-                        2
+                        frame, label, (x_pos, y_pos), cv2.FONT_HERSHEY_SIMPLEX, FONT_SCALE, color, 2
                     )
 
             except Exception as e:
-                self.logger.debug(
-                    "Error dibujando línea de conteo",
-                    index=idx,
-                    error=str(e)
-                )
+                self.logger.debug("Error dibujando línea de conteo", index=idx, error=str(e))
                 continue
 
         return frame
 
-    def _draw_detections(
-        self,
-        frame: np.ndarray,
-        tracks: Dict[int, Dict[str, Any]]
-    ) -> np.ndarray:
-        """
-        Dibuja las detecciones (si están disponibles en tracks).
+    def _draw_detections(self, frame: np.ndarray, tracks: dict[int, dict[str, Any]]) -> np.ndarray:
+        """Dibuja las detecciones (si están disponibles en tracks).
 
         Args:
             frame: Frame donde dibujar
@@ -1019,12 +859,9 @@ class OverlayRenderer(LoggerMixin):
         return frame
 
     def _draw_collision_alerts(
-        self,
-        frame: np.ndarray,
-        tracks: Dict[int, Dict[str, Any]]
+        self, frame: np.ndarray, tracks: dict[int, dict[str, Any]]
     ) -> np.ndarray:
-        """
-        Dibuja alertas de colisión para tracks de alto riesgo.
+        """Dibuja alertas de colisión para tracks de alto riesgo.
 
         Args:
             frame: Frame donde dibujar
@@ -1071,14 +908,6 @@ class OverlayRenderer(LoggerMixin):
         cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
 
         alert_text = f"⚠️ {len(high_risk)} colisiones potenciales"
-        cv2.putText(
-            frame,
-            alert_text,
-            (10, 60),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 0, 255),
-            2
-        )
+        cv2.putText(frame, alert_text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
         return frame

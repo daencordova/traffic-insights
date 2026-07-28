@@ -1,12 +1,11 @@
-"""
-Modelos de movimiento para predicción de trayectoria.
+"""Modelos de movimiento para predicción de trayectoria.
 
 Implementa diferentes modelos de movimiento: lineal, curvado,
 cíclico, polinomial y adaptativo.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Tuple
+
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 
@@ -21,10 +20,9 @@ class MotionModel(ABC):
         velocities: np.ndarray,
         timestamps: np.ndarray,
         horizon: float,
-        steps: int
-    ) -> Tuple[List[Tuple[float, float]], List[float]]:
-        """
-        Predice posiciones futuras.
+        steps: int,
+    ) -> tuple[list[tuple[float, float]], list[float]]:
+        """Predice posiciones futuras.
 
         Args:
             positions: Array de posiciones [N, 2]
@@ -37,12 +35,10 @@ class MotionModel(ABC):
             Tuple[List[Tuple[float, float]], List[float]]:
                 (predicciones, incertidumbres)
         """
-        pass
 
     @abstractmethod
     def evaluate(self, positions: np.ndarray, velocities: np.ndarray) -> float:
-        """
-        Evalúa la precisión del modelo.
+        """Evalúa la precisión del modelo.
 
         Args:
             positions: Array de posiciones [N, 2]
@@ -51,13 +47,11 @@ class MotionModel(ABC):
         Returns:
             float: Error del modelo
         """
-        pass
 
     @property
     @abstractmethod
     def name(self) -> str:
         """Nombre del modelo."""
-        pass
 
 
 class LinearModel(MotionModel):
@@ -69,8 +63,8 @@ class LinearModel(MotionModel):
         velocities: np.ndarray,
         timestamps: np.ndarray,
         horizon: float,
-        steps: int
-    ) -> Tuple[List[Tuple[float, float]], List[float]]:
+        steps: int,
+    ) -> tuple[list[tuple[float, float]], list[float]]:
         avg_velocity = np.mean(velocities, axis=0)
 
         if np.linalg.norm(avg_velocity) < 0.1 and len(positions) > 1:
@@ -84,7 +78,7 @@ class LinearModel(MotionModel):
         for i in range(steps):
             pred = (
                 last_pos[0] + avg_velocity[0] * (i + 1) * dt,
-                last_pos[1] + avg_velocity[1] * (i + 1) * dt
+                last_pos[1] + avg_velocity[1] * (i + 1) * dt,
             )
             predictions.append(pred)
             uncertainty = 0.1 + 0.4 * (i / steps)
@@ -103,7 +97,7 @@ class LinearModel(MotionModel):
         pred_x = np.polyval(coeffs_x, t)
         pred_y = np.polyval(coeffs_y, t)
 
-        error = np.mean(np.sqrt((pred_x - positions[:, 0])**2 + (pred_y - positions[:, 1])**2))
+        error = np.mean(np.sqrt((pred_x - positions[:, 0]) ** 2 + (pred_y - positions[:, 1]) ** 2))
         return float(error)
 
     @property
@@ -120,8 +114,8 @@ class CurvedModel(MotionModel):
         velocities: np.ndarray,
         timestamps: np.ndarray,
         horizon: float,
-        steps: int
-    ) -> Tuple[List[Tuple[float, float]], List[float]]:
+        steps: int,
+    ) -> tuple[list[tuple[float, float]], list[float]]:
         if len(positions) < 4:
             return LinearModel().predict(positions, velocities, timestamps, horizon, steps)
 
@@ -177,8 +171,8 @@ class CyclicModel(MotionModel):
         velocities: np.ndarray,
         timestamps: np.ndarray,
         horizon: float,
-        steps: int
-    ) -> Tuple[List[Tuple[float, float]], List[float]]:
+        steps: int,
+    ) -> tuple[list[tuple[float, float]], list[float]]:
         if len(positions) < 5:
             return LinearModel().predict(positions, velocities, timestamps, horizon, steps)
 
@@ -234,7 +228,7 @@ class CyclicModel(MotionModel):
             center_y = -d / 2
             radius = np.sqrt(c**2 + d**2 - e)
 
-            distances = np.sqrt((x - center_x)**2 + (y - center_y)**2)
+            distances = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
             error = np.mean(np.abs(distances - radius))
             return 1.0 / (1.0 + error / radius)
 
@@ -258,8 +252,8 @@ class PolynomialModel(MotionModel):
         velocities: np.ndarray,
         timestamps: np.ndarray,
         horizon: float,
-        steps: int
-    ) -> Tuple[List[Tuple[float, float]], List[float]]:
+        steps: int,
+    ) -> tuple[list[tuple[float, float]], list[float]]:
         if len(positions) < self._degree + 2:
             return LinearModel().predict(positions, velocities, timestamps, horizon, steps)
 
@@ -298,7 +292,9 @@ class PolynomialModel(MotionModel):
             pred_x = np.polyval(coeffs_x, t)
             pred_y = np.polyval(coeffs_y, t)
 
-            error = np.mean(np.sqrt((pred_x - positions[:, 0])**2 + (pred_y - positions[:, 1])**2))
+            error = np.mean(
+                np.sqrt((pred_x - positions[:, 0]) ** 2 + (pred_y - positions[:, 1]) ** 2)
+            )
             return float(error)
 
         except Exception:
@@ -328,8 +324,8 @@ class AdaptiveModel(MotionModel):
         velocities: np.ndarray,
         timestamps: np.ndarray,
         horizon: float,
-        steps: int
-    ) -> Tuple[List[Tuple[float, float]], List[float]]:
+        steps: int,
+    ) -> tuple[list[tuple[float, float]], list[float]]:
         errors = {}
         for model in self._models:
             try:
@@ -366,7 +362,7 @@ class AdaptiveModel(MotionModel):
                     weight = self._weights.get(name, 1.0)
                     weighted_pos = (
                         weighted_pos[0] + weight * preds[i][0],
-                        weighted_pos[1] + weight * preds[i][1]
+                        weighted_pos[1] + weight * preds[i][1],
                     )
                     weighted_uncertainty += weight * uncerts[i]
                     total_weight += weight
@@ -415,8 +411,7 @@ class MotionModelFactory:
 
     @classmethod
     def create(cls, model_type: str, **kwargs) -> MotionModel:
-        """
-        Crea un modelo de movimiento.
+        """Crea un modelo de movimiento.
 
         Args:
             model_type: Tipo de modelo ('linear', 'curved', 'cyclic', 'polynomial', 'adaptive')
@@ -436,6 +431,6 @@ class MotionModelFactory:
         return model_class(**kwargs)
 
     @classmethod
-    def get_available_models(cls) -> List[str]:
+    def get_available_models(cls) -> list[str]:
         """Obtiene la lista de modelos disponibles."""
         return list(cls._models.keys())

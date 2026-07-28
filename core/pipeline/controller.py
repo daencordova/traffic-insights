@@ -1,19 +1,18 @@
-"""
-Controlador de estado y flujo del pipeline.
+"""Controlador de estado y flujo del pipeline.
 
 Gestiona el ciclo de vida del pipeline y aplica control de flujo
 para evitar saturación del sistema.
 """
 
-import time
-import threading
-from typing import Optional, List
 from dataclasses import dataclass
 from enum import Enum, auto
+import threading
+import time
 
 
 class PipelineState(Enum):
     """Estados del pipeline."""
+
     IDLE = auto()
     RUNNING = auto()
     PAUSED = auto()
@@ -25,6 +24,7 @@ class PipelineState(Enum):
 @dataclass
 class FlowControlConfig:
     """Configuración del control de flujo."""
+
     drop_threshold: float = 0.8
     recovery_threshold: float = 0.3
     max_frame_skip: int = 2
@@ -34,8 +34,7 @@ class FlowControlConfig:
 
 
 class PipelineController:
-    """
-    Controlador de estado y flujo del pipeline.
+    """Controlador de estado y flujo del pipeline.
 
     Responsabilidades:
     - Gestionar el estado del pipeline (RUNNING, PAUSED, etc.)
@@ -46,7 +45,7 @@ class PipelineController:
 
     def __init__(
         self,
-        flow_config: Optional[FlowControlConfig] = None,
+        flow_config: FlowControlConfig | None = None,
         is_cpu_mode: bool = True,
     ):
         self.flow_config = flow_config or FlowControlConfig()
@@ -61,9 +60,7 @@ class PipelineController:
         self._dropped_count = 0
         self._frame_count = 0
 
-        self._capture_fps_target = (
-            FlowControlConfig().min_capture_fps if is_cpu_mode else 30.0
-        )
+        self._capture_fps_target = FlowControlConfig().min_capture_fps if is_cpu_mode else 30.0
         self._capture_interval = 1.0 / self._capture_fps_target
 
         self._fps_counter = 0
@@ -71,7 +68,7 @@ class PipelineController:
         self._current_fps = 0.0
         self._last_capture_time = time.time()
 
-        self._health_issues: List[str] = []
+        self._health_issues: list[str] = []
 
     @property
     def state(self) -> PipelineState:
@@ -155,8 +152,7 @@ class PipelineController:
         self._state = PipelineState.ERROR
 
     def can_capture_frame(self) -> bool:
-        """
-        Determina si se puede capturar un frame basado en el control de flujo.
+        """Determina si se puede capturar un frame basado en el control de flujo.
 
         Returns:
             bool: True si se debe capturar un frame.
@@ -175,8 +171,7 @@ class PipelineController:
         return True
 
     def should_process_frame(self, buffer_usage: float) -> bool:
-        """
-        Aplica control de flujo para decidir si procesar un frame.
+        """Aplica control de flujo para decidir si procesar un frame.
 
         Args:
             buffer_usage: Uso del buffer (0-1)
@@ -191,24 +186,20 @@ class PipelineController:
                 self._consecutive_skips += 1
 
                 if self._consecutive_skips > self.flow_config.consecutive_skip_limit:
-                    self._add_health_issue(
-                        f"Buffer crítico: {buffer_usage*100:.1f}%"
-                    )
+                    self._add_health_issue(f"Buffer crítico: {buffer_usage * 100:.1f}%")
                     if self.is_cpu_mode:
                         self._reduce_capture_fps()
 
                 return False
-            else:
-                self._frame_skip_counter = 0
-                self._consecutive_skips = max(0, self._consecutive_skips - 2)
+            self._frame_skip_counter = 0
+            self._consecutive_skips = max(0, self._consecutive_skips - 2)
 
         elif buffer_usage < self.flow_config.recovery_threshold:
             self._frame_skip_counter = 0
             self._consecutive_skips = max(0, self._consecutive_skips - 2)
             if self._capture_fps_target < self.flow_config.max_capture_fps:
                 self._capture_fps_target = min(
-                    self.flow_config.max_capture_fps,
-                    self._capture_fps_target + 0.5
+                    self.flow_config.max_capture_fps, self._capture_fps_target + 0.5
                 )
                 self._capture_interval = 1.0 / self._capture_fps_target
 
@@ -220,8 +211,7 @@ class PipelineController:
     def _reduce_capture_fps(self) -> None:
         """Reduce el FPS de captura para aliviar el buffer."""
         self._capture_fps_target = max(
-            self.flow_config.min_capture_fps,
-            self._capture_fps_target * 0.9
+            self.flow_config.min_capture_fps, self._capture_fps_target * 0.9
         )
         self._capture_interval = 1.0 / self._capture_fps_target
 

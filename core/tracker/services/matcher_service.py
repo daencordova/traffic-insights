@@ -1,35 +1,34 @@
-"""
-Servicio de matching entre detecciones y tracks.
+"""Servicio de matching entre detecciones y tracks.
 
 Maneja la asociación de detecciones con tracks existentes
 usando diferentes estrategias de matching.
 """
 
-from typing import List, Tuple, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
 from core.tracker.matcher import TrackMatcher as TMatcher
 from core.tracker.reidentifier import ReIDSystem
-from utils.logger import LoggerMixin
 from utils.geometry import calculate_iou
+from utils.logger import LoggerMixin
 
 
 @dataclass
 class MatchResult:
     """Resultado del matching."""
-    matches: List[Tuple[int, int]]
-    unmatched_detections: List[int]
-    unmatched_tracks: List[int]
-    match_scores: Dict[Tuple[int, int], float]
-    reidentified: List[Tuple[int, int]]
+
+    matches: list[tuple[int, int]]
+    unmatched_detections: list[int]
+    unmatched_tracks: list[int]
+    match_scores: dict[tuple[int, int], float]
+    reidentified: list[tuple[int, int]]
     time_ms: float
 
 
 class TrackMatcher(LoggerMixin):
-    """
-    Servicio de matching entre detecciones y tracks.
+    """Servicio de matching entre detecciones y tracks.
 
     Responsabilidades:
     - Matching basado en IoU
@@ -47,8 +46,8 @@ class TrackMatcher(LoggerMixin):
 
     def __init__(
         self,
-        matcher: Optional[TMatcher] = None,
-        reid_system: Optional[ReIDSystem] = None,
+        matcher: TMatcher | None = None,
+        reid_system: ReIDSystem | None = None,
         iou_threshold: float = 0.3,
         feature_threshold: float = 0.6,
         spatial_threshold: float = 50.0,
@@ -71,12 +70,9 @@ class TrackMatcher(LoggerMixin):
 
         if matcher is None:
             from config.manager import config_manager
+
             config = config_manager.config
-            max_search_radius = getattr(
-                config.tracker,
-                "max_search_radius",
-                150.0
-            )
+            max_search_radius = getattr(config.tracker, "max_search_radius", 150.0)
 
             self.matcher = TMatcher(
                 iou_threshold=iou_threshold,
@@ -90,17 +86,16 @@ class TrackMatcher(LoggerMixin):
             iou_threshold=iou_threshold,
             feature_threshold=feature_threshold,
             has_matcher=matcher is not None,
-            has_reid=reid_system is not None
+            has_reid=reid_system is not None,
         )
 
     def match(
         self,
-        detections: List[Dict[str, Any]],
-        tracks: List[Any],
-        frame: Optional[np.ndarray] = None
+        detections: list[dict[str, Any]],
+        tracks: list[Any],
+        frame: np.ndarray | None = None,
     ) -> MatchResult:
-        """
-        Realiza matching entre detecciones y tracks.
+        """Realiza matching entre detecciones y tracks.
 
         Args:
             detections: Lista de detecciones
@@ -111,6 +106,7 @@ class TrackMatcher(LoggerMixin):
             MatchResult: Resultado del matching
         """
         import time
+
         start_time = time.perf_counter()
 
         if not detections or not tracks:
@@ -120,26 +116,19 @@ class TrackMatcher(LoggerMixin):
                 unmatched_tracks=list(range(len(tracks))),
                 match_scores={},
                 reidentified=[],
-                time_ms=0.0
+                time_ms=0.0,
             )
 
-        matches, unmatched_dets, unmatched_trks = self._hierarchical_match(
-            detections, tracks
-        )
+        matches, unmatched_dets, unmatched_trks = self._hierarchical_match(detections, tracks)
 
         reidentified = []
         if self.reid_system and unmatched_dets and frame is not None:
-            reid_results = self._attempt_reidentification(
-                detections, unmatched_dets, tracks, frame
-            )
+            reid_results = self._attempt_reidentification(detections, unmatched_dets, tracks, frame)
             reidentified = reid_results.get("matches", [])
             unmatched_dets = reid_results.get("unmatched_dets", unmatched_dets)
             if reidentified:
                 self._stats["reid_matches"] += len(reidentified)
-                self.logger.info(
-                    "Re-identificación exitosa",
-                    count=len(reidentified)
-                )
+                self.logger.info("Re-identificación exitosa", count=len(reidentified))
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
@@ -153,16 +142,13 @@ class TrackMatcher(LoggerMixin):
             unmatched_tracks=unmatched_trks,
             match_scores={},
             reidentified=reidentified,
-            time_ms=elapsed_ms
+            time_ms=elapsed_ms,
         )
 
     def _hierarchical_match(
-        self,
-        detections: List[Dict[str, Any]],
-        tracks: List[Any]
-    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        """
-        Realiza matching jerárquico.
+        self, detections: list[dict[str, Any]], tracks: list[Any]
+    ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
+        """Realiza matching jerárquico.
 
         Args:
             detections: Lista de detecciones
@@ -174,21 +160,14 @@ class TrackMatcher(LoggerMixin):
         if self.matcher:
             result = self.matcher.match(detections, tracks)
             self._stats["iou_matches"] += len(result.matches)
-            return (
-                result.matches,
-                result.unmatched_detections,
-                result.unmatched_tracks
-            )
+            return (result.matches, result.unmatched_detections, result.unmatched_tracks)
 
         return self._iou_matching(detections, tracks)
 
     def _iou_matching(
-        self,
-        detections: List[Dict[str, Any]],
-        tracks: List[Any]
-    ) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-        """
-        Matching simple basado en IoU.
+        self, detections: list[dict[str, Any]], tracks: list[Any]
+    ) -> tuple[list[tuple[int, int]], list[int], list[int]]:
+        """Matching simple basado en IoU.
 
         Args:
             detections: Lista de detecciones
@@ -204,8 +183,8 @@ class TrackMatcher(LoggerMixin):
             return [], list(range(n_dets)), list(range(n_trks))
 
         try:
-            from scipy.optimize import linear_sum_assignment
             import numpy as np
+            from scipy.optimize import linear_sum_assignment
 
             iou_matrix = np.zeros((n_dets, n_trks))
             for i, det in enumerate(detections):
@@ -238,13 +217,12 @@ class TrackMatcher(LoggerMixin):
 
     def _attempt_reidentification(
         self,
-        detections: List[Dict[str, Any]],
-        unmatched_dets: List[int],
-        tracks: List[Any],
-        frame: np.ndarray
-    ) -> Dict[str, Any]:
-        """
-        Intenta re-identificar detecciones no asociadas.
+        detections: list[dict[str, Any]],
+        unmatched_dets: list[int],
+        tracks: list[Any],
+        frame: np.ndarray,
+    ) -> dict[str, Any]:
+        """Intenta re-identificar detecciones no asociadas.
 
         Args:
             detections: Lista de detecciones
@@ -268,34 +246,26 @@ class TrackMatcher(LoggerMixin):
             detection = detections[det_idx]
 
             track_id = self.reid_system.attempt_reidentification(
-                detection=detection,
-                frame=frame,
-                current_tracks={t.track_id: t for t in tracks}
+                detection=detection, frame=frame, current_tracks={t.track_id: t for t in tracks}
             )
 
             if track_id is not None:
-                track_idx = next(
-                    (i for i, t in enumerate(tracks) if t.track_id == track_id),
-                    None
-                )
+                track_idx = next((i for i, t in enumerate(tracks) if t.track_id == track_id), None)
                 if track_idx is not None:
                     reidentified_matches.append((det_idx, track_idx))
                     if det_idx in remaining_dets:
                         remaining_dets.remove(det_idx)
 
-        return {
-            "matches": reidentified_matches,
-            "unmatched_dets": remaining_dets
-        }
+        return {"matches": reidentified_matches, "unmatched_dets": remaining_dets}
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas del matcher."""
         total = self._stats["iou_matches"] + self._stats["feature_matches"]
         return {
             **self._stats,
             "match_rate": total / max(1, self._stats["total_matches"]),
             "unmatched_rate": (
-                self._stats["unmatched_detections"] /
-                max(1, self._stats["total_matches"] + self._stats["unmatched_detections"])
+                self._stats["unmatched_detections"]
+                / max(1, self._stats["total_matches"] + self._stats["unmatched_detections"])
             ),
         }

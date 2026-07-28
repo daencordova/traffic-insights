@@ -1,21 +1,19 @@
-"""
-Máquina de estados para tracks.
+"""Máquina de estados para tracks.
 
 Gestiona las transiciones de estado de los tracks basándose
 en hits, pérdidas y otras métricas.
 """
 
-from typing import Dict, Any, List
 import time
+from typing import Any
 
+from core.constants.tracking import MAX_FRAMES_MISSED, MIN_HITS_TO_CONFIRM
 from models.enums import TrackStatus
-from core.constants.tracking import MIN_HITS_TO_CONFIRM, MAX_FRAMES_MISSED
 from utils.logger import LoggerMixin
 
 
 class TrackStateMachine(LoggerMixin):
-    """
-    Máquina de estados para tracks.
+    """Máquina de estados para tracks.
 
     Estados posibles:
     - TENTATIVE: Track recién creado, necesita confirmación
@@ -34,12 +32,12 @@ class TrackStateMachine(LoggerMixin):
     def __init__(
         self,
         min_hits_to_confirm: int = MIN_HITS_TO_CONFIRM,
-        max_frames_missed: int = MAX_FRAMES_MISSED
+        max_frames_missed: int = MAX_FRAMES_MISSED,
     ):
         self.min_hits_to_confirm = min_hits_to_confirm
         self.max_frames_missed = max_frames_missed
 
-        self._transitions: List[Dict[str, Any]] = []
+        self._transitions: list[dict[str, Any]] = []
         self._stats = {
             "tentative_to_confirmed": 0,
             "confirmed_to_lost": 0,
@@ -51,17 +49,11 @@ class TrackStateMachine(LoggerMixin):
         self.logger.info(
             "TrackStateMachine inicializado",
             min_hits_to_confirm=min_hits_to_confirm,
-            max_frames_missed=max_frames_missed
+            max_frames_missed=max_frames_missed,
         )
 
-    def transition(
-        self,
-        current_status: TrackStatus,
-        hits: int,
-        no_losses: int
-    ) -> TrackStatus:
-        """
-        Calcula el siguiente estado basado en el estado actual.
+    def transition(self, current_status: TrackStatus, hits: int, no_losses: int) -> TrackStatus:
+        """Calcula el siguiente estado basado en el estado actual.
 
         Args:
             current_status: Estado actual del track
@@ -83,7 +75,7 @@ class TrackStateMachine(LoggerMixin):
             if no_losses > self.max_frames_missed:
                 self._record_transition("confirmed_to_dead")
                 return TrackStatus.DEAD
-            elif no_losses > self.max_frames_missed // 2:
+            if no_losses > self.max_frames_missed // 2:
                 self._record_transition("confirmed_to_lost")
                 return TrackStatus.LOST
 
@@ -91,7 +83,7 @@ class TrackStateMachine(LoggerMixin):
             if no_losses > self.max_frames_missed:
                 self._record_transition("lost_to_dead")
                 return TrackStatus.DEAD
-            elif hits >= self.min_hits_to_confirm and no_losses == 0:
+            if hits >= self.min_hits_to_confirm and no_losses == 0:
                 self._record_transition("lost_to_confirmed")
                 return TrackStatus.CONFIRMED
 
@@ -113,15 +105,12 @@ class TrackStateMachine(LoggerMixin):
         """Registra una transición de estado."""
         if transition_type in self._stats:
             self._stats[transition_type] += 1
-            self._transitions.append({
-                "type": transition_type,
-                "timestamp": time.time()
-            })
+            self._transitions.append({"type": transition_type, "timestamp": time.time()})
 
             if len(self._transitions) > 1000:
                 self._transitions = self._transitions[-1000:]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Obtiene estadísticas de la máquina de estados."""
         total = sum(self._stats.values())
         return {

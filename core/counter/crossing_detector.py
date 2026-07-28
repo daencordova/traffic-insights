@@ -1,20 +1,17 @@
-"""
-Detector de cruces de líneas.
+"""Detector de cruces de líneas.
 
 Maneja la detección de cuándo un objeto cruza una línea de conteo.
 """
 
-from typing import Dict, Tuple, Set, Optional
 from collections import defaultdict
 import time
 
-from utils.geometry import check_crossing
 from core.counter.line_manager import CountingLine
+from utils.geometry import check_crossing
 
 
 class CrossingDetector:
-    """
-    Detector de cruces de líneas.
+    """Detector de cruces de líneas.
 
     Responsabilidades:
     - Detectar cruces de líneas
@@ -28,9 +25,9 @@ class CrossingDetector:
     """
 
     def __init__(self):
-        self._crossed_lines: Dict[int, Set[str]] = defaultdict(set)
-        self._previous_positions: Dict[int, Tuple[int, int]] = {}
-        self._cross_timestamps: Dict[int, float] = {}
+        self._crossed_lines: dict[int, set[str]] = defaultdict(set)
+        self._previous_positions: dict[int, tuple[int, int]] = {}
+        self._cross_timestamps: dict[int, float] = {}
 
         self._stats = {
             "total_crossings": 0,
@@ -39,14 +36,9 @@ class CrossingDetector:
         }
 
     def detect_crossing(
-        self,
-        object_id: int,
-        current_position: Tuple[int, int],
-        line: CountingLine,
-        height: int
+        self, object_id: int, current_position: tuple[int, int], line: CountingLine, height: int
     ) -> bool:
-        """
-        Detecta si un objeto ha cruzado una línea.
+        """Detecta si un objeto ha cruzado una línea.
 
         Args:
             object_id: ID del objeto
@@ -83,8 +75,7 @@ class CrossingDetector:
         return crossed
 
     def has_crossed_line(self, object_id: int, line_id: str) -> bool:
-        """
-        Verifica si un objeto ya cruzó una línea específica.
+        """Verifica si un objeto ya cruzó una línea específica.
 
         Args:
             object_id: ID del objeto
@@ -95,9 +86,8 @@ class CrossingDetector:
         """
         return line_id in self._crossed_lines.get(object_id, set())
 
-    def get_crossed_lines(self, object_id: int) -> Set[str]:
-        """
-        Obtiene las líneas que un objeto ha cruzado.
+    def get_crossed_lines(self, object_id: int) -> set[str]:
+        """Obtiene las líneas que un objeto ha cruzado.
 
         Args:
             object_id: ID del objeto
@@ -107,9 +97,8 @@ class CrossingDetector:
         """
         return self._crossed_lines.get(object_id, set())
 
-    def get_cross_timestamp(self, object_id: int) -> Optional[float]:
-        """
-        Obtiene el timestamp del último cruce de un objeto.
+    def get_cross_timestamp(self, object_id: int) -> float | None:
+        """Obtiene el timestamp del último cruce de un objeto.
 
         Args:
             object_id: ID del objeto
@@ -126,8 +115,7 @@ class CrossingDetector:
         self._cross_timestamps.pop(object_id, None)
 
     def reset_line(self, line_id: str) -> None:
-        """
-        Reinicia el historial de una línea específica.
+        """Reinicia el historial de una línea específica.
 
         Args:
             line_id: ID de la línea a reiniciar
@@ -135,9 +123,7 @@ class CrossingDetector:
         for object_id in list(self._crossed_lines.keys()):
             if line_id in self._crossed_lines[object_id]:
                 self._crossed_lines[object_id].remove(line_id)
-                self._stats["total_crossings"] = max(
-                    0, self._stats["total_crossings"] - 1
-                )
+                self._stats["total_crossings"] = max(0, self._stats["total_crossings"] - 1)
 
     def clear(self) -> None:
         """Limpia todo el historial."""
@@ -150,7 +136,7 @@ class CrossingDetector:
             "active_objects": 0,
         }
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         """Obtiene estadísticas del detector."""
         self._stats["active_objects"] = len(self._crossed_lines)
         return self._stats.copy()
