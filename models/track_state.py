@@ -12,26 +12,20 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from core.constants.magic_numbers import HISTORY_MAX_SIZE
 from core.constants.tracking import (
-    MAX_FRAMES_MISSED as MAX_LOST_FRAMES,
-    MAX_TRACK_HISTORY as MAX_HISTORY_LENGTH,
+    MAX_BBOX_HISTORY_DISPLAY,
+    MAX_BBOX_HISTORY_STORAGE,
+    MAX_FRAMES_MISSED,
+    MAX_TRACK_HISTORY,
+    MIN_HISTORY_FOR_ACCELERATION,
+    MIN_HISTORY_FOR_VELOCITY,
     MIN_HITS_TO_CONFIRM,
-)
-from core.constants.vision import (
-    MAX_BOX_SIZE,
-    MIN_BOX_SIZE,
 )
 from core.validators import validate_bbox, validate_centroid
 from models.enums import TrackStatus
 
 if TYPE_CHECKING:
     from models.kalman import EnhancedKalmanFilter
-
-MIN_HISTORY_FOR_VELOCITY: int = 2
-"""Mínimo de puntos en historial para calcular velocidad."""
-MIN_HISTORY_FOR_ACCELERATION: int = 3
-"""Mínimo de puntos en historial para calcular aceleración."""
 
 Point = tuple[int, int]
 BoundingBox = tuple[int, int, int, int]
@@ -106,12 +100,6 @@ class TrackState:
         "_history_deque",
     )
 
-    MIN_HITS_TO_CONFIRM: int = MIN_HITS_TO_CONFIRM
-    MAX_LOST_FRAMES: int = MAX_LOST_FRAMES
-    MIN_BOX_SIZE: int = MIN_BOX_SIZE
-    MAX_BOX_SIZE: int = MAX_BOX_SIZE
-    MAX_HISTORY_LENGTH: int = MAX_HISTORY_LENGTH
-
     def __init__(
         self,
         track_id: int,
@@ -165,7 +153,7 @@ class TrackState:
         self.hits = 1
         self.no_losses = 0
 
-        self.history = deque(maxlen=self.MAX_HISTORY_LENGTH)
+        self.history = deque(maxlen=MAX_TRACK_HISTORY)
         self.history.append(centroid)
 
         self.bbox_history: BBoxHistory = []
@@ -242,8 +230,8 @@ class TrackState:
             self.bbox = new_bbox
             self.bbox_history.append(new_bbox)
 
-            if len(self.bbox_history) > HISTORY_MAX_SIZE:
-                self.bbox_history = self.bbox_history[-HISTORY_MAX_SIZE:]
+            if len(self.bbox_history) > MAX_BBOX_HISTORY_STORAGE:
+                self.bbox_history = self.bbox_history[-MAX_BBOX_HISTORY_STORAGE:]
 
         new_centroid = detection.get("centroid")
         if new_centroid is not None and validate_centroid(new_centroid):
@@ -357,28 +345,28 @@ class TrackState:
 
         Transiciones posibles:
         - TENTATIVE -> CONFIRMED: hits >= MIN_HITS_TO_CONFIRM
-        - CONFIRMED -> LOST: no_losses > MAX_LOST_FRAMES // 2
-        - CONFIRMED -> DEAD: no_losses > MAX_LOST_FRAMES
+        - CONFIRMED -> LOST: no_losses > MAX_FRAMES_MISSED // 2
+        - CONFIRMED -> DEAD: no_losses > MAX_FRAMES_MISSED
         - LOST -> CONFIRMED: hits >= MIN_HITS_TO_CONFIRM y no_losses == 0
-        - LOST -> DEAD: no_losses > MAX_LOST_FRAMES
+        - LOST -> DEAD: no_losses > MAX_FRAMES_MISSED
         """
         if self.status == TrackStatus.DEAD:
             return
 
         if self.status == TrackStatus.TENTATIVE:
-            if self.hits >= self.MIN_HITS_TO_CONFIRM:
+            if self.hits >= MIN_HITS_TO_CONFIRM:
                 self.status = TrackStatus.CONFIRMED
 
         elif self.status == TrackStatus.CONFIRMED:
-            if self.no_losses > self.MAX_LOST_FRAMES:
+            if self.no_losses > MAX_FRAMES_MISSED:
                 self.status = TrackStatus.DEAD
-            elif self.no_losses > self.MAX_LOST_FRAMES // 2:
+            elif self.no_losses > MAX_FRAMES_MISSED // 2:
                 self.status = TrackStatus.LOST
 
         elif self.status == TrackStatus.LOST:
-            if self.no_losses > self.MAX_LOST_FRAMES:
+            if self.no_losses > MAX_FRAMES_MISSED:
                 self.status = TrackStatus.DEAD
-            elif self.hits >= self.MIN_HITS_TO_CONFIRM and self.no_losses == 0:
+            elif self.hits >= MIN_HITS_TO_CONFIRM and self.no_losses == 0:
                 self.status = TrackStatus.CONFIRMED
 
     def _update_kalman(self) -> None:
@@ -490,7 +478,7 @@ class TrackState:
             "class_id": self.class_id,
             "label": self.label,
             "history": list(self.history),
-            "bbox_history": self.bbox_history[-10:],
+            "bbox_history": self.bbox_history[-MAX_BBOX_HISTORY_DISPLAY:],
             "metadata": self.metadata,
         }
 

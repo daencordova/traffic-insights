@@ -50,6 +50,12 @@ MAX_WORKERS_GPU: Final[int] = 8
 MIN_WORKERS_CPU: Final[int] = 2
 """Mínimo de workers en modo CPU."""
 
+MAX_BUFFER_SIZE_CPU: Final[int] = 20
+"""Tamaño máximo del buffer en modo CPU."""
+
+MAX_BUFFER_SIZE_GPU: Final[int] = 30
+"""Tamaño máximo del buffer en modo GPU."""
+
 BUFFER_DROP_THRESHOLD: Final[float] = 0.8
 """Umbral de ocupación para comenzar a descartar frames."""
 
@@ -219,3 +225,19 @@ RENDER_ERROR_COOLDOWN: Final[float] = 1.0
 
 MAX_RENDER_TIMES: Final[int] = 100
 """Máximo de tiempos de renderizado almacenados."""
+
+# RENDIMIENTO
+MAX_INFERENCE_TIMES: Final[int] = 100
+"""Número máximo de tiempos de inferencia almacenados."""
+MAX_BATCH_TIMES: Final[int] = 50
+"""Número máximo de tiempos de batch almacenados."""
+MAX_PROCESSING_TIMES: Final[int] = 100
+"""Número máximo de tiempos de procesamiento almacenados."""
+
+# PROCESAMIENTO POR LOTES
+BATCH_DEFAULT_SIZE: Final[int] = 4
+"""Tamaño de lote por defecto."""
+BATCH_MAX_SIZE: Final[int] = 8
+"""Tamaño máximo de lote."""
+BATCH_MIN_SIZE: Final[int] = 2
+"""Tamaño mínimo de lote."""

@@ -28,6 +28,12 @@ from core.constants.pipeline import (
 from core.constants.system import (
     MEMORY_WARNING_THRESHOLD,
 )
+from core.constants.tracking import (
+    CACHE_DEFAULT_SIZE,
+    CACHE_MAX_SIZE,
+    CACHE_MIN_SIZE,
+    FEATURE_CACHE_MAX_AGE,
+)
 from core.constants.vision import (
     MAX_BOX_SIZE,
     MAX_DETECTION_CONFIDENCE,
@@ -100,7 +106,9 @@ class YOLODetector(IDetector, LoggerMixin):
         self.model.iou = self.config.iou_threshold
         self.model.classes = self.config.vehicle_classes
 
-        self.cache = DetectionCache(max_size=self._calculate_cache_size(), max_age_seconds=3.0)
+        self.cache = DetectionCache(
+            max_size=self._calculate_cache_size(), max_age_seconds=FEATURE_CACHE_MAX_AGE
+        )
 
         self.preprocessor = ImagePreprocessor(enabled=False)
 
@@ -244,9 +252,9 @@ class YOLODetector(IDetector, LoggerMixin):
             available_mb = mem.get("system_available_mb", 4096)
             max_mb = min(available_mb * 0.1, 250)
             size = int(max_mb * 64)
-            return max(4, min(64, size))
+            return max(CACHE_MIN_SIZE, min(CACHE_MAX_SIZE, size))
         except Exception:
-            return 16
+            return CACHE_DEFAULT_SIZE
 
     def _validate_frame(self, frame: np.ndarray) -> bool:
         """Valida que el frame sea válido para procesamiento.

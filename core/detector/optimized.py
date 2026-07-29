@@ -11,6 +11,12 @@ from typing import Any
 import numpy as np
 
 from core.constants.magic_numbers import INFERENCE_TIMES_MAX
+from core.constants.tracking import (
+    CACHE_DEFAULT_SIZE,
+    CACHE_MAX_SIZE,
+    CACHE_MIN_SIZE,
+    FEATURE_CACHE_MAX_AGE,
+)
 from core.detector.base import YOLODetector
 from core.detector.cache import DetectionCache
 from core.detector.config import DetectorConfig
@@ -94,7 +100,9 @@ class OptimizedYOLODetector(YOLODetector):
             imgsz=self.imgsz,
         )
 
-        self.cache = DetectionCache(max_size=self._calculate_cache_size(), max_age_seconds=3.0)
+        self.cache = DetectionCache(
+            max_size=self._calculate_cache_size(), max_age_seconds=FEATURE_CACHE_MAX_AGE
+        )
 
         self.preprocessor = ImagePreprocessor(enabled=False)
 
@@ -276,9 +284,9 @@ class OptimizedYOLODetector(YOLODetector):
             available_mb = mem.get("system_available_mb", 4096)
             max_mb = min(available_mb * 0.1, 250)
             size = int(max_mb * 64)
-            return max(4, min(64, size))
+            return max(CACHE_MIN_SIZE, min(CACHE_MAX_SIZE, size))
         except Exception:
-            return 16
+            return CACHE_DEFAULT_SIZE
 
     def get_performance_stats(self) -> dict[str, Any]:
         """Retorna estadísticas de rendimiento."""

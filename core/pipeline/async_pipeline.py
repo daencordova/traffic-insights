@@ -15,7 +15,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from core.constants.pipeline import (
+    MAX_BUFFER_SIZE_CPU,
+    MAX_WORKERS_CPU,
+)
+from core.counter import VehicleCounter
+from core.detector import YOLODetector
+from core.pipeline.controls import ControlHandler
 from core.pipeline.orchestrator import PipelineOrchestrator
+from core.pipeline.renderer import FrameRenderer
+from core.tracker import MultiObjectTracker
 from utils.logger import LoggerMixin
 
 
@@ -80,8 +89,8 @@ class AsyncPipeline(LoggerMixin):
 
         is_cpu = self.config.model.device == "cpu"
         if is_cpu:
-            buffer_size = min(buffer_size, 20)
-            num_workers = min(num_workers, 4)
+            buffer_size = min(buffer_size, MAX_BUFFER_SIZE_CPU)
+            num_workers = min(num_workers, MAX_WORKERS_CPU)
             self.logger.info("Modo CPU - límites ajustados")
 
         self._init_components(detector, tracker, counter, render_callback)
@@ -110,12 +119,6 @@ class AsyncPipeline(LoggerMixin):
             Si algún componente no se proporciona, se crea automáticamente
             con la configuración global del sistema.
         """
-        from core.counter import VehicleCounter
-        from core.detector import YOLODetector
-        from core.pipeline.controls import ControlHandler
-        from core.pipeline.renderer import FrameRenderer
-        from core.tracker import MultiObjectTracker
-
         use_optimized = getattr(self.config.optimization, "use_optimized_detector", True)
 
         if use_optimized:

@@ -235,3 +235,29 @@ PREDICTION_STATE_COLORS: Final[dict[str, tuple[int, int, int]]] = {
     "unknown": (255, 255, 0),
 }
 """Colores para estados de predicción."""
+
+# CACHÉ Y MEMORIA
+CACHE_MIN_SIZE: Final[int] = 4
+"""Tamaño mínimo del caché de detecciones."""
+CACHE_MAX_SIZE: Final[int] = 64
+"""Tamaño máximo del caché de detecciones."""
+CACHE_DEFAULT_SIZE: Final[int] = 16
+"""Tamaño por defecto del caché de detecciones."""
+
+# HISTORIAL
+MAX_BBOX_HISTORY_DISPLAY: Final[int] = 10
+"""Número máximo de bounding boxes a mostrar en el historial."""
+MAX_BBOX_HISTORY_STORAGE: Final[int] = 30
+"""Número máximo de bounding boxes a almacenar en el historial."""
+
+# DIMENSIONES
+DETECTION_POINT_DIMENSION: Final[int] = 2
+"""Dimensión de un punto de detección (x, y)."""
+DETECTION_VELOCITY_DIMENSION: Final[int] = 2
+"""Dimensión de un vector de velocidad (vx, vy)."""
+DETECTION_BBOX_DIMENSION: Final[int] = 4
+"""Dimensión de un bounding box (x1, y1, x2, y2)."""
+
+# VALIDACIÓN
+SPATIAL_THRESHOLD_NORMALIZED: Final[float] = 100.0
+"""Umbral de distancia espacial normalizado para matching."""

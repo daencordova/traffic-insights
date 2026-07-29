@@ -22,6 +22,11 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING, Any
 
+from core.constants.tracking import (
+    DETECTION_POINT_DIMENSION,
+    DETECTION_VELOCITY_DIMENSION,
+)
+
 if TYPE_CHECKING:
     import numpy as np
 
@@ -30,9 +35,6 @@ from core.counter.line_manager import CountingLine, LineManager
 from core.counter.statistics_collector import StatisticsCollector, VehicleEvent
 from core.interfaces import ICounter
 from utils.logger import LoggerMixin
-
-POINT_DIMENSION = 2
-VELOCITY_DIMENSION = 2
 
 
 class VehicleCounter(ICounter, LoggerMixin):
@@ -223,7 +225,7 @@ class VehicleCounter(ICounter, LoggerMixin):
         if centroid is None:
             return False
 
-        if not isinstance(centroid, (tuple, list)) or len(centroid) != POINT_DIMENSION:
+        if not isinstance(centroid, (tuple, list)) or len(centroid) != DETECTION_POINT_DIMENSION:
             return False
 
         x, y = centroid
@@ -305,7 +307,7 @@ class VehicleCounter(ICounter, LoggerMixin):
             track_data: Datos del track.
         """
         velocity = track_data.get("velocity", (0, 0))
-        if isinstance(velocity, (tuple, list)) and len(velocity) == VELOCITY_DIMENSION:
+        if isinstance(velocity, (tuple, list)) and len(velocity) == DETECTION_VELOCITY_DIMENSION:
             self.stats_collector.record_speed(object_id, velocity)
 
     def _update_minute_stats(self) -> None:

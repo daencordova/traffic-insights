@@ -24,6 +24,8 @@ from scipy.spatial import KDTree
 
 from core.constants.tracking import (
     MAX_MATCH_DISTANCE,
+    MAX_MATCH_RADIUS,
+    SPATIAL_THRESHOLD_NORMALIZED,
     TRACK_VALIDATION_FEATURE_THRESHOLD,
     TRACK_VALIDATION_IOU_THRESHOLD,
     TRACK_VALIDATION_MOTION_THRESHOLD,
@@ -111,7 +113,7 @@ class TrackMatcher(LoggerMixin):
         shape_threshold: float = TRACK_VALIDATION_SHAPE_THRESHOLD,
         spatial_threshold: float = MAX_MATCH_DISTANCE,
         enable_adaptive_thresholds: bool = True,
-        max_search_radius: float = 150.0,
+        max_search_radius: float = MAX_MATCH_RADIUS,
     ):
         """Inicializa el matcher jerárquico con poda espacial.
 
@@ -958,7 +960,7 @@ class TrackMatcher(LoggerMixin):
         if valid_pairs == 0:
             return [], {}
 
-        threshold = thresholds.get("spatial", self.spatial_threshold) / 100.0
+        threshold = thresholds.get("spatial", SPATIAL_THRESHOLD_NORMALIZED) / 100.0
         cost_matrix, success = self._compute_cost_matrix_safe(distance_matrix, threshold, "spatial")
 
         if not success:
