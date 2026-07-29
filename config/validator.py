@@ -21,6 +21,9 @@ def validate_config(config) -> list[str]:
 
     Returns:
         List[str]: Lista de advertencias (vacío si todo OK).
+
+    Raises:
+        ConfigurationError: Si hay errores críticos de configuración.
     """
     warnings = []
 

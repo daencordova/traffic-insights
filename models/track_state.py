@@ -169,7 +169,14 @@ class TrackState:
 
     @staticmethod
     def _validate_track_id(track_id: int) -> None:
-        """Valida el ID del track."""
+        """Valida el ID del track.
+
+        Args:
+            track_id: ID a validar.
+
+        Raises:
+            ValueError: Si el ID es inválido (negativo o no entero).
+        """
         if not isinstance(track_id, int) or track_id < 0:
             raise ValueError(f"track_id inválido: {track_id}")
 

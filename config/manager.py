@@ -177,7 +177,7 @@ class ConfigManager:
 
         return self._config
 
-    def _apply_environment_overrides(self):
+    def _apply_environment_overrides(self) -> None:
         """Aplica overrides desde variables de entorno.
 
         Variables de entorno soportadas:
@@ -232,7 +232,7 @@ class ConfigManager:
             self._config = Config()
         return self._config
 
-    def save_to_file(self, path: str):
+    def save_to_file(self, path: str) -> None:
         """Guarda la configuración actual a archivo YAML.
 
         Args:
@@ -279,7 +279,7 @@ class ConfigManager:
 
         return value
 
-    def set(self, key: str, value: Any):
+    def set(self, key: str, value: Any) -> None:
         """Establece un valor por ruta con notación de puntos.
 
         Args:

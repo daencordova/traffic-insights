@@ -327,7 +327,14 @@ class YOLODetector(IDetector, LoggerMixin):
         return result.is_valid
 
     def _filter_valid_detections(self, detections: DetectionList) -> DetectionList:
-        """Filtra detecciones válidas (optimizado con comprensión)."""
+        """Filtra detecciones válidas optimizado con comprensión.
+
+        Args:
+            detections: Lista de detecciones a filtrar.
+
+        Returns:
+            DetectionList: Lista de detecciones válidas.
+        """
         if not detections:
             return []
 

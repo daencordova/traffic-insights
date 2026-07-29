@@ -106,7 +106,7 @@ class AsyncPipeline(LoggerMixin):
 
         self.logger.info("Pipeline asíncrono inicializado")
 
-    def _init_components(self, detector, tracker, counter, render_callback):
+    def _init_components(self, detector, tracker, counter, render_callback) -> None:
         """Inicializa los componentes del pipeline.
 
         Args:

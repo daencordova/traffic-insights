@@ -462,6 +462,12 @@ class LoggerMixin:
 
         Args:
             **kwargs: Pares clave-valor para el contexto.
+
+        Example:
+            >>> class MyTracker(LoggerMixin):
+            ...     def track(self, frame_id):
+            ...         self.set_log_context(frame_id=frame_id)
+            ...         self.logger.info("Procesando frame")
         """
         filtered_kwargs = {k: v for k, v in kwargs.items() if k not in RESERVED_LOG_ATTRS}
         self._log_context.update(filtered_kwargs)

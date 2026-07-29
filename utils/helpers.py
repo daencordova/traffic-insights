@@ -18,6 +18,9 @@ def ensure_directory_exists(path: str) -> None:
 
     Args:
         path: Ruta del directorio.
+
+    Example:
+        >>> ensure_directory_exists("data/screenshots/")
     """
     Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -30,7 +33,11 @@ def get_timestamp_filename(prefix: str = "", extension: str = "jpg") -> str:
         extension: Extensión del archivo.
 
     Returns:
-        Nombre de archivo con timestamp.
+        str: Nombre de archivo con timestamp.
+
+    Example:
+        >>> filename = get_timestamp_filename("capture", "jpg")
+        >>> print(filename)  # "capture_20240101_120000.jpg"
     """
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     return f"{prefix}_{timestamp}.{extension}" if prefix else f"{timestamp}.{extension}"
@@ -43,7 +50,11 @@ def format_time(seconds: float) -> str:
         seconds: Segundos a formatear.
 
     Returns:
-        String formateado en formato HH:MM:SS o MM:SS.
+        str: String formateado en formato HH:MM:SS o MM:SS.
+
+    Example:
+        >>> format_time(3661)
+        "01:01:01"
     """
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
@@ -58,7 +69,16 @@ def get_memory_usage() -> dict[str, float]:
     """Obtiene información de uso de memoria del proceso actual.
 
     Returns:
-        Diccionario con información de memoria (rss_mb, vms_mb, percent, etc.).
+        Dict[str, float]: Diccionario con información de memoria incluyendo:
+            - rss_mb: Memoria residente en MB
+            - vms_mb: Memoria virtual en MB
+            - percent: Porcentaje de memoria del proceso
+            - system_percent: Porcentaje de memoria del sistema
+            - system_available_mb: Memoria disponible del sistema en MB
+
+    Example:
+        >>> mem = get_memory_usage()
+        >>> print(f"Memory: {mem['rss_mb']:.2f} MB")
     """
     if not PSUTIL_AVAILABLE:
         return {
@@ -94,7 +114,14 @@ def force_garbage_collection() -> dict[str, int | bool]:
     """Fuerza la recolección de basura y retorna estadísticas.
 
     Returns:
-        Diccionario con estadísticas de GC (collected_objects, gc_enabled, garbage_count).
+        Dict[str, Union[int, bool]]: Estadísticas de GC incluyendo:
+            - collected_objects: Objetos recolectados
+            - gc_enabled: Si GC está habilitado
+            - garbage_count: Número de objetos en garbage
+
+    Example:
+        >>> stats = force_garbage_collection()
+        >>> print(f"Recolectados: {stats['collected_objects']}")
     """
     collected = gc.collect()
     return {

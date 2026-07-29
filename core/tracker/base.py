@@ -119,7 +119,13 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         )
 
     def _init_managers(self) -> None:
-        """Inicializa los gestores principales del tracker."""
+        """Inicializa los gestores principales del tracker.
+
+        Configura:
+            - TrackManager: Gestión de tracks
+            - TrackUpdater: Actualización de estado
+            - FeatureManager: Gestión de features visuales
+        """
         self.track_manager = TrackManager(
             max_active_tracks=self.config.max_active_tracks or MAX_ACTIVE_TRACKS
         )
@@ -136,7 +142,12 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         self.feature_manager = self._init_feature_manager()
 
     def _init_matchers(self) -> None:
-        """Inicializa los sistemas de matching."""
+        """Inicializa los sistemas de matching.
+
+        Configura:
+            - ReIDSystem: Sistema de re-identificación
+            - TrackMatcher: Matching jerárquico
+        """
         self.reid_system = self._init_reid_system()
 
         max_search_radius = getattr(self.config, "max_search_radius", 150.0)
@@ -151,14 +162,24 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         )
 
     def _init_advanced_features(self) -> None:
-        """Inicializa las características avanzadas del tracker."""
+        """Inicializa las características avanzadas del tracker.
+
+        Configura:
+            - MHTIntegration: Multi-Hypothesis Tracking
+            - OnlineLearner: Aprendizaje en línea
+            - SensorFusion: Fusión de sensores
+            - PathPredictor: Predicción de trayectoria
+        """
         self.mht_integration = self._init_mht()
         self.online_learner = self._init_online_learner()
         self.sensor_fusion = self._init_sensor_fusion()
         self.path_predictor = self._init_path_predictor()
 
     def _init_state_machine(self) -> None:
-        """Inicializa la máquina de estados para los tracks."""
+        """Inicializa la máquina de estados para los tracks.
+
+        Configura transiciones entre estados TENTATIVE, CONFIRMED, LOST y DEAD.
+        """
         self.state_machine = TrackStateMachine(
             min_hits_to_confirm=self.config.min_hits_to_confirm or MIN_HITS_TO_CONFIRM,
             max_frames_missed=self.config.max_frames_missed or MAX_FRAMES_MISSED,
@@ -169,6 +190,9 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Returns:
             FeatureManager: Gestor de features configurado.
+
+        Note:
+            Solo activa features si hay GPU disponible y la configuración lo permite.
         """
         use_features = self._should_use_features()
         feature_extractor = None
@@ -216,7 +240,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             return None
 
     def _init_mht(self) -> MHTIntegration:
-        """Inicializa el sistema de Multi-Hypothesis Tracking (MHT)."""
+        """Inicializa el sistema de Multi-Hypothesis Tracking (MHT).
+
+        Returns:
+            MHTIntegration: Sistema MHT configurado.
+        """
         return MHTIntegration(
             max_depth=getattr(self.config, "mht_max_depth", 10),
             pruning_threshold=getattr(self.config, "mht_pruning_threshold", 0.01),
@@ -325,6 +353,9 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Returns:
             bool: True si se deben usar features.
+
+        Note:
+            Las features se usan solo en GPU para no degradar el rendimiento en CPU.
         """
         from models.enums import DeviceType
 
@@ -352,6 +383,17 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Raises:
             TrackingError: Si ocurre un error durante el tracking.
+
+        Note:
+            El proceso de actualización incluye:
+            1. Validación de detecciones
+            2. Extracción de features
+            3. Predicción de posición (Kalman)
+            4. Matching jerárquico
+            5. Actualización de tracks
+            6. Re-identificación
+            7. Creación de nuevos tracks
+            8. Limpieza de tracks muertos
         """
         if frame is None or frame.size == 0:
             return {}
@@ -398,6 +440,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Returns:
             List[Dict[str, Any]]: Lista de detecciones válidas.
+
+        Note:
+            Filtra detecciones con campos faltantes o valores inválidos.
+            Limita el número de detecciones a MAX_DETECTIONS_PER_FRAME.
         """
         if not detections:
             return []
@@ -414,6 +460,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Args:
             detections: Lista de detecciones.
             frame: Frame actual para extraer features.
+
+        Note:
+            Las features se extraen usando el FeatureManager y se añaden
+            a las detecciones como campo 'features'.
         """
         for det in detections:
             if "box" in det:
@@ -436,7 +486,8 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             frame: Frame actual para contexto.
 
         Returns:
-            MatchResult: Resultado del matching.
+            MatchResult: Resultado del matching incluyendo matches,
+                detecciones no asociadas y tracks no asociados.
         """
         tracks = list(self.track_manager.get_all_tracks().values())
 
@@ -458,6 +509,9 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Args:
             detections: Lista de detecciones.
             match_result: Resultado del matching con matches.
+
+        Note:
+            Actualiza posición, features, estado y métricas de cada track.
         """
         tracks = self.track_manager.get_all_tracks()
         track_ids = list(tracks.keys())
@@ -630,6 +684,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Args:
             match_result: Resultado del matching con tracks no asociados.
+
+        Note:
+            Marca tracks como perdidos y actualiza su estado.
+            Los tracks muertos se envían a re-identificación.
         """
         tracks = self.track_manager.get_all_tracks()
         track_ids = list(tracks.keys())
@@ -657,6 +715,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Args:
             track_id: ID del track muerto.
+
+        Note:
+            - Mueve el track a la lista de perdidos
+            - Limpia recursos asociados (features, aprendizaje, fusión)
         """
         track = self.track_manager.get_track(track_id)
         if track is None:
@@ -682,6 +744,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Args:
             detections: Lista de detecciones.
             match_result: Resultado del matching con detecciones no asociadas.
+
+        Note:
+            Solo crea tracks para detecciones con confianza suficiente.
+            Inicializa todas las características avanzadas.
         """
         tracks_created = 0
 
@@ -719,6 +785,9 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Returns:
             bool: True si la detección es válida.
+
+        Note:
+            Verifica confianza, presencia de bbox y centroid.
         """
         confidence = detection.get("confidence", 0.0)
         if confidence < self.global_config.model.confidence_threshold:
@@ -800,6 +869,10 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Returns:
             int: Número de tracks re-identificados exitosamente.
+
+        Note:
+            Usa el sistema de re-identificación para asociar detecciones
+            no asociadas con tracks perdidos.
         """
         if not self.reid_system or not unmatched_dets:
             return 0
@@ -830,6 +903,9 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         Returns:
             bool: True si la recuperación fue exitosa.
+
+        Note:
+            Restaura el track a estado CONFIRMED y reinicia el Kalman.
         """
         track = self.track_manager.recover_track(track_id)
         if not track:
@@ -847,7 +923,12 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         return True
 
     def _check_memory(self) -> None:
-        """Verifica el uso de memoria y limpia si es necesario."""
+        """Verifica el uso de memoria y limpia si es necesario.
+
+        Note:
+            Si la memoria supera el umbral de advertencia, limpia el caché
+            de features y fuerza garbage collection.
+        """
         current_time = time.time()
         if current_time - self._last_memory_check < self.MEMORY_CHECK_INTERVAL:
             return
@@ -870,7 +951,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             self.logger.debug("Error verificando memoria", error=str(e))
 
     def _perform_cleanup(self) -> None:
-        """Realiza limpieza periódica de tracks muertos."""
+        """Realiza limpieza periódica de tracks muertos.
+
+        Note:
+            Elimina tracks en estado DEAD de la lista activa.
+        """
         current_time = time.time()
         if current_time - self._last_cleanup_time >= self.CLEANUP_INTERVAL:
             self._last_cleanup_time = current_time
@@ -898,7 +983,16 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         """Retorna información de tracking actual.
 
         Returns:
-            Dict[int, Dict[str, Any]]: Información de tracking.
+            Dict[int, Dict[str, Any]]: Información de tracking incluyendo:
+                - centroid: Centroide actual
+                - bbox: Bounding box actual
+                - status: Estado del track
+                - age: Edad en frames
+                - hits: Número de detecciones asociadas
+                - confidence: Confianza actual
+                - velocity: Velocidad (vx, vy)
+                - history: Historial de posiciones
+                - predicted_centroid: Posición predicha por Kalman
         """
         result = {}
 
@@ -929,6 +1023,13 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         Args:
             track_id: ID del track.
             track_data: Diccionario de datos del track a enriquecer.
+
+        Note:
+            Añade información de:
+            - Online Learning (samples, updates, drift)
+            - Sensor Fusion (fused confidence, uncertainty)
+            - Path Prediction (state, uncertainty, collision risk)
+            - MHT (hypothesis confidence)
         """
         if self.online_learner:
             learner_stats = self.online_learner.get_stats(track_id)
@@ -964,7 +1065,18 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         """Retorna estadísticas del tracker.
 
         Returns:
-            Dict[str, Any]: Estadísticas detalladas del tracker.
+            Dict[str, Any]: Estadísticas detalladas del tracker incluyendo:
+                - active_tracks: Tracks activos
+                - lost_tracks_count: Tracks perdidos
+                - total_tracks: Total de tracks procesados
+                - confirmed_tracks: Tracks confirmados
+                - reidentified_tracks: Tracks re-identificados
+                - tracking_time_ms: Tiempo de tracking
+                - frame_counter: Número de frame
+                - feature_manager: Estadísticas del gestor de features
+                - state_machine: Estadísticas de la máquina de estados
+                - track_updater: Estadísticas del actualizador
+                - track_matcher: Estadísticas del matcher
         """
         return {
             **self._stats,
@@ -990,7 +1102,11 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         return self.track_manager.get_track(track_id)
 
     def reset(self) -> None:
-        """Reinicia el tracker completamente."""
+        """Reinicia el tracker completamente.
+
+        Note:
+            Elimina todos los tracks, limpia cachés y reinicia contadores.
+        """
         self.logger.info("Reiniciando tracker")
 
         self.track_manager.clear_all()
