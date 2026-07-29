@@ -12,7 +12,6 @@ Características de robustez implementadas:
 import argparse
 from collections.abc import Callable
 import gc
-import logging
 import os
 from pathlib import Path
 import signal
@@ -31,7 +30,7 @@ from core.exceptions import CameraError, ConfigurationError, PipelineError, Vehi
 from core.pipeline.async_pipeline import AsyncPipeline
 from core.pipeline.sync_pipeline import SyncPipeline
 from utils.helpers import ensure_directory_exists, get_memory_usage
-from utils.logger import setup_logger
+from utils.logger import get_logger, setup_logging
 
 MINIMUM_MEMORY_MB = 500
 MEMORY_WARNING_THRESHOLD = 80
@@ -46,7 +45,7 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 
 
-def setup_signal_handlers(logger: logging.Logger) -> None:
+def setup_signal_handlers(logger) -> None:
     """Configura manejadores de señales para terminación graceful.
 
     Args:
@@ -66,7 +65,7 @@ def setup_signal_handlers(logger: logging.Logger) -> None:
         signal.signal(signal.SIGBREAK, signal_handler)
 
 
-def create_recovery_callbacks(logger: logging.Logger) -> dict[str, Callable]:
+def create_recovery_callbacks(logger) -> dict[str, Callable]:
     """Crea los callbacks de recuperación para el manejador de errores.
 
     Args:
@@ -107,7 +106,7 @@ def create_recovery_callbacks(logger: logging.Logger) -> dict[str, Callable]:
     }
 
 
-def validate_system_requirements(logger: logging.Logger) -> bool:
+def validate_system_requirements(logger) -> bool:
     """Valida los requisitos del sistema antes de iniciar.
 
     Args:
@@ -150,7 +149,7 @@ def validate_system_requirements(logger: logging.Logger) -> bool:
     return True
 
 
-def load_configuration(args: argparse.Namespace, logger: logging.Logger) -> bool:
+def load_configuration(args: argparse.Namespace, logger) -> bool:
     """Carga la configuración del sistema.
 
     Args:
@@ -193,7 +192,7 @@ def load_configuration(args: argparse.Namespace, logger: logging.Logger) -> bool
         return False
 
 
-def configure_environment(args: argparse.Namespace, logger: logging.Logger) -> tuple:
+def configure_environment(args: argparse.Namespace, logger) -> tuple:
     """Configura el entorno según el modo (CPU/GPU).
 
     Args:
@@ -233,7 +232,11 @@ def configure_environment(args: argparse.Namespace, logger: logging.Logger) -> t
 
 
 def create_pipeline(
-    args: argparse.Namespace, workers: int, buffer_size: int, batch: bool, logger: logging.Logger
+    args: argparse.Namespace,
+    workers: int,
+    buffer_size: int,
+    batch: bool,
+    logger,
 ):
     """Crea el pipeline según el modo seleccionado.
 
@@ -260,7 +263,7 @@ def create_pipeline(
     return SyncPipeline()
 
 
-def run_main_loop(pipeline, args: argparse.Namespace, logger: logging.Logger) -> None:
+def run_main_loop(pipeline, args: argparse.Namespace, logger) -> None:
     """Ejecuta el bucle principal del pipeline.
 
     Args:
@@ -303,7 +306,7 @@ def run_main_loop(pipeline, args: argparse.Namespace, logger: logging.Logger) ->
         pipeline.run(source=args.source)
 
 
-def _log_pipeline_stats(pipeline, health, logger):
+def _log_pipeline_stats(pipeline, health, logger) -> None:
     """Registra estadísticas del pipeline."""
     stats = pipeline.get_stats()
     fps = stats.get("current_fps", 0.0)
@@ -328,7 +331,10 @@ def _log_pipeline_stats(pipeline, health, logger):
 
 
 def handle_pipeline_error(
-    error: Exception, args: argparse.Namespace, pipeline, logger: logging.Logger
+    error: Exception,
+    args: argparse.Namespace,
+    pipeline,
+    logger,
 ) -> bool:
     """Maneja errores del pipeline con recuperación.
 
@@ -367,7 +373,10 @@ def handle_pipeline_error(
 
 
 def print_final_report(
-    pipeline, start_time: float, error_stats: dict, logger: logging.Logger
+    pipeline,
+    start_time: float,
+    error_stats: dict,
+    logger,
 ) -> None:
     """Imprime el reporte final del sistema."""
     elapsed = time.time() - start_time
@@ -408,7 +417,7 @@ def parse_args() -> argparse.Namespace:
         epilog="""
 Ejemplos:
   python main.py                             # Usa configuración por defecto
-  python main.py -c config_prod.yaml         # Usa archivo de configuración
+  python main.py -c config.yaml              # Usa archivo de configuración
   python main.py -s rtsp://192.168.1.100:554 # Fuente RTSP
   python main.py --async --workers 8         # Pipeline asíncrono con 8 workers
   python main.py --cpu-mode --threads 4      # Modo CPU con 4 threads
@@ -515,14 +524,23 @@ def main() -> NoReturn:
     Returns:
         NoReturn: El sistema termina con sys.exit().
     """
-    setup_global_exception_handler()
-
     args = parse_args()
-    logger = setup_logger(
-        name="main",
+
+    setup_logging(
+        level="DEBUG" if args.verbose else "INFO",
         log_file="data/logs/system.log",
-        level=logging.DEBUG if args.verbose else logging.INFO,
+        json_format=False,
+        colored=True,
     )
+
+    logger = get_logger("main")
+    logger.set_context(
+        component="main",
+        version="0.2.0",
+        pid=os.getpid(),
+    )
+
+    setup_global_exception_handler()
 
     setup_signal_handlers(logger)
 
@@ -532,18 +550,26 @@ def main() -> NoReturn:
 
     logger.info("=" * 70)
     logger.info("🚗 SISTEMA DE SEGUIMIENTO DE TRÁFICO v0.2.0")
-    logger.info("   (Con sistema robusto de gestión de errores)")
+    logger.info("   (Con sistema robusto de gestión de errores y logging estructurado)")
     logger.info("=" * 70)
     logger.info(f"📅 Inicio: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"🐍 Python: {sys.version.split()[0]}")
     logger.info(f"📂 Directorio: {current_dir}")
+    logger.info(f"📊 Nivel de logging: {'DEBUG' if args.verbose else 'INFO'}")
 
     if not validate_system_requirements(logger):
         logger.error("❌ El sistema no cumple los requisitos mínimos")
         sys.exit(1)
 
     if not load_configuration(args, logger):
+        logger.error("❌ Error cargando configuración")
         sys.exit(1)
+
+    logger.set_context(
+        config_file=args.config,
+        device=config_manager.config.model.device,
+        source=config_manager.config.camera.source,
+    )
 
     is_cpu, workers, buffer_size, batch = configure_environment(args, logger)
 
@@ -559,26 +585,33 @@ def main() -> NoReturn:
 
     except Exception as e:
         if not handle_pipeline_error(e, args, pipeline, logger):
+            logger.critical("❌ Error fatal, terminando ejecución")
             sys.exit(1)
 
     finally:
+        logger.info("🧹 Realizando limpieza final...")
+
         if pipeline:
-            logger.info("🧹 Limpiando pipeline...")
+            logger.info("   Deteniendo pipeline...")
             try:
                 pipeline.stop()
-                logger.info("✅ Pipeline detenido")
+                logger.info("   ✅ Pipeline detenido")
             except Exception as e:
-                logger.warning(f"Error deteniendo pipeline: {e}")
+                logger.warning(f"   ⚠️ Error deteniendo pipeline: {e}")
 
-        logger.info("🧹 Limpiando circuit breakers...")
+        logger.info("   Limpiando circuit breakers...")
         circuit_breaker_registry.reset_all()
 
-        logger.info("🧹 Liberando memoria...")
+        logger.info("   Liberando memoria...")
         gc.collect()
         gc.collect()
+        mem = get_memory_usage()
+        logger.info(f"   ✅ Memoria liberada: {mem.get('rss_mb', 0):.1f} MB")
 
         error_stats = global_error_handler.get_stats()
         print_final_report(pipeline, start_time, error_stats, logger)
+
+        logger.info("👋 Sistema finalizado correctamente")
 
     sys.exit(0)
 

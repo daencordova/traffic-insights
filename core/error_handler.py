@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from datetime import datetime
-import logging
 import sys
 import traceback
 from typing import Any
@@ -16,19 +15,21 @@ from core.exceptions import (
     TimeoutError,
     VehicleCountingError,
 )
+from utils.logger import LoggerMixin
 
 
-class GlobalErrorHandler:
+class GlobalErrorHandler(LoggerMixin):
     """Manejador global de errores que captura excepciones no manejadas y proporciona recuperación automática cuando es posible."""
 
-    def __init__(self, logger: logging.Logger | None = None):
-        self.logger = logger or logging.getLogger("error_handler")
+    def __init__(self):
         self._error_count = 0
         self._last_error_time: datetime | None = None
         self._error_threshold = 10
         self._error_window = 60.0
         self._recovery_callbacks: dict[str, Callable] = {}
         self._is_recovering = False
+
+        self.logger.info("GlobalErrorHandler inicializado")
 
     def register_recovery(self, name: str, callback: Callable) -> None:
         """Registra un callback para recuperación automática.
@@ -40,18 +41,24 @@ class GlobalErrorHandler:
         self._recovery_callbacks[name] = callback
 
     def handle_exception(self, exc: Exception, context: dict[str, Any] | None = None) -> bool:
-        """Maneja una excepción y decide si se puede recuperar.
-
-        Args:
-            exc: Excepción capturada.
-            context: Contexto adicional para logging.
-
-        Returns:
-            bool: True si se pudo recuperar, False si es fatal.
-        """
+        """Maneja una excepción y decide si se puede recuperar."""
         self._update_error_stats()
 
-        self._log_error(exc, context)
+        error_type = type(exc).__name__
+        error_msg = str(exc) if str(exc) else "No details available"
+
+        self.logger.error(
+            f"Error no manejado: {error_type}: {error_msg}",
+            exc_info=True,
+            error_type=error_type,
+            error_details=error_msg,
+            context=context,
+            **(
+                exc.details
+                if isinstance(exc, VehicleCountingError) and hasattr(exc, "details")
+                else {}
+            ),
+        )
 
         if not isinstance(exc, VehicleCountingError):
             return self._handle_system_error(exc)
