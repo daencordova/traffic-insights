@@ -1,4 +1,7 @@
 """Servicio de captura con circuit breaker y manejo robusto de errores.
+
+Proporciona un servicio especializado en la captura de video con
+reconexión automática, control de flujo y monitoreo de salud.
 """
 
 from collections.abc import Callable
@@ -22,10 +25,23 @@ class CaptureService(LoggerMixin):
     """Servicio especializado en captura de video.
 
     Responsabilidades:
-    - Conectar y reconectar a la fuente
-    - Leer frames de la fuente
-    - Almacenar frames en el buffer
-    - Monitorear la salud de la conexión
+        - Conectar y reconectar a la fuente
+        - Leer frames de la fuente
+        - Almacenar frames en el buffer
+        - Monitorear la salud de la conexión
+        - Control de flujo basado en uso del buffer
+
+    Attributes:
+        config: Configuración del sistema.
+        buffer: Buffer circular para frames.
+        on_frame_captured: Callback para frames capturados.
+        on_frame_dropped: Callback para frames descartados.
+
+    Example:
+        >>> service = CaptureService(config)
+        >>> service.start("0")
+        >>> frame, metadata = service.buffer.get()
+        >>> service.stop()
     """
 
     def __init__(
@@ -80,7 +96,15 @@ class CaptureService(LoggerMixin):
         )
 
     def start(self, source: str | None = None) -> None:
-        """Inicia el servicio de captura."""
+        """Inicia el servicio de captura.
+
+        Args:
+            source: Fuente de video (opcional). Si es None, usa la configuración.
+
+        Note:
+            Inicia un thread dedicado para la captura continua.
+            El thread se ejecuta en segundo plano y es daemon.
+        """
         if self._running:
             return
 
@@ -94,7 +118,12 @@ class CaptureService(LoggerMixin):
         self.logger.info("Servicio de captura iniciado")
 
     def stop(self) -> None:
-        """Detiene el servicio de captura."""
+        """Detiene el servicio de captura.
+
+        Note:
+            Espera a que el thread de captura termine (timeout 2s).
+            Libera el recurso de captura (VideoCapture).
+        """
         self._running = False
 
         if self._thread and self._thread.is_alive():
@@ -107,7 +136,12 @@ class CaptureService(LoggerMixin):
         self.logger.info("Servicio de captura detenido")
 
     def pause(self) -> None:
-        """Pausa la captura."""
+        """Pausa la captura.
+
+        Note:
+            Los frames no se leen mientras está pausado.
+            El buffer mantiene los frames existentes.
+        """
         self._paused = True
         self.logger.debug("Captura pausada")
 
@@ -117,7 +151,15 @@ class CaptureService(LoggerMixin):
         self.logger.debug("Captura reanudada")
 
     def reconnect(self) -> bool:
-        """Reconecta a la fuente de video."""
+        """Reconecta a la fuente de video.
+
+        Returns:
+            bool: True si la reconexión fue exitosa.
+
+        Note:
+            Libera la captura actual y crea una nueva.
+            Aplica reintentos según configuración.
+        """
         self.logger.info("Intentando reconexión...")
         if self._cap:
             self._cap.release()
@@ -126,7 +168,16 @@ class CaptureService(LoggerMixin):
         return self._connect()
 
     def _capture_loop(self) -> None:
-        """Bucle principal de captura con control de estado."""
+        """Bucle principal de captura con control de estado.
+
+        Note:
+            Se ejecuta en un thread separado.
+            Maneja:
+            - Reconexión automática
+            - Control de flujo
+            - Circuit breaker
+            - Frame skipping
+        """
         self.logger.info(f"Iniciando bucle de captura desde: {self._source}")
 
         consecutive_errors = 0
@@ -178,7 +229,14 @@ class CaptureService(LoggerMixin):
         self.logger.info("Bucle de captura terminado")
 
     def _ensure_connected(self) -> bool:
-        """Asegura que la conexión esté activa."""
+        """Asegura que la conexión esté activa.
+
+        Returns:
+            bool: True si la conexión está activa.
+
+        Note:
+            Si la conexión está caída, intenta reconectar.
+        """
         if self._cap and self._cap.isOpened():
             return True
 
@@ -194,7 +252,14 @@ class CaptureService(LoggerMixin):
 
     @retry_on_failure(retry_config)
     def _connect(self) -> bool:
-        """Conecta a la fuente de video con reintentos."""
+        """Conecta a la fuente de video con reintentos.
+
+        Returns:
+            bool: True si la conexión fue exitosa.
+
+        Raises:
+            CameraError: Si no se puede conectar después de reintentos.
+        """
         try:
             self._cap = self._reconnector.connect(self._source, self.config.camera)
 
@@ -213,7 +278,14 @@ class CaptureService(LoggerMixin):
             raise CameraError(f"Fallo en conexión: {e}") from e
 
     def _read_frame(self) -> tuple:
-        """Lee un frame con manejo de errores."""
+        """Lee un frame con manejo de errores.
+
+        Returns:
+            tuple: (ret, frame) donde ret es booleano.
+
+        Note:
+            Maneja errores de OpenCV y otros fallos de lectura.
+        """
         try:
             return self._cap.read()
         except cv2.error as e:
@@ -224,7 +296,11 @@ class CaptureService(LoggerMixin):
             return False, None
 
     def _handle_read_error(self) -> None:
-        """Maneja errores de lectura con recuperación."""
+        """Maneja errores de lectura con recuperación.
+
+        Note:
+            Incrementa contador de errores y reconecta si es necesario.
+        """
         self.logger.warning("Error leyendo frame, intentando recuperar...")
         self._stats["errors"] += 1
 
@@ -234,7 +310,15 @@ class CaptureService(LoggerMixin):
             self._stats["errors"] = 0
 
     def _on_breaker_state_change(self, name: str, new_state: str) -> None:
-        """Callback cuando cambia el estado del circuit breaker."""
+        """Callback cuando cambia el estado del circuit breaker.
+
+        Args:
+            name: Nombre del circuit breaker.
+            new_state: Nuevo estado ('closed', 'open', 'half_open').
+
+        Note:
+            Registra el cambio y puede tomar acciones correctivas.
+        """
         self._stats["breaker_state"] = new_state
         self.logger.warning(f"Circuit breaker '{name}' cambió a estado: {new_state}")
 
@@ -242,11 +326,29 @@ class CaptureService(LoggerMixin):
             self.logger.error("Conexión bloqueada por circuit breaker. Intentando recuperación...")
 
     def _validate_frame(self, frame: np.ndarray) -> bool:
-        """Valida la integridad del frame."""
+        """Valida la integridad del frame.
+
+        Args:
+            frame: Frame a validar.
+
+        Returns:
+            bool: True si el frame es válido.
+
+        Note:
+            Verifica que no sea None, tenga tamaño > 0 y dimensiones mínimas.
+        """
         return validate_frame(frame, min_width=10, min_height=10)
 
     def _process_frame(self, frame: np.ndarray) -> None:
-        """Procesa y almacena el frame."""
+        """Procesa y almacena el frame.
+
+        Args:
+            frame: Frame capturado.
+
+        Note:
+            Crea metadatos y almacena en el buffer.
+            Actualiza estadísticas y FPS.
+        """
         metadata = FrameMetadata(
             timestamp=time.time(),
             frame_number=self._stats["frames_captured"],
@@ -267,10 +369,32 @@ class CaptureService(LoggerMixin):
             self.on_frame_captured(frame, metadata)
 
     def _update_fps(self) -> None:
-        """Actualiza el FPS de captura."""
+        """Actualiza el FPS de captura.
+
+        Note:
+            Calcula el FPS basado en el tiempo entre frames.
+        """
 
     def get_stats(self) -> dict:
-        """Obtiene estadísticas del servicio."""
+        """Obtiene estadísticas del servicio.
+
+        Returns:
+            Dict: Estadísticas incluyendo:
+                - frames_captured: Frames capturados
+                - frames_dropped: Frames descartados
+                - reconnections: Número de reconexiones
+                - errors: Número de errores
+                - fps: FPS actual
+                - buffer_usage: Uso del buffer (0-1)
+                - breaker_state: Estado del circuit breaker
+                - is_running: Si está en ejecución
+                - is_paused: Si está pausado
+                - is_connected: Si hay conexión activa
+
+        Example:
+            >>> stats = service.get_stats()
+            >>> print(f"FPS: {stats['fps']:.1f}")
+        """
         return {
             **self._stats,
             "buffer_size": len(self.buffer),

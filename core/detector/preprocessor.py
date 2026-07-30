@@ -1,7 +1,8 @@
 """Preprocesamiento de imágenes para mejorar detección.
 
 Proporciona funciones para mejorar la calidad de las imágenes
-antes de la detección de objetos.
+antes de la detección de objetos, incluyendo reducción de ruido,
+ecualización de histograma y mejora de contraste.
 """
 
 import time
@@ -18,15 +19,20 @@ class ImagePreprocessor(LoggerMixin):
     """Preprocesador de imágenes para mejorar detección.
 
     Características:
-    - Reducción de ruido
-    - Ecualización de histograma
-    - Mejora de contraste
-    - Normalización
+        - Reducción de ruido (fastNlMeansDenoising)
+        - Ecualización de histograma (CLAHE)
+        - Mejora de contraste
+        - Normalización
 
     Attributes:
-        enabled: Si el preprocesamiento está activado
-        denoise_strength: Fuerza del filtro de reducción de ruido
-        equalize_histogram: Si aplicar ecualización de histograma
+        enabled: Si el preprocesamiento está activado.
+        denoise_strength: Fuerza del filtro de reducción de ruido (1-10).
+        equalize_histogram: Si aplicar ecualización de histograma.
+        enhance_contrast: Si mejorar el contraste.
+
+    Example:
+        >>> preprocessor = ImagePreprocessor(enabled=True, denoise_strength=5)
+        >>> enhanced = preprocessor.process(frame)
     """
 
     def __init__(
@@ -66,10 +72,16 @@ class ImagePreprocessor(LoggerMixin):
         """Procesa una imagen aplicando las mejoras configuradas.
 
         Args:
-            frame: Imagen a procesar
+            frame: Imagen a procesar en formato BGR.
 
         Returns:
-            np.ndarray: Imagen procesada
+            np.ndarray: Imagen procesada o copia del original si está desactivado.
+
+        Note:
+            Las mejoras se aplican en orden:
+            1. Reducción de ruido
+            2. Ecualización de histograma
+            3. Mejora de contraste (CLAHE)
         """
         if not self.enabled or frame is None:
             return frame
@@ -108,7 +120,11 @@ class ImagePreprocessor(LoggerMixin):
             return frame
 
     def _update_stats(self, time_ms: float) -> None:
-        """Actualiza estadísticas de procesamiento."""
+        """Actualiza estadísticas de procesamiento.
+
+        Args:
+            time_ms: Tiempo de procesamiento en milisegundos.
+        """
         self._stats["processed_frames"] += 1
         self._stats["processing_times"].append(time_ms)
 
@@ -120,7 +136,20 @@ class ImagePreprocessor(LoggerMixin):
         )
 
     def get_stats(self) -> dict[str, Any]:
-        """Obtiene estadísticas del preprocesador."""
+        """Obtiene estadísticas del preprocesador.
+
+        Returns:
+            Dict[str, Any]: Estadísticas incluyendo:
+                - processed_frames: Frames procesados
+                - avg_processing_time_ms: Tiempo promedio de procesamiento
+                - enabled: Si está activado
+                - denoise_strength: Fuerza de reducción de ruido
+                - equalize_histogram: Si ecualización está activada
+
+        Example:
+            >>> stats = preprocessor.get_stats()
+            >>> print(f"Avg time: {stats['avg_processing_time_ms']:.2f}ms")
+        """
         return {
             **self._stats,
             "enabled": self.enabled,
@@ -129,11 +158,19 @@ class ImagePreprocessor(LoggerMixin):
         }
 
     def set_enabled(self, enabled: bool) -> None:
-        """Activa o desactiva el preprocesamiento."""
+        """Activa o desactiva el preprocesamiento.
+
+        Args:
+            enabled: True para activar, False para desactivar.
+        """
         self.enabled = enabled
         self.logger.info(f"Preprocesamiento {'activado' if enabled else 'desactivado'}")
 
     def set_denoise_strength(self, strength: int) -> None:
-        """Ajusta la fuerza del filtro de reducción de ruido."""
+        """Ajusta la fuerza del filtro de reducción de ruido.
+
+        Args:
+            strength: Fuerza del filtro (0-10). 0 desactiva el filtro.
+        """
         self.denoise_strength = max(0, min(10, strength))
         self.logger.info(f"Fuerza de reducción de ruido: {self.denoise_strength}")

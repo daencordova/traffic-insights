@@ -1,4 +1,9 @@
-"""Sistema de validación de tracks para asegurar calidad."""
+"""Sistema de validación de tracks para asegurar calidad.
+
+Proporciona reglas de validación para verificar la consistencia
+de los tracks y filtrar aquellos que no cumplen con los criterios
+de calidad establecidos.
+"""
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -16,7 +21,13 @@ from utils.logger import LoggerMixin
 
 
 class ValidationSeverity(Enum):
-    """Severidad de las violaciones de validación."""
+    """Severidad de las violaciones de validación.
+
+    Attributes:
+        WARNING: Problema menor que no impide el tracking.
+        ERROR: Problema que afecta la calidad del track.
+        CRITICAL: Problema grave que invalida el track.
+    """
 
     WARNING = "warning"
     ERROR = "error"
@@ -25,7 +36,20 @@ class ValidationSeverity(Enum):
 
 @dataclass
 class ValidationResult:
-    """Resultado de una validación."""
+    """Resultado de una validación.
+
+    Attributes:
+        passed: Si la validación fue exitosa.
+        violations: Lista de violaciones encontradas.
+        score: Puntuación de calidad (0-1).
+        details: Información adicional del resultado.
+
+    Example:
+        >>> result = validator.validate(track)
+        >>> if not result.passed:
+        ...     for violation in result.violations:
+        ...         print(f"{violation['rule']}: {violation['severity']}")
+    """
 
     passed: bool
     violations: list[dict[str, Any]] = field(default_factory=list)
@@ -34,7 +58,21 @@ class ValidationResult:
 
 
 class ValidationRule:
-    """Regla de validación para tracks."""
+    """Regla de validación para tracks.
+
+    Attributes:
+        name: Nombre identificador de la regla.
+        check_func: Función que realiza la validación.
+        severity: Severidad de la violación.
+        threshold: Umbral para considerar la regla como superada.
+
+    Example:
+        >>> rule = ValidationRule(
+        ...     name="motion_consistency",
+        ...     check_func=check_motion,
+        ...     severity=ValidationSeverity.WARNING
+        ... )
+    """
 
     def __init__(
         self,
@@ -49,10 +87,16 @@ class ValidationRule:
         self.threshold = threshold
 
     def validate(self, track) -> tuple[bool, float, dict[str, Any]]:
-        """Valida un track.
+        """Valida un track contra esta regla.
+
+        Args:
+            track: TrackState a validar.
 
         Returns:
-            (passed, score, details)
+            Tuple[bool, float, Dict[str, Any]]:
+                - passed: Si la regla se cumple
+                - score: Puntuación de cumplimiento (0-1)
+                - details: Detalles de la validación
         """
         try:
             passed, score, details = self.check_func(track)
@@ -65,11 +109,21 @@ class TrackValidator(LoggerMixin):
     """Validador de tracks con múltiples reglas y puntuación.
 
     Reglas de validación:
-    1. Consistencia de movimiento (velocidad no cambia abruptamente)
-    2. Suavidad de trayectoria (sin zigzags extremos)
-    3. Consistencia de forma (aspect ratio estable)
-    4. Verificación de posición (dentro de límites)
-    5. Filtro de confianza
+        1. Consistencia de movimiento (velocidad no cambia abruptamente)
+        2. Suavidad de trayectoria (sin zigzags extremos)
+        3. Consistencia de forma (aspect ratio estable)
+        4. Verificación de posición (dentro de límites)
+        5. Filtro de confianza
+
+    Attributes:
+        min_confidence: Confianza mínima requerida.
+        max_speed_change: Cambio máximo de velocidad permitido.
+
+    Example:
+        >>> validator = TrackValidator(min_confidence=0.3)
+        >>> result = validator.validate(track)
+        >>> if result.passed:
+        ...     print(f"Track válido con score: {result.score:.2f}")
     """
 
     def __init__(
@@ -119,10 +173,16 @@ class TrackValidator(LoggerMixin):
         """Valida un track contra todas las reglas.
 
         Args:
-            track: TrackState a validar
+            track: TrackState a validar.
 
         Returns:
-            ValidationResult con estado detallado
+            ValidationResult: Resultado detallado de la validación.
+
+        Note:
+            Un track pasa la validación si:
+            - Score promedio >= 0.4
+            - No tiene más de 2 violaciones
+            - No tiene violaciones CRITICAL
         """
         violations = []
         total_score = 0.0
@@ -167,7 +227,13 @@ class TrackValidator(LoggerMixin):
     def _check_motion_consistency(self, track) -> tuple[bool, float, dict]:
         """Verifica que el movimiento sea consistente.
 
-        Calcula variación de velocidad y aceleración
+        Calcula variación de velocidad y aceleración a través del tiempo.
+
+        Args:
+            track: Track a validar.
+
+        Returns:
+            Tuple[bool, float, Dict]: (passed, score, details)
         """
         if len(track.history) < 3:
             return True, 1.0, {"reason": "insufficient_history"}
@@ -202,7 +268,13 @@ class TrackValidator(LoggerMixin):
     def _check_trajectory_smoothness(self, track) -> tuple[bool, float, dict]:
         """Verifica que la trayectoria sea suave (sin zigzags extremos).
 
-        Usa la desviación de una línea recta
+        Usa regresión lineal para medir la desviación de una línea recta.
+
+        Args:
+            track: Track a validar.
+
+        Returns:
+            Tuple[bool, float, Dict]: (passed, score, details)
         """
         if len(track.history) < 5:
             return True, 1.0, {"reason": "insufficient_history"}
@@ -241,7 +313,13 @@ class TrackValidator(LoggerMixin):
     def _check_shape_consistency(self, track) -> tuple[bool, float, dict]:
         """Verifica que la forma del objeto sea consistente.
 
-        Analiza aspect ratio y área a través del tiempo
+        Analiza aspect ratio y área a través del tiempo.
+
+        Args:
+            track: Track a validar.
+
+        Returns:
+            Tuple[bool, float, Dict]: (passed, score, details)
         """
         if len(track.history) < 3:
             return True, 1.0, {"reason": "insufficient_history"}
@@ -282,7 +360,13 @@ class TrackValidator(LoggerMixin):
     def _check_position_validity(self, track) -> tuple[bool, float, dict]:
         """Verifica que la posición del track sea válida.
 
-        Comprueba que esté dentro de límites razonables
+        Comprueba que esté dentro de límites razonables de la imagen.
+
+        Args:
+            track: Track a validar.
+
+        Returns:
+            Tuple[bool, float, Dict]: (passed, score, details)
         """
         if not hasattr(track, "centroid"):
             return False, 0.0, {"error": "no_centroid"}
@@ -320,7 +404,14 @@ class TrackValidator(LoggerMixin):
         return passed, score, details
 
     def _check_confidence(self, track) -> tuple[bool, float, dict]:
-        """Verifica que la confianza del track sea suficiente."""
+        """Verifica que la confianza del track sea suficiente.
+
+        Args:
+            track: Track a validar.
+
+        Returns:
+            Tuple[bool, float, Dict]: (passed, score, details)
+        """
         confidence = getattr(track, "confidence", 0.0)
 
         score = min(1.0, confidence / self.min_confidence)
@@ -337,10 +428,16 @@ class TrackValidator(LoggerMixin):
         """Valida múltiples tracks.
 
         Args:
-            tracks: Lista de tracks a validar
+            tracks: Lista de tracks a validar.
 
         Returns:
-            Diccionario con resultados por track_id
+            Dict[int, ValidationResult]: Resultados por track_id.
+
+        Example:
+            >>> results = validator.validate_batch(tracks)
+            >>> for track_id, result in results.items():
+            ...     if not result.passed:
+            ...         print(f"Track {track_id} inválido")
         """
         results = {}
         for track in tracks:
@@ -350,7 +447,14 @@ class TrackValidator(LoggerMixin):
         return results
 
     def get_stats(self) -> dict[str, Any]:
-        """Obtiene estadísticas del validador."""
+        """Obtiene estadísticas del validador.
+
+        Returns:
+            Dict[str, Any]: Estadísticas incluyendo:
+                - rules_count: Número de reglas configuradas
+                - min_confidence: Confianza mínima
+                - max_speed_change: Cambio máximo de velocidad
+        """
         return {
             "rules_count": len(self.rules),
             "min_confidence": self.min_confidence,

@@ -24,7 +24,14 @@ FrameHash = str
 
 
 class CacheEntry:
-    """Entrada en el caché de detecciones."""
+    """Entrada en el caché de detecciones.
+
+    Attributes:
+        detections: Lista de detecciones almacenadas.
+        timestamp: Momento de creación de la entrada.
+        size: Tamaño estimado en bytes de la entrada.
+        access_count: Número de veces que se ha accedido a la entrada.
+    """
 
     __slots__ = ("detections", "timestamp", "size", "access_count")
 
@@ -35,12 +42,23 @@ class CacheEntry:
         self.access_count = 0
 
     def touch(self) -> None:
-        """Actualiza el contador de acceso y timestamp."""
+        """Actualiza el contador de acceso y timestamp.
+
+        Este método se llama cada vez que se accede a la entrada,
+        manteniendo actualizada su posición en el orden LRU.
+        """
         self.access_count += 1
         self.timestamp = time.time()
 
     def is_valid(self, max_age: float = 3.0) -> bool:
-        """Verifica si la entrada sigue siendo válida."""
+        """Verifica si la entrada sigue siendo válida.
+
+        Args:
+            max_age: Edad máxima en segundos antes de expirar (default: 3.0).
+
+        Returns:
+            bool: True si la entrada es válida y no ha expirado.
+        """
         return (time.time() - self.timestamp) < max_age
 
 
@@ -48,17 +66,17 @@ class DetectionCache(LoggerMixin):
     """Caché LRU para detecciones de objetos.
 
     Características:
-    - Política LRU (Least Recently Used)
-    - Límite de memoria configurable
-    - Expiración por tiempo
-    - Estadísticas de uso
-    - Thread-safe
+        - Política LRU (Least Recently Used)
+        - Límite de memoria configurable
+        - Expiración por tiempo
+        - Estadísticas de uso
+        - Thread-safe
 
     Attributes:
-        max_size: Número máximo de entradas en caché
-        max_age_seconds: Tiempo máximo de vida de una entrada
-        max_memory_mb: Memoria máxima permitida para el caché
-        cleanup_threshold: Umbral para limpieza automática
+        max_size: Número máximo de entradas en caché.
+        max_age_seconds: Tiempo máximo de vida de una entrada.
+        max_memory_mb: Memoria máxima permitida para el caché.
+        cleanup_threshold: Umbral para limpieza automática.
     """
 
     def __init__(
@@ -102,10 +120,14 @@ class DetectionCache(LoggerMixin):
         """Calcula una clave única para el frame.
 
         Args:
-            frame: Imagen a procesar
+            frame: Imagen a procesar.
 
         Returns:
-            str: Hash MD5 del frame redimensionado
+            str: Hash MD5 del frame redimensionado a 32x32.
+
+        Note:
+            El redimensionamiento a 32x32 asegura que frames similares
+            produzcan la misma clave, aumentando la tasa de aciertos.
         """
         try:
             small = cv2.resize(frame, (32, 32))
@@ -117,10 +139,14 @@ class DetectionCache(LoggerMixin):
         """Obtiene detecciones del caché.
 
         Args:
-            key: Clave del frame
+            key: Clave del frame.
 
         Returns:
-            Optional[DetectionList]: Detecciones cacheadas o None
+            Optional[DetectionList]: Detecciones cacheadas o None si no existen.
+
+        Note:
+            Esta operación actualiza el orden LRU de la entrada.
+            Las entradas expiradas se eliminan automáticamente.
         """
         entry = self._cache.get(key)
 
@@ -145,8 +171,12 @@ class DetectionCache(LoggerMixin):
         """Almacena detecciones en el caché.
 
         Args:
-            key: Clave del frame
-            detections: Lista de detecciones
+            key: Clave del frame.
+            detections: Lista de detecciones a almacenar.
+
+        Note:
+            Si el caché está lleno, se elimina la entrada más antigua (LRU).
+            Si la memoria excede el límite, se realiza una limpieza agresiva.
         """
         if not detections:
             return
@@ -173,14 +203,26 @@ class DetectionCache(LoggerMixin):
         )
 
     def _remove(self, key: str) -> None:
-        """Elimina una entrada del caché."""
+        """Elimina una entrada del caché.
+
+        Args:
+            key: Clave de la entrada a eliminar.
+
+        Note:
+            Este método actualiza el contador de evictions y libera memoria.
+        """
         entry = self._cache.pop(key, None)
         if entry:
             self._memory_usage -= entry.size
             self._evictions += 1
 
     def _evict_oldest(self) -> None:
-        """Elimina la entrada más antigua (LRU)."""
+        """Elimina la entrada más antigua (LRU).
+
+        Note:
+            Se elimina la primera entrada del OrderedDict,
+            que corresponde a la menos recientemente usada.
+        """
         if not self._cache:
             return
 
@@ -189,7 +231,12 @@ class DetectionCache(LoggerMixin):
         self.logger.debug("Evicted oldest entry", key=oldest_key[:8], cache_size=len(self._cache))
 
     def _periodic_cleanup(self) -> None:
-        """Limpieza periódica de entradas expiradas."""
+        """Limpieza periódica de entradas expiradas.
+
+        Note:
+            La limpieza se realiza cada `_cleanup_interval` segundos
+            para evitar overhead en cada operación.
+        """
         current_time = time.time()
         if current_time - self._last_cleanup < self._cleanup_interval:
             return
@@ -210,7 +257,11 @@ class DetectionCache(LoggerMixin):
         """Limpieza de caché.
 
         Args:
-            aggressive: Si es True, limpia más entradas
+            aggressive: Si es True, limpia más entradas (50%).
+                Si es False, limpia solo el 30% de las entradas.
+
+        Note:
+            La limpieza agresiva se usa cuando la memoria excede el límite.
         """
         if not self._cache:
             return
@@ -227,7 +278,11 @@ class DetectionCache(LoggerMixin):
             self.logger.debug("Partial cleanup", removed=len(keys_to_remove))
 
     def clear(self) -> None:
-        """Limpia todo el caché."""
+        """Limpia todo el caché.
+
+        Note:
+            Reinicia todas las estadísticas y libera toda la memoria.
+        """
         count = len(self._cache)
         self._cache.clear()
         self._memory_usage = 0
@@ -236,7 +291,24 @@ class DetectionCache(LoggerMixin):
         self.logger.info("Cache cleared", entries=count)
 
     def get_stats(self) -> dict[str, Any]:
-        """Obtiene estadísticas del caché."""
+        """Obtiene estadísticas del caché.
+
+        Returns:
+            Dict[str, Any]: Estadísticas incluyendo:
+                - size: Número actual de entradas
+                - max_size: Tamaño máximo configurado
+                - memory_usage_mb: Memoria usada en MB
+                - max_memory_mb: Memoria máxima configurada
+                - hits: Número de aciertos
+                - misses: Número de fallos
+                - evictions: Número de entradas eliminadas
+                - hit_rate: Tasa de aciertos (0-1)
+                - max_age_seconds: Edad máxima configurada
+
+        Example:
+            >>> stats = cache.get_stats()
+            >>> print(f"Hit rate: {stats['hit_rate']:.2%}")
+        """
         total_requests = self._hits + self._misses
 
         return {

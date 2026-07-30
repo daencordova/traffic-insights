@@ -1,6 +1,7 @@
 """Fábrica para crear detectores de objetos.
 
-Proporciona una interfaz unificada para crear diferentes tipos de detectores.
+Proporciona una interfaz unificada para crear diferentes tipos de detectores
+según la configuración y disponibilidad del hardware.
 """
 
 
@@ -14,6 +15,11 @@ class DetectorFactory(LoggerMixin):
     """Fábrica de detectores de objetos.
 
     Crea detectores según la configuración y disponibilidad.
+    Prioriza versiones optimizadas cuando están disponibles.
+
+    Example:
+        >>> detector = DetectorFactory.create_best_available()
+        >>> detections = detector.detect(frame)
     """
 
     @staticmethod
@@ -25,12 +31,22 @@ class DetectorFactory(LoggerMixin):
         """Crea un detector de objetos.
 
         Args:
-            config: Configuración del detector (opcional)
-            force_optimized: Forzar versión optimizada para CPU
-            force_standard: Forzar versión estándar
+            config: Configuración del detector (opcional).
+                Si es None, usa la configuración global.
+            force_optimized: Forzar versión optimizada para CPU.
+                Lanza excepción si no está disponible.
+            force_standard: Forzar versión estándar (PyTorch).
+                Ignora cualquier optimización disponible.
 
         Returns:
-            YOLODetector: Detector creado
+            YOLODetector: Detector creado.
+
+        Note:
+            El orden de prioridad es:
+            1. force_standard -> YOLODetector
+            2. force_optimized -> OptimizedYOLODetector
+            3. config.use_optimized -> OptimizedYOLODetector (fallback a YOLODetector)
+            4. Default -> YOLODetector
         """
         if config is None:
             config = DetectorConfig.from_global_config()
@@ -61,13 +77,17 @@ class DetectorFactory(LoggerMixin):
         """Crea un detector optimizado para CPU.
 
         Args:
-            config: Configuración del detector (opcional)
+            config: Configuración del detector (opcional).
 
         Returns:
-            OptimizedYOLODetector: Detector optimizado
+            OptimizedYOLODetector: Detector optimizado con ONNX y Numba.
 
         Raises:
-            RuntimeError: Si no se puede crear el detector optimizado
+            RuntimeError: Si no se puede crear el detector optimizado.
+
+        Example:
+            >>> detector = DetectorFactory.create_optimized()
+            >>> # Usa ONNX Runtime y Numba para máxima velocidad en CPU
         """
         if config is None:
             config = DetectorConfig.from_global_config()
@@ -82,10 +102,14 @@ class DetectorFactory(LoggerMixin):
         """Crea un detector estándar.
 
         Args:
-            config: Configuración del detector (opcional)
+            config: Configuración del detector (opcional).
 
         Returns:
-            YOLODetector: Detector estándar
+            YOLODetector: Detector estándar con PyTorch.
+
+        Example:
+            >>> detector = DetectorFactory.create_standard()
+            >>> # Usa PyTorch para inferencia
         """
         if config is None:
             config = DetectorConfig.from_global_config()
@@ -97,10 +121,19 @@ class DetectorFactory(LoggerMixin):
         """Crea el mejor detector disponible según el hardware.
 
         Args:
-            config: Configuración del detector (opcional)
+            config: Configuración del detector (opcional).
 
         Returns:
-            YOLODetector: Mejor detector disponible
+            YOLODetector: Mejor detector disponible.
+
+        Note:
+            Prioriza:
+            1. OptimizedYOLODetector (si está disponible)
+            2. YOLODetector (fallback)
+
+        Example:
+            >>> detector = DetectorFactory.create_best_available()
+            >>> # Usa el detector más rápido disponible en el hardware actual
         """
         if config is None:
             config = DetectorConfig.from_global_config()

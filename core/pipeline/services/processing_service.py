@@ -1,10 +1,7 @@
 """Servicio de procesamiento de frames.
 
-Responsable de:
-- Detección de objetos en el frame
-- Tracking de objetos
-- Conteo de vehículos
-- Procesamiento por lotes (batch processing)
+Responsable de la detección, tracking y conteo de objetos en los frames,
+con soporte para procesamiento por lotes y gestión de colas.
 """
 
 from collections.abc import Callable
@@ -21,7 +18,30 @@ from utils.logger import LoggerMixin
 
 
 class ProcessingResult:
-    """Resultado del procesamiento de un frame."""
+    """Resultado del procesamiento de un frame.
+
+    Attributes:
+        frame_number: Número del frame procesado.
+        detections: Lista de detecciones encontradas.
+        tracks: Diccionario de tracks actualizados.
+        stats: Estadísticas del conteo.
+        processed_frame: Frame procesado con visualizaciones.
+        processing_time_ms: Tiempo de procesamiento en ms.
+        capture_time_ms: Tiempo de captura en ms.
+        timestamp: Timestamp del frame.
+
+    Example:
+        >>> result = ProcessingResult(
+        ...     frame_number=42,
+        ...     detections=detections,
+        ...     tracks=tracks,
+        ...     stats=stats,
+        ...     processed_frame=frame,
+        ...     processing_time_ms=25.3,
+        ...     capture_time_ms=5.2,
+        ...     timestamp=time.time()
+        ... )
+    """
 
     __slots__ = (
         "frame_number",
@@ -60,7 +80,30 @@ class ProcessingResult:
 
 
 class ProcessingService(LoggerMixin):
-    """Servicio especializado en procesamiento de frames."""
+    """Servicio especializado en procesamiento de frames.
+
+    Responsabilidades:
+        - Detección de objetos en el frame
+        - Tracking de objetos
+        - Conteo de vehículos
+        - Procesamiento por lotes (batch processing)
+        - Gestión de cola de frames
+
+    Attributes:
+        config: Configuración del sistema.
+        detector: Detector de objetos.
+        tracker: Tracker de objetos.
+        counter: Contador de vehículos.
+        enable_batch: Si batch processing está activado.
+        batch_size: Tamaño del lote.
+
+    Example:
+        >>> service = ProcessingService(config)
+        >>> service.start()
+        >>> service.enqueue_frame(frame, metadata)
+        >>> result = service.process_frame(frame, metadata)
+        >>> service.stop()
+    """
 
     def __init__(
         self,
@@ -114,7 +157,12 @@ class ProcessingService(LoggerMixin):
         return YOLODetector()
 
     def start(self) -> None:
-        """Inicia el servicio de procesamiento."""
+        """Inicia el servicio de procesamiento.
+
+        Note:
+            Inicia un thread dedicado para el procesamiento continuo.
+            El thread procesa frames de la cola en segundo plano.
+        """
         if self._running:
             return
 
@@ -126,7 +174,12 @@ class ProcessingService(LoggerMixin):
         self.logger.info("Servicio de procesamiento iniciado")
 
     def stop(self) -> None:
-        """Detiene el servicio de procesamiento."""
+        """Detiene el servicio de procesamiento.
+
+        Note:
+            Espera a que el thread termine (timeout 2s).
+            Limpia la cola de frames pendientes.
+        """
         self._running = False
 
         if self._thread and self._thread.is_alive():
@@ -135,7 +188,11 @@ class ProcessingService(LoggerMixin):
         self.logger.info("Servicio de procesamiento detenido")
 
     def pause(self) -> None:
-        """Pausa el procesamiento."""
+        """Pausa el procesamiento.
+
+        Note:
+            Los frames en cola no se procesan mientras está pausado.
+        """
         self._paused = True
         self.logger.debug("Procesamiento pausado")
 
@@ -145,7 +202,15 @@ class ProcessingService(LoggerMixin):
         self.logger.debug("Procesamiento reanudado")
 
     def enqueue_frame(self, frame: np.ndarray, metadata: FrameMetadata) -> None:
-        """Encola un frame para procesamiento."""
+        """Encola un frame para procesamiento.
+
+        Args:
+            frame: Frame a procesar.
+            metadata: Metadatos del frame.
+
+        Note:
+            Si la cola está llena, descarta el frame más antiguo.
+        """
         if not self._running or self._paused:
             return
 
@@ -157,7 +222,13 @@ class ProcessingService(LoggerMixin):
                 self._frame_queue.pop(0)
 
     def _process_loop(self) -> None:
-        """Bucle principal de procesamiento."""
+        """Bucle principal de procesamiento.
+
+        Note:
+            Se ejecuta en un thread separado.
+            Procesa frames de la cola en orden FIFO.
+            Soporta procesamiento individual o por lotes.
+        """
         self.logger.info("Bucle de procesamiento iniciado")
 
         while self._running:
@@ -182,7 +253,12 @@ class ProcessingService(LoggerMixin):
         self.logger.info("Bucle de procesamiento terminado")
 
     def _process_single(self) -> None:
-        """Procesa un solo frame."""
+        """Procesa un solo frame.
+
+        Note:
+            Toma un frame de la cola y lo procesa.
+            El resultado se envía al callback on_frame_processed.
+        """
         with self._queue_lock:
             if not self._frame_queue:
                 return
@@ -193,7 +269,12 @@ class ProcessingService(LoggerMixin):
             self.on_frame_processed(result)
 
     def _process_batch(self) -> None:
-        """Procesa un lote de frames."""
+        """Procesa un lote de frames.
+
+        Note:
+            Toma batch_size frames de la cola.
+            Procesa todos en lote para mejor rendimiento.
+        """
         with self._queue_lock:
             batch_size = min(self.batch_size, len(self._frame_queue))
             if batch_size == 0:
@@ -214,11 +295,15 @@ class ProcessingService(LoggerMixin):
         """Procesa un único frame.
 
         Args:
-            frame: Frame a procesar
-            metadata: Metadatos del frame
+            frame: Frame a procesar.
+            metadata: Metadatos del frame.
 
         Returns:
-            Optional[ProcessingResult]: Resultado del procesamiento
+            Optional[ProcessingResult]: Resultado del procesamiento o None.
+
+        Note:
+            Realiza detección, tracking y conteo en secuencia.
+            Mide y registra tiempos de procesamiento.
         """
         if frame is None or frame.size == 0:
             return None
@@ -256,10 +341,14 @@ class ProcessingService(LoggerMixin):
         """Procesa un lote de frames.
 
         Args:
-            batch: Lista de tuplas (frame, metadata)
+            batch: Lista de tuplas (frame, metadata).
 
         Returns:
-            List[ProcessingResult]: Resultados del procesamiento
+            List[ProcessingResult]: Resultados del procesamiento.
+
+        Note:
+            Usa detect_batch del detector para mejor rendimiento.
+            Cada frame se procesa individualmente para tracking y conteo.
         """
         if not batch:
             return []
@@ -316,7 +405,12 @@ class ProcessingService(LoggerMixin):
         return results
 
     def reset(self) -> None:
-        """Reinicia el servicio."""
+        """Reinicia el servicio.
+
+        Note:
+            Reinicia tracker y counter.
+            Limpia estadísticas y cola.
+        """
         self.tracker.reset()
         self.counter.reset()
         self._processed_count = 0
@@ -324,7 +418,25 @@ class ProcessingService(LoggerMixin):
         self.logger.info("Servicio de procesamiento reiniciado")
 
     def get_stats(self) -> dict:
-        """Obtiene estadísticas del servicio."""
+        """Obtiene estadísticas del servicio.
+
+        Returns:
+            Dict: Estadísticas incluyendo:
+                - processed_count: Frames procesados
+                - avg_processing_time_ms: Tiempo promedio de procesamiento
+                - queue_size: Tamaño de la cola
+                - is_running: Si está en ejecución
+                - is_paused: Si está pausado
+                - batch_enabled: Si batch está activado
+                - batch_size: Tamaño del lote
+                - detector_stats: Estadísticas del detector
+                - tracker_stats: Estadísticas del tracker
+                - counter_stats: Estadísticas del contador
+
+        Example:
+            >>> stats = service.get_stats()
+            >>> print(f"Avg time: {stats['avg_processing_time_ms']:.2f}ms")
+        """
         return {
             "processed_count": self._processed_count,
             "avg_processing_time_ms": self._processing_time_ms,

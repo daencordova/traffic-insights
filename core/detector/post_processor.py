@@ -1,6 +1,7 @@
 """Post-procesador para detecciones YOLO.
 
 Maneja el parsing de resultados, NMS y validación de detecciones.
+Incluye optimizaciones con Numba para NMS rápido.
 """
 
 from typing import Any
@@ -76,18 +77,22 @@ class PostProcessor(LoggerMixin):
     """Post-procesador para detecciones YOLO.
 
     Responsabilidades:
-    - Parsear resultados de inferencia
-    - Aplicar NMS
-    - Validar detecciones (confianza, área, etc.)
-    - Convertir a formato estándar
+        - Parsear resultados de inferencia
+        - Aplicar NMS (Non-Maximum Suppression)
+        - Validar detecciones (confianza, área, etc.)
+        - Convertir a formato estándar
 
     Attributes:
-        confidence_threshold: Umbral de confianza
-        iou_threshold: Umbral de IoU para NMS
-        vehicle_classes: Clases a mantener
-        min_area: Área mínima de detección
-        max_area: Área máxima de detección
-        imgsz: Tamaño de imagen para escalar coordenadas
+        confidence_threshold: Umbral de confianza mínimo.
+        iou_threshold: Umbral de IoU para NMS.
+        vehicle_classes: Clases a mantener.
+        min_area: Área mínima de detección.
+        max_area: Área máxima de detección.
+        imgsz: Tamaño de imagen para escalar coordenadas.
+
+    Example:
+        >>> processor = PostProcessor(confidence_threshold=0.5)
+        >>> detections = processor.process_onnx_output(output, (480, 640))
     """
 
     def __init__(
@@ -125,14 +130,19 @@ class PostProcessor(LoggerMixin):
     def process_onnx_output(
         self, output: np.ndarray, original_shape: tuple[int, int]
     ) -> list[dict[str, Any]]:
-        """Procesa la salida de ONNX.
+        """Procesa la salida de ONNX Runtime.
 
         Args:
-            output: Salida del modelo ONNX
-            original_shape: Shape original de la imagen (height, width)
+            output: Salida del modelo ONNX.
+            original_shape: Shape original de la imagen (height, width).
 
         Returns:
-            List[Dict[str, Any]]: Detecciones procesadas
+            List[Dict[str, Any]]: Detecciones procesadas y validadas.
+
+        Note:
+            Soporta dos formatos de salida:
+            1. [N, 6] con (x1, y1, x2, y2, score, class_id)
+            2. [N, 85] con (x_center, y_center, w, h, conf, class_scores...)
         """
         if output is None or len(output) == 0:
             return []
@@ -187,14 +197,14 @@ class PostProcessor(LoggerMixin):
     def process_pytorch_results(
         self, results, original_shape: tuple[int, int]
     ) -> list[dict[str, Any]]:
-        """Procesa los resultados de PyTorch.
+        """Procesa los resultados de PyTorch (YOLO).
 
         Args:
-            results: Resultados de YOLO
-            original_shape: Shape original de la imagen (height, width)
+            results: Resultados de YOLO (ultralytics.Results).
+            original_shape: Shape original de la imagen (height, width).
 
         Returns:
-            List[Dict[str, Any]]: Detecciones procesadas
+            List[Dict[str, Any]]: Detecciones procesadas y validadas.
         """
         if results is None or results.boxes is None:
             return []
@@ -245,11 +255,15 @@ class PostProcessor(LoggerMixin):
         """Parsea detecciones al formato estándar.
 
         Args:
-            detections: Array de detecciones
-            original_shape: Shape original (height, width)
+            detections: Array de detecciones [N, 6].
+            original_shape: Shape original (height, width).
 
         Returns:
-            List[Dict[str, Any]]: Detecciones en formato estándar
+            List[Dict[str, Any]]: Detecciones en formato estándar.
+
+        Note:
+            Convierte coordenadas normalizadas a píxeles y aplica
+            validaciones de área y confianza.
         """
         if detections is None or len(detections) == 0:
             return []
@@ -297,11 +311,25 @@ class PostProcessor(LoggerMixin):
         return parsed
 
     def get_stats(self) -> dict:
-        """Obtiene estadísticas del post-procesador."""
+        """Obtiene estadísticas del post-procesador.
+
+        Returns:
+            Dict: Estadísticas incluyendo:
+                - total_detections: Total procesadas
+                - filtered_low_confidence: Filtradas por confianza
+                - filtered_wrong_class: Filtradas por clase
+                - filtered_small_area: Filtradas por área mínima
+                - filtered_large_area: Filtradas por área máxima
+                - detections_after_nms: Detecciones después de NMS
+
+        Example:
+            >>> stats = processor.get_stats()
+            >>> print(f"Filtradas por confianza: {stats['filtered_low_confidence']}")
+        """
         return self._stats
 
     def reset_stats(self) -> None:
-        """Reinicia las estadísticas."""
+        """Reinicia las estadísticas del post-procesador."""
         self._stats = {
             "total_detections": 0,
             "filtered_low_confidence": 0,

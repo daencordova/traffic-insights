@@ -1,10 +1,7 @@
 """Servicio de renderizado y visualización.
 
-Responsable de:
-- Renderizar overlays en los frames
-- Mostrar frames en ventana
-- Manejar eventos de teclado
-- Gestionar la cola de renderizado
+Responsable de renderizar overlays, mostrar frames en ventana,
+y manejar eventos de teclado de forma asíncrona.
 """
 
 from collections.abc import Callable
@@ -23,6 +20,26 @@ from utils.logger import LoggerMixin
 
 class RenderService(LoggerMixin):
     """Servicio especializado en renderizado y visualización.
+
+    Responsabilidades:
+        - Renderizar overlays en los frames
+        - Mostrar frames en ventana
+        - Manejar eventos de teclado
+        - Gestionar la cola de renderizado
+
+    Attributes:
+        config: Configuración del sistema.
+        renderer: Renderizador de frames.
+        controls: Manejador de controles.
+        max_queue_size: Tamaño máximo de la cola de renderizado.
+        on_key_pressed: Callback para teclas presionadas.
+
+    Example:
+        >>> service = RenderService(config)
+        >>> service.start()
+        >>> service.enqueue_frame(result)
+        >>> # Presiona 'q' para salir
+        >>> service.stop()
     """
 
     def __init__(
@@ -53,7 +70,12 @@ class RenderService(LoggerMixin):
         self.logger.info("RenderService inicializado", max_queue_size=max_queue_size)
 
     def start(self) -> None:
-        """Inicia el servicio de renderizado."""
+        """Inicia el servicio de renderizado.
+
+        Note:
+            Crea la ventana de OpenCV.
+            Inicia el thread de renderizado en segundo plano.
+        """
         if self._running:
             return
 
@@ -70,7 +92,12 @@ class RenderService(LoggerMixin):
         self.logger.info("Servicio de renderizado iniciado")
 
     def stop(self) -> None:
-        """Detiene el servicio de renderizado."""
+        """Detiene el servicio de renderizado.
+
+        Note:
+            Cierra la ventana de OpenCV.
+            Espera a que el thread termine (timeout 2s).
+        """
         self._running = False
 
         if self._thread and self._thread.is_alive():
@@ -84,7 +111,11 @@ class RenderService(LoggerMixin):
         self.logger.info("Servicio de renderizado detenido")
 
     def pause(self) -> None:
-        """Pausa el renderizado."""
+        """Pausa el renderizado.
+
+        Note:
+            Muestra un frame de pausa (overlay) hasta que se reanude.
+        """
         self._paused = True
         self.logger.debug("Renderizado pausado")
 
@@ -97,7 +128,10 @@ class RenderService(LoggerMixin):
         """Encola un frame para renderizado.
 
         Args:
-            result: Resultado del procesamiento
+            result: Resultado del procesamiento.
+
+        Note:
+            Si la cola está llena, descarta el frame más antiguo.
         """
         if not self._running or self._paused:
             return
@@ -111,7 +145,13 @@ class RenderService(LoggerMixin):
                 self.logger.debug(f"Frame {dropped.frame_number} descartado de cola de renderizado")
 
     def _render_loop(self) -> None:
-        """Bucle principal de renderizado."""
+        """Bucle principal de renderizado.
+
+        Note:
+            Se ejecuta en un thread separado.
+            Toma frames de la cola y los muestra en la ventana.
+            Maneja eventos de teclado en tiempo real.
+        """
         self.logger.info("Bucle de renderizado iniciado")
 
         while self._running and self.controls.is_running:
@@ -141,7 +181,11 @@ class RenderService(LoggerMixin):
         self.logger.info("Bucle de renderizado terminado")
 
     def _get_next_frame(self) -> ProcessingResult | None:
-        """Obtiene el siguiente frame de la cola."""
+        """Obtiene el siguiente frame de la cola.
+
+        Returns:
+            Optional[ProcessingResult]: Siguiente frame o None si está vacía.
+        """
         with self._queue_lock:
             if self._render_queue:
                 return self._render_queue.pop(0)
@@ -151,7 +195,11 @@ class RenderService(LoggerMixin):
         """Muestra un frame en la ventana.
 
         Args:
-            result: Resultado del procesamiento
+            result: Resultado del procesamiento.
+
+        Note:
+            Renderiza overlays y dashboard.
+            Actualiza el último frame válido.
         """
         if result.processed_frame is None or result.processed_frame.size == 0:
             return
@@ -181,7 +229,12 @@ class RenderService(LoggerMixin):
             self.logger.error(f"Error mostrando frame: {e}")
 
     def _render_pause_frame(self) -> None:
-        """Muestra un frame de pausa."""
+        """Muestra un frame de pausa.
+
+        Note:
+            Dibuja un overlay de "PAUSADO" sobre el último frame.
+            Mantiene la ventana activa para eventos de teclado.
+        """
         if self._last_valid_frame is not None:
             try:
                 pause_frame = self._last_valid_frame.copy()
@@ -222,7 +275,22 @@ class RenderService(LoggerMixin):
                 self.logger.debug(f"Error mostrando pausa: {e}")
 
     def get_stats(self) -> dict:
-        """Obtiene estadísticas del servicio."""
+        """Obtiene estadísticas del servicio.
+
+        Returns:
+            Dict: Estadísticas incluyendo:
+                - frames_rendered: Frames renderizados
+                - frames_dropped: Frames descartados
+                - errors: Número de errores
+                - queue_size: Tamaño de la cola
+                - max_queue_size: Tamaño máximo
+                - is_running: Si está en ejecución
+                - is_paused: Si está pausado
+
+        Example:
+            >>> stats = service.get_stats()
+            >>> print(f"Rendered: {stats['frames_rendered']}")
+        """
         return {
             "frames_rendered": self._frames_rendered,
             "frames_dropped": self._frames_dropped,

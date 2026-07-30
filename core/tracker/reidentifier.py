@@ -2,15 +2,7 @@
 
 Este módulo implementa un sistema de re-identificación que permite
 recuperar objetos perdidos utilizando features visuales almacenados
-en caché.
-
-Características principales:
-- Caché persistente de features con LRU
-- Matching temporal (considera cuándo se perdió el track)
-- Re-identificación progresiva (varias etapas)
-- Validación de calidad antes de re-identificar
-- Cooldown para evitar re-identificaciones repetidas
-- Historial de re-identificaciones para depuración
+en caché durante el tracking.
 """
 
 from dataclasses import dataclass
@@ -33,7 +25,17 @@ from utils.logger import LoggerMixin
 
 @dataclass
 class ReIdentificationCandidate:
-    """Candidato para re-identificación."""
+    """Candidato para re-identificación.
+
+    Attributes:
+        track_id: ID del track candidato.
+        features: Features visuales del candidato.
+        confidence: Confianza del candidato.
+        last_seen: Timestamp de la última vez que se vio.
+        similarity_score: Puntuación de similitud (0-1).
+        spatial_score: Puntuación espacial (0-1).
+        combined_score: Puntuación combinada (0-1).
+    """
 
     track_id: int
     features: np.ndarray
@@ -51,11 +53,11 @@ class ReIDSystem(LoggerMixin):
     features visuales almacenados en caché durante el tracking.
 
     Características:
-    - Caché persistente de features
-    - Matching temporal (considera cuándo se perdió el track)
-    - Re-identificación progresiva (varias etapas)
-    - Validación de calidad antes de re-identificar
-    - Cooldown para evitar re-identificaciones repetidas
+        - Caché persistente de features
+        - Matching temporal (considera cuándo se perdió el track)
+        - Re-identificación progresiva (varias etapas)
+        - Validación de calidad antes de re-identificar
+        - Cooldown para evitar re-identificaciones repetidas
 
     Attributes:
         feature_extractor: Extractor de features visuales.
@@ -65,8 +67,6 @@ class ReIDSystem(LoggerMixin):
         max_age_seconds: Edad máxima de un track para re-identificación.
         feature_cache: Caché de features.
         reid_history: Historial de re-identificaciones.
-        _recently_reid: Tracks re-identificados recientemente (cooldown).
-        _cooldown_seconds: Tiempo de cooldown entre re-identificaciones.
 
     Example:
         >>> reid = ReIDSystem()
@@ -135,6 +135,10 @@ class ReIDSystem(LoggerMixin):
             track_id: ID del track perdido.
             features: Vector de features del track.
             confidence: Confianza del track.
+
+        Note:
+            Solo se añaden tracks con features válidos y confianza > 0.
+            El caché tiene límite de tamaño y política LRU.
         """
         if features is None or len(features) == 0:
             return
@@ -147,7 +151,11 @@ class ReIDSystem(LoggerMixin):
         )
 
     def clear_cache(self) -> None:
-        """Limpia el caché de features y el historial de re-identificaciones."""
+        """Limpia el caché de features y el historial de re-identificaciones.
+
+        Note:
+            También limpia el cooldown de tracks re-identificados recientemente.
+        """
         self.feature_cache.clear()
         self._recently_reid.clear()
         self.logger.info("Caché de re-identificación limpiado")
@@ -162,13 +170,21 @@ class ReIDSystem(LoggerMixin):
         """Intenta re-identificar una detección con un track perdido.
 
         Args:
-            detection: Detección actual.
-            frame: Frame actual (para extraer features si es necesario).
-            current_tracks: Tracks activos actuales (para evitar duplicados).
+            detection: Detección actual con 'centroid' y opcionalmente 'features'.
+            frame: Frame actual para extraer features si es necesario.
+            current_tracks: Tracks activos actuales para evitar duplicados.
             max_candidates: Número máximo de candidatos a considerar.
 
         Returns:
             Optional[int]: ID del track re-identificado o None.
+
+        Note:
+            El proceso de re-identificación incluye:
+            1. Extraer features de la detección (si no tiene)
+            2. Buscar candidatos en el caché
+            3. Filtrar por cooldown y tracks activos
+            4. Validar calidad del candidato
+            5. Confirmar re-identificación
         """
         start_time = time.perf_counter()
         self.stats["total_attempts"] += 1
@@ -228,6 +244,10 @@ class ReIDSystem(LoggerMixin):
 
         Returns:
             Optional[np.ndarray]: Vector de features o None.
+
+        Note:
+            Si la detección ya tiene features, los retorna directamente.
+            Si no, usa el feature_extractor para extraerlos.
         """
         det_features = detection.get("features")
 
@@ -274,6 +294,11 @@ class ReIDSystem(LoggerMixin):
 
         Returns:
             List[ReIdentificationCandidate]: Candidatos filtrados.
+
+        Note:
+            Filtra por:
+            - IDs no activos
+            - Cooldown de re-identificación reciente
         """
         active_ids = set(current_tracks.keys())
         candidates = [c for c in candidates if c.track_id not in active_ids]
@@ -293,21 +318,18 @@ class ReIDSystem(LoggerMixin):
 
     def _validate_reidentification(
         self, candidate: ReIdentificationCandidate, detection: dict[str, Any]
-    ) -> bool:
-        """Valida la calidad de una re-identificación.
-
-        Criterios:
-        1. Similaridad de features suficiente
-        2. Confianza de la detección adecuada
-        3. Distancia espacial razonable
-        4. No demasiado antigua (tiempo desde pérdida)
+    ) -> int | None:
+        """Ejecuta la re-identificación de un track.
 
         Args:
-            candidate: Candidato a validar.
+            candidate: Candidato seleccionado.
             detection: Detección actual.
 
         Returns:
-            bool: True si el candidato es válido.
+            Optional[int]: ID del track re-identificado o None.
+
+        Note:
+            Marca el track en cooldown y lo elimina del caché.
         """
         if candidate.similarity_score < self.similarity_threshold:
             self.logger.debug(
@@ -415,7 +437,20 @@ class ReIDSystem(LoggerMixin):
         """Obtiene estadísticas del sistema de re-identificación.
 
         Returns:
-            Dict[str, Any]: Estadísticas del sistema.
+            Dict[str, Any]: Estadísticas incluyendo:
+                - total_attempts: Intentos totales
+                - successful_reid: Re-identificaciones exitosas
+                - failed_reid: Re-identificaciones fallidas
+                - success_rate: Tasa de éxito (0-1)
+                - avg_confidence: Confianza promedio
+                - avg_time_ms: Tiempo promedio en ms
+                - cache_size: Tamaño del caché
+                - cache_hit_rate: Tasa de aciertos del caché
+                - history_size: Tamaño del historial
+
+        Example:
+            >>> stats = reid.get_stats()
+            >>> print(f"Success rate: {stats['success_rate']:.2%}")
         """
         total = self.stats["successful_reid"] + self.stats["failed_reid"]
 
@@ -443,7 +478,7 @@ class ReIDSystem(LoggerMixin):
         """Obtiene la última re-identificación exitosa.
 
         Returns:
-            Optional[Dict[str, Any]]: Último evento exitoso.
+            Optional[Dict[str, Any]]: Último evento exitoso o None.
         """
         for entry in reversed(self.reid_history):
             if entry.get("track_id") is not None:

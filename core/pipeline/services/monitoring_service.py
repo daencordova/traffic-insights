@@ -1,10 +1,7 @@
 """Servicio de monitoreo y métricas.
 
-Responsable de:
-- Recolectar métricas del sistema
-- Monitorear la salud del pipeline
-- Generar estadísticas de rendimiento
-- Detectar problemas y alertar
+Responsable de recolectar métricas del sistema, monitorear la salud
+del pipeline y generar estadísticas de rendimiento en tiempo real.
 """
 
 from collections import deque
@@ -18,6 +15,24 @@ from utils.logger import LoggerMixin
 
 class MonitoringService(LoggerMixin):
     """Servicio especializado en monitoreo y métricas.
+
+    Responsabilidades:
+        - Recolectar métricas del sistema
+        - Monitorear la salud del pipeline
+        - Generar estadísticas de rendimiento
+        - Detectar problemas y alertar
+
+    Attributes:
+        config: Configuración del sistema.
+        interval: Intervalo de muestreo en segundos.
+        max_history: Tamaño máximo del historial.
+
+    Example:
+        >>> service = MonitoringService(config, interval=5.0)
+        >>> service.start()
+        >>> metrics = service.get_current_metrics()
+        >>> print(f"FPS: {metrics['fps']:.1f}")
+        >>> service.stop()
     """
 
     def __init__(
@@ -61,7 +76,12 @@ class MonitoringService(LoggerMixin):
         )
 
     def start(self) -> None:
-        """Inicia el servicio de monitoreo."""
+        """Inicia el servicio de monitoreo.
+
+        Note:
+            Inicia un thread dedicado para la recolección de métricas.
+            El thread se ejecuta en segundo plano y es daemon.
+        """
         if self._running:
             return
 
@@ -75,7 +95,11 @@ class MonitoringService(LoggerMixin):
         self.logger.info("Servicio de monitoreo iniciado")
 
     def stop(self) -> None:
-        """Detiene el servicio de monitoreo."""
+        """Detiene el servicio de monitoreo.
+
+        Note:
+            Espera a que el thread termine (timeout 2s).
+        """
         self._running = False
 
         if self._thread and self._thread.is_alive():
@@ -84,7 +108,13 @@ class MonitoringService(LoggerMixin):
         self.logger.info("Servicio de monitoreo detenido")
 
     def _monitor_loop(self) -> None:
-        """Bucle principal de monitoreo."""
+        """Bucle principal de monitoreo.
+
+        Note:
+            Se ejecuta en un thread separado.
+            Recolecta métricas cada `interval` segundos.
+            Verifica la salud del sistema.
+        """
         self.logger.info("Bucle de monitoreo iniciado")
 
         while self._running:
@@ -98,7 +128,19 @@ class MonitoringService(LoggerMixin):
         self.logger.info("Bucle de monitoreo terminado")
 
     def _collect_metrics(self) -> None:
-        """Recolecta métricas del sistema."""
+        """Recolecta métricas del sistema.
+
+        Note:
+            Recolecta:
+            - FPS actual
+            - Uso de CPU (%)
+            - Uso de memoria (% y MB)
+            - Tracks activos
+            - Frames procesados
+            - Frames descartados
+            - Errores
+            - Tiempo de ejecución
+        """
         self._current_fps = self._fps_counter / (time.time() - self._fps_timer + 0.001)
         self._fps_counter = 0
         self._fps_timer = time.time()
@@ -124,7 +166,14 @@ class MonitoringService(LoggerMixin):
         self._check_health()
 
     def _check_health(self) -> None:
-        """Verifica la salud del sistema."""
+        """Verifica la salud del sistema.
+
+        Note:
+            Genera advertencias si:
+            - Memoria > 80%
+            - FPS < 5 (después de 30s)
+            - Demasiados errores (> 10)
+        """
         if self._current_metrics["memory_percent"] > 80:
             self.logger.warning(f"Memoria alta: {self._current_metrics['memory_percent']:.1f}%")
 
@@ -135,34 +184,67 @@ class MonitoringService(LoggerMixin):
             self.logger.warning(f"Demasiados errores: {self._error_counter}")
 
     def update_active_tracks(self, count: int) -> None:
-        """Actualiza el número de tracks activos."""
+        """Actualiza el número de tracks activos.
+
+        Args:
+            count: Número de tracks activos.
+        """
         self._current_metrics["active_tracks"] = count
 
     def record_processed_frame(self) -> None:
-        """Registra un frame procesado."""
+        """Registra un frame procesado.
+
+        Note:
+            Incrementa el contador de frames y el contador de FPS.
+        """
         self._frame_counter += 1
         self._fps_counter += 1
 
     def record_dropped_frame(self) -> None:
-        """Registra un frame descartado."""
+        """Registra un frame descartado.
+
+        Note:
+            Incrementa el contador de frames descartados.
+        """
         self._dropped_counter += 1
 
     def record_error(self) -> None:
-        """Registra un error."""
+        """Registra un error.
+
+        Note:
+            Incrementa el contador de errores.
+        """
         self._error_counter += 1
 
     def get_current_metrics(self) -> dict[str, Any]:
-        """Obtiene las métricas actuales."""
+        """Obtiene las métricas actuales.
+
+        Returns:
+            Dict[str, Any]: Métricas actuales incluyendo:
+                - fps: FPS actual
+                - cpu_percent: Uso de CPU (%)
+                - memory_percent: Uso de memoria (%)
+                - memory_used_mb: Memoria usada en MB
+                - active_tracks: Tracks activos
+                - processed_frames: Frames procesados
+                - dropped_frames: Frames descartados
+                - errors: Número de errores
+                - uptime_seconds: Tiempo de ejecución
+
+        Example:
+            >>> metrics = service.get_current_metrics()
+            >>> print(f"Memory: {metrics['memory_used_mb']:.1f} MB")
+        """
         return self._current_metrics.copy()
 
     def get_metrics_history(self, limit: int = 10) -> list[dict[str, Any]]:
         """Obtiene el historial de métricas.
 
         Args:
-            limit: Número máximo de registros a retornar
+            limit: Número máximo de registros a retornar.
 
         Returns:
-            List[Dict[str, Any]]: Historial de métricas
+            List[Dict[str, Any]]: Historial de métricas.
         """
         return list(self._metrics_history)[-limit:]
 
@@ -186,7 +268,19 @@ class MonitoringService(LoggerMixin):
         return sum(fps_values) / len(fps_values)
 
     def get_health_status(self) -> dict[str, Any]:
-        """Obtiene el estado de salud del sistema."""
+        """Obtiene el estado de salud del sistema.
+
+        Returns:
+            Dict[str, Any]: Estado de salud incluyendo:
+                - status: 'healthy' o 'unhealthy'
+                - issues: Lista de problemas detectados
+                - metrics: Métricas actuales
+
+        Example:
+            >>> health = service.get_health_status()
+            >>> if health['status'] == 'unhealthy':
+            ...     print(f"Issues: {health['issues']}")
+        """
         metrics = self._current_metrics
 
         issues = []
@@ -212,7 +306,21 @@ class MonitoringService(LoggerMixin):
         }
 
     def get_stats(self) -> dict:
-        """Obtiene estadísticas del servicio."""
+        """Obtiene estadísticas del servicio.
+
+        Returns:
+            Dict: Estadísticas incluyendo:
+                - current_metrics: Métricas actuales
+                - history_size: Tamaño del historial
+                - is_running: Si está en ejecución
+                - uptime_seconds: Tiempo de ejecución
+                - average_fps: FPS promedio
+                - health: Estado de salud
+
+        Example:
+            >>> stats = service.get_stats()
+            >>> print(f"Uptime: {stats['uptime_seconds']:.1f}s")
+        """
         return {
             "current_metrics": self._current_metrics.copy(),
             "history_size": len(self._metrics_history),
