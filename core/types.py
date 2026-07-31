@@ -146,6 +146,30 @@ class StatsDict(TypedDict, total=False):
     timestamp: float
 
 
+class CountingLineDict(TypedDict, total=False):
+    """Configuración de una línea de conteo.
+
+    Attributes:
+        id: Identificador único
+        name: Nombre descriptivo
+        points: Lista de puntos que definen la línea
+        color: Color en formato BGR
+        direction: Dirección de conteo ('up' or 'down')
+        y_position: Posición Y de la línea
+        enabled: Si la línea está activa
+        metadata: Metadatos adicionales
+    """
+
+    id: str
+    name: str
+    points: list[Point]
+    color: Color
+    direction: str
+    y_position: int
+    enabled: bool
+    metadata: dict[str, Any]
+
+
 class HypothesisData(TypedDict, total=False):
     """Datos de una hipótesis MHT.
 
@@ -194,11 +218,49 @@ class PredictionData(TypedDict, total=False):
     collision_risk: float
 
 
+class PipelineStatsDict(TypedDict, total=False):
+    """Estadísticas del pipeline.
+
+    Attributes:
+        fps: FPS actual
+        frame_count: Frames procesados
+        processing_time_ms: Tiempo de procesamiento en ms
+        buffer_usage: Uso del buffer (0-1)
+        active_tracks: Tracks activos
+        total_detections: Detecciones totales
+        state: Estado del pipeline
+    """
+
+    fps: float
+    frame_count: int
+    processing_time_ms: float
+    buffer_usage: float
+    active_tracks: int
+    total_detections: int
+    state: str
+
+
+TracksDict: TypeAlias = dict[int, TrackDataDict]
+"""Diccionario de tracks: track_id -> TrackDataDict."""
+
+TracksStateDict: TypeAlias = dict[int, Any]
+"""Diccionario de estados de tracks: track_id -> TrackState."""
+
+DetectionList: TypeAlias = list[DetectionDict]
+"""Lista de detecciones."""
+
+LineList: TypeAlias = list[CountingLineDict]
+"""Lista de líneas de conteo."""
+
+EventsList: TypeAlias = list[dict[str, Any]]
+"""Lista de eventos de conteo."""
+
+
 @runtime_checkable
 class IDetector(Protocol):
     """Interfaz para detectores de objetos."""
 
-    def detect(self, frame: np.ndarray) -> list[DetectionDict]:
+    def detect(self, frame: np.ndarray) -> DetectionList:
         """Detecta objetos en un frame."""
         ...
 
@@ -219,13 +281,11 @@ class IDetector(Protocol):
 class ITracker(Protocol):
     """Interfaz para trackers de objetos."""
 
-    def update(
-        self, detections: list[DetectionDict], frame: np.ndarray
-    ) -> dict[int, TrackDataDict]:
+    def update(self, detections: DetectionList, frame: np.ndarray) -> TracksDict:
         """Actualiza el tracker con nuevas detecciones."""
         ...
 
-    def get_tracking_info(self) -> dict[int, TrackDataDict]:
+    def get_tracking_info(self) -> TracksDict:
         """Retorna información de tracking actual."""
         ...
 
@@ -242,11 +302,11 @@ class ITracker(Protocol):
 class ICounter(Protocol):
     """Interfaz para contadores de objetos."""
 
-    def process(self, tracks: dict[int, TrackDataDict], frame: np.ndarray) -> dict[str, Any]:
+    def process(self, tracks: TracksDict, frame: np.ndarray) -> StatsDict:
         """Procesa los tracks y actualiza los conteos."""
         ...
 
-    def get_stats(self) -> dict[str, Any]:
+    def get_stats(self) -> StatsDict:
         """Retorna estadísticas actuales."""
         ...
 
@@ -259,7 +319,7 @@ class ICounter(Protocol):
 class IPipeline(Protocol):
     """Interfaz para el pipeline principal."""
 
-    def run(self) -> None:
+    def run(self, source: str | None = None) -> None:
         """Ejecuta el pipeline principal."""
         ...
 
@@ -409,8 +469,15 @@ __all__ = [
     "DetectionDict",
     "TrackDataDict",
     "StatsDict",
+    "CountingLineDict",
     "HypothesisData",
     "PredictionData",
+    "PipelineStatsDict",
+    "TracksDict",
+    "TracksStateDict",
+    "DetectionList",
+    "LineList",
+    "EventsList",
     "IDetector",
     "ITracker",
     "ICounter",
