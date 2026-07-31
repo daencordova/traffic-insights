@@ -21,7 +21,6 @@ from typing import Any
 
 import numpy as np
 
-from core.constants.magic_numbers import MEMORY_WARNING_PERCENT
 from core.constants.pipeline import (
     CLEANUP_INTERVAL,
     MEMORY_CHECK_INTERVAL,
@@ -31,6 +30,7 @@ from core.constants.tracking import (
     MAX_FRAMES_MISSED,
     MIN_HITS_TO_CONFIRM,
 )
+from core.constants.values import MEMORY_WARNING_PERCENT
 from core.interfaces import ITracker
 from core.tracker.managers.feature_manager import FeatureManager
 from core.tracker.managers.track_manager import TrackManager

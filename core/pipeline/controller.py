@@ -9,7 +9,7 @@ from enum import Enum, auto
 import threading
 import time
 
-from core.constants.magic_numbers import (
+from core.constants.values import (
     BUFFER_USAGE_RECOVERY,
     HEALTH_ISSUES_MAX,
     HEALTH_ISSUES_TRIM,

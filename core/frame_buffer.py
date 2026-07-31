@@ -14,7 +14,7 @@ import time
 
 import numpy as np
 
-from core.constants.magic_numbers import BUFFER_USAGE_FULL, BUFFER_USAGE_OVERFLOW
+from core.constants.values import BUFFER_USAGE_FULL, BUFFER_USAGE_OVERFLOW
 
 
 class BufferStatus(Enum):

@@ -13,12 +13,12 @@ from typing import Any
 import cv2
 import numpy as np
 
-from core.constants.magic_numbers import (
+from core.constants.pipeline import MIN_ACCEPTABLE_FPS, TARGET_FPS
+from core.constants.values import (
     IMAGE_CHANNELS_GRAY,
     IMAGE_CHANNELS_RGB,
     MAX_LINES_IN_DASHBOARD,
 )
-from core.constants.pipeline import MIN_ACCEPTABLE_FPS, TARGET_FPS
 from core.constants.vision import (
     COLORS,
 )

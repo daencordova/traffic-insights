@@ -9,8 +9,8 @@ from collections import defaultdict
 import time
 from typing import Any
 
-from core.constants.magic_numbers import HISTORY_MAX_SIZE, VELOCITY_DIMENSION
 from core.constants.system import SECONDS_PER_MINUTE
+from core.constants.values import HISTORY_MAX_SIZE, VELOCITY_DIMENSION
 
 
 class VehicleEvent:

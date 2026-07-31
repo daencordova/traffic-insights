@@ -21,7 +21,6 @@ from typing import Any
 import numpy as np
 from ultralytics import YOLO
 
-from core.constants.magic_numbers import BATCH_TIMES_MAX, INFERENCE_TIMES_MAX
 from core.constants.pipeline import (
     MEMORY_CHECK_INTERVAL,
 )
@@ -34,6 +33,7 @@ from core.constants.tracking import (
     CACHE_MIN_SIZE,
     FEATURE_CACHE_MAX_AGE,
 )
+from core.constants.values import BATCH_TIMES_MAX, INFERENCE_TIMES_MAX
 from core.constants.vision import (
     MAX_BOX_SIZE,
     MAX_DETECTION_CONFIDENCE,

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import threading
 import time
 
-from core.constants.magic_numbers import (
+from core.constants.values import (
     FPS_LOW,
     MEMORY_HIGH_PERCENT,
     MEMORY_SAFE_PERCENT,

@@ -11,7 +11,7 @@ from typing import Any
 import cv2
 import numpy as np
 
-from core.constants.magic_numbers import PROCESSING_TIMES_MAX
+from core.constants.values import PROCESSING_TIMES_MAX
 from utils.logger import LoggerMixin
 
 

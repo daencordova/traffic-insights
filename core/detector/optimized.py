@@ -10,13 +10,13 @@ from typing import Any
 
 import numpy as np
 
-from core.constants.magic_numbers import INFERENCE_TIMES_MAX
 from core.constants.tracking import (
     CACHE_DEFAULT_SIZE,
     CACHE_MAX_SIZE,
     CACHE_MIN_SIZE,
     FEATURE_CACHE_MAX_AGE,
 )
+from core.constants.values import INFERENCE_TIMES_MAX
 from core.detector.base import YOLODetector
 from core.detector.cache import DetectionCache
 from core.detector.config import DetectorConfig

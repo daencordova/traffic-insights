@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from ultralytics import YOLO
 
-from core.constants.magic_numbers import IMAGE_CHANNELS_RGB
+from core.constants.values import IMAGE_CHANNELS_RGB
 
 try:
     import onnxruntime as ort

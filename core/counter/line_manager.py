@@ -6,7 +6,7 @@ Maneja la configuración, validación y acceso a las líneas de conteo.
 from dataclasses import dataclass
 from typing import Any
 
-from core.constants.magic_numbers import POINT_DIMENSION
+from core.constants.values import POINT_DIMENSION
 
 
 @dataclass

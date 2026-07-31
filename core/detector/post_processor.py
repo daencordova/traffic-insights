@@ -22,7 +22,7 @@ except ImportError:
         return decorator if args and callable(args[0]) else decorator
 
 
-from core.constants.magic_numbers import IMAGE_CHANNELS_GRAY, IMAGE_CHANNELS_RGB
+from core.constants.values import IMAGE_CHANNELS_GRAY, IMAGE_CHANNELS_RGB
 from utils.geometry import calculate_centroid
 from utils.logger import LoggerMixin
 
