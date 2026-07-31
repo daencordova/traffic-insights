@@ -531,6 +531,11 @@ def main() -> NoReturn:
         log_file="data/logs/system.log",
         json_format=False,
         colored=True,
+        module_levels={
+            "core.detector": "DEBUG" if args.verbose else "INFO",
+            "core.tracker": "DEBUG" if args.verbose else "INFO",
+            "core.pipeline": "DEBUG" if args.verbose else "INFO",
+        },
     )
 
     logger = get_logger("main")

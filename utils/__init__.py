@@ -15,7 +15,19 @@ from utils.helpers import (
     format_time,
     get_timestamp_filename,
 )
-from utils.logger import LoggerMixin, setup_logger
+from utils.logger import (
+    LoggerMixin,
+    StructuredLogger,
+    config,
+    get_default_logger,
+    get_logger,
+    get_logger_for_class,
+    get_logging_status,
+    log_context,
+    set_module_level,
+    setup_logging,
+    temporary_log_level,
+)
 
 __all__ = [
     "calculate_centroid",
@@ -26,8 +38,17 @@ __all__ = [
     "ensure_directory_exists",
     "get_timestamp_filename",
     "format_time",
-    "setup_logger",
+    "setup_logging",
+    "get_logger",
+    "get_logger_for_class",
+    "get_default_logger",
+    "StructuredLogger",
     "LoggerMixin",
+    "config",
+    "get_logging_status",
+    "set_module_level",
+    "temporary_log_level",
+    "log_context",
     "ColorManager",
     "get_color_manager",
     "get_color",
