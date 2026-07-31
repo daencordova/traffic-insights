@@ -85,6 +85,20 @@ class YOLODetector(IDetector, LoggerMixin):
         ...     print(f"Objeto: {det['label']} confianza: {det['confidence']:.2f}")
     """
 
+    __slots__ = (
+        "config",
+        "device",
+        "model",
+        "cache",
+        "preprocessor",
+        "_inference_times",
+        "_batch_inference_times",
+        "_total_detections",
+        "_total_batches",
+        "_last_memory_check",
+        "_using_optimized",
+    )
+
     def __init__(self, config: DetectorConfig | None = None):
         """Inicializa el detector YOLO.
 
@@ -98,6 +112,8 @@ class YOLODetector(IDetector, LoggerMixin):
         """
         self.config = config or DetectorConfig.from_global_config()
         self.logger.info("Inicializando YOLODetector", model=self.config.model_path)
+
+        self._using_optimized = False
 
         self.device: str = self._get_device()
         self.model: YOLO = self._load_model()

@@ -12,6 +12,7 @@ Contiene:
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -23,6 +24,8 @@ from typing import (
 
 if TYPE_CHECKING:
     import numpy as np
+
+    from models.track_state import TrackState
 
 
 Point: TypeAlias = tuple[int, int]
@@ -48,6 +51,62 @@ Color: TypeAlias = tuple[int, int, int]
 
 ColorWithAlpha: TypeAlias = tuple[int, int, int, float]
 """Color en formato BGRA (blue, green, red, alpha)."""
+
+
+@dataclass(slots=True)
+class TrackData:
+    """Datos de un track para transferencia entre componentes."""
+
+    centroid: Point
+    bbox: BoundingBox
+    status: str
+    age: int
+    hits: int
+    no_losses: int
+    confidence: float
+    velocity: Velocity
+    label: str
+    class_id: int
+    history: list[Point]
+    predicted_centroid: Point
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convierte a diccionario para compatibilidad."""
+        return {
+            "centroid": self.centroid,
+            "bbox": self.bbox,
+            "status": self.status,
+            "age": self.age,
+            "hits": self.hits,
+            "no_losses": self.no_losses,
+            "confidence": self.confidence,
+            "velocity": self.velocity,
+            "label": self.label,
+            "class_id": self.class_id,
+            "history": self.history,
+            "predicted_centroid": self.predicted_centroid,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_track_state(cls, track_state: TrackState) -> TrackData:
+        """Crea TrackData desde un TrackState."""
+        return cls(
+            centroid=track_state.centroid,
+            bbox=track_state.bbox,
+            status=track_state.status.value,
+            age=track_state.age,
+            hits=track_state.hits,
+            no_losses=track_state.no_losses,
+            confidence=track_state.confidence,
+            velocity=track_state.velocity,
+            label=track_state.label,
+            class_id=track_state.class_id,
+            history=list(track_state.history),
+            predicted_centroid=track_state.predicted_centroid,
+            metadata=track_state.metadata.copy(),
+        )
 
 
 class DetectionDict(TypedDict, total=False):

@@ -47,6 +47,22 @@ class OptimizedYOLODetector(YOLODetector):
         >>> detections = detector.detect(frame)  # Usa ONNX si está disponible
     """
 
+    __slots__ = (
+        "confidence_threshold",
+        "iou_threshold",
+        "vehicle_classes",
+        "imgsz",
+        "max_det",
+        "model_manager",
+        "model_exporter",
+        "_pytorch_engine",
+        "_onnx_engine",
+        "post_processor",
+        "_warmed_up",
+        "_onnx_available",
+        "_numba_available",
+    )
+
     def __init__(self, config: DetectorConfig | None = None):
         """Inicializa el detector optimizado.
 
@@ -68,6 +84,8 @@ class OptimizedYOLODetector(YOLODetector):
         self.vehicle_classes = self.config.vehicle_classes
         self.imgsz = self.config.imgsz
         self.max_det = self.config.max_det
+
+        self._using_optimized = True
 
         self.logger.info(
             "Configuración del detector",

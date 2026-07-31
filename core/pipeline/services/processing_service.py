@@ -5,6 +5,7 @@ con soporte para procesamiento por lotes y gestión de colas.
 """
 
 from collections.abc import Callable
+from dataclasses import dataclass
 import threading
 import time
 
@@ -17,6 +18,7 @@ from core.tracker import MultiObjectTracker
 from utils.logger import LoggerMixin
 
 
+@dataclass(slots=True)
 class ProcessingResult:
     """Resultado del procesamiento de un frame.
 
@@ -43,17 +45,6 @@ class ProcessingResult:
         ... )
     """
 
-    __slots__ = (
-        "frame_number",
-        "detections",
-        "tracks",
-        "stats",
-        "processed_frame",
-        "processing_time_ms",
-        "capture_time_ms",
-        "timestamp",
-    )
-
     def __init__(
         self,
         frame_number: int,
@@ -76,6 +67,7 @@ class ProcessingResult:
 
     @property
     def total_time_ms(self) -> float:
+        """Tiempo total desde captura hasta procesamiento."""
         return self.capture_time_ms + self.processing_time_ms
 
 

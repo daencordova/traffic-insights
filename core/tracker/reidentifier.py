@@ -23,7 +23,7 @@ from models.feature_extractor import FeatureExtractor
 from utils.logger import LoggerMixin
 
 
-@dataclass
+@dataclass(slots=True)
 class ReIdentificationCandidate:
     """Candidato para re-identificación.
 

@@ -69,6 +69,17 @@ class FeatureCache(LoggerMixin):
         max_age_seconds: Tiempo máximo de vida de una entrada
     """
 
+    __slots__ = (
+        "max_size",
+        "max_age_seconds",
+        "_cache",
+        "_hits",
+        "_misses",
+        "_evictions",
+        "_last_cleanup",
+        "_cleanup_interval",
+    )
+
     def __init__(
         self,
         max_size: int = 500,

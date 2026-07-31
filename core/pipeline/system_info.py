@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import threading
 import time
 
+from core.constants.pipeline import TARGET_FPS
 from core.constants.values import (
     FPS_LOW,
     MEMORY_HIGH_PERCENT,
@@ -17,10 +18,6 @@ try:
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-
-
-TARGET_FPS = 30.0
-MIN_ACCEPTABLE_FPS = 15.0
 
 
 @dataclass(slots=True)
@@ -38,9 +35,7 @@ class SystemInfo:
 
 
 class SystemInfoCollector:
-    """Recolector de información del sistema con caché para evitar
-    llamadas frecuentes a psutil.
-    """
+    """Recolector de información del sistema con caché para evitar llamadas frecuentes a psutil."""
 
     def __init__(self, cache_seconds: float = 0.5):
         """Args:

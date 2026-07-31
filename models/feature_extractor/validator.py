@@ -33,6 +33,13 @@ class FeatureValidator(LoggerMixin):
         min_contrast: Contraste mínimo permitido
     """
 
+    __slots__ = (
+        "min_area",
+        "min_brightness",
+        "min_contrast",
+        "_stats",
+    )
+
     def __init__(
         self,
         min_area: int = 100,

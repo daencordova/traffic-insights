@@ -9,7 +9,7 @@ from typing import Any
 from core.constants.values import POINT_DIMENSION
 
 
-@dataclass
+@dataclass(slots=True)
 class CountingLine:
     """Representa una línea de conteo.
 

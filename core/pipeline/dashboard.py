@@ -46,6 +46,14 @@ class DashboardRenderer(LoggerMixin):
         height: Alto del dashboard
     """
 
+    __slots__ = (
+        "config",
+        "position",
+        "width",
+        "height",
+        "_default_frame_size",
+    )
+
     def __init__(self, config=None):
         self.config = config or config
         self.position = self.config.visualization.dashboard_position

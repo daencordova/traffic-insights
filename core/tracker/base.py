@@ -17,9 +17,10 @@ todos los subsistemas de tracking:
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 from core.constants.pipeline import (
     CLEANUP_INTERVAL,
@@ -27,6 +28,7 @@ from core.constants.pipeline import (
 )
 from core.constants.tracking import (
     MAX_ACTIVE_TRACKS,
+    MAX_DETECTIONS_PER_FRAME,
     MAX_FRAMES_MISSED,
     MIN_HITS_TO_CONFIRM,
 )
@@ -85,9 +87,25 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         ...     print(f"Track {track_id}: {track_data['centroid']}")
     """
 
-    MAX_DETECTIONS_PER_FRAME = 50
-    CLEANUP_INTERVAL = CLEANUP_INTERVAL
-    MEMORY_CHECK_INTERVAL = MEMORY_CHECK_INTERVAL
+    __slots__ = (
+        "config",
+        "global_config",
+        "track_manager",
+        "track_updater",
+        "feature_manager",
+        "reid_system",
+        "track_matcher",
+        "mht_integration",
+        "online_learner",
+        "sensor_fusion",
+        "path_predictor",
+        "state_machine",
+        "_frame_counter",
+        "_tracking_time_ms",
+        "_last_memory_check",
+        "_last_cleanup_time",
+        "_stats",
+    )
 
     def __init__(self) -> None:
         """Inicializa el tracker avanzado con configuración global."""
@@ -452,7 +470,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             det for det in detections if validate_detection(det, require_all_fields=True).is_valid
         ]
 
-        return valid[: self.MAX_DETECTIONS_PER_FRAME]
+        return valid[:MAX_DETECTIONS_PER_FRAME]
 
     def _extract_features(self, detections: list[dict[str, Any]], frame: np.ndarray) -> None:
         """Extrae features para todas las detecciones.
@@ -930,7 +948,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             de features y fuerza garbage collection.
         """
         current_time = time.time()
-        if current_time - self._last_memory_check < self.MEMORY_CHECK_INTERVAL:
+        if current_time - self._last_memory_check < MEMORY_CHECK_INTERVAL:
             return
 
         self._last_memory_check = current_time
@@ -957,7 +975,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             Elimina tracks en estado DEAD de la lista activa.
         """
         current_time = time.time()
-        if current_time - self._last_cleanup_time >= self.CLEANUP_INTERVAL:
+        if current_time - self._last_cleanup_time >= CLEANUP_INTERVAL:
             self._last_cleanup_time = current_time
             removed = self.track_manager.cleanup_dead_tracks()
 

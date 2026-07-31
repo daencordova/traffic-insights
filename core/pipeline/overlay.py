@@ -15,6 +15,7 @@ from typing import Any
 import cv2
 import numpy as np
 
+from core.constants.tracking import PREDICTION_STATE_COLORS, STATUS_COLORS
 from core.constants.visualization import (
     FONT_SCALE,
     LINE_THICKNESS,
@@ -66,26 +67,10 @@ class OverlayRenderer(LoggerMixin):
         "show_track_speed",
         "show_track_confidence",
         "track_circle_style",
+        "_show_track_ids",
         "_default_frame_size",
         "_color_manager",
     )
-
-    STATUS_COLORS = {
-        "confirmed": ((0, 255, 0), "✅", "OK"),
-        "lost": ((0, 255, 255), "⚠️", "Lost"),
-        "tentative": ((255, 255, 0), "⏳", "New"),
-        "dead": ((128, 128, 128), "💀", "Dead"),
-    }
-
-    PREDICTION_STATE_COLORS = {
-        "stopped": (0, 0, 255),
-        "accelerating": (0, 255, 255),
-        "decelerating": (0, 165, 255),
-        "turning": (255, 0, 255),
-        "erratic": (255, 0, 0),
-        "moving": (255, 255, 0),
-        "unknown": (255, 255, 0),
-    }
 
     def __init__(self, config=None):
         """Inicializa el renderizador de overlays.
@@ -293,9 +278,7 @@ class OverlayRenderer(LoggerMixin):
         _, icon, _ = self._get_enhanced_status_info(status)
         return icon
 
-    def _sanitize_point(
-        self, point: Any, frame_shape: tuple[int, int]
-    ) -> tuple[int, int] | None:
+    def _sanitize_point(self, point: Any, frame_shape: tuple[int, int]) -> tuple[int, int] | None:
         """Valida y sanitiza un punto (x, y) para estar dentro de los límites del frame.
 
         Args:
@@ -324,9 +307,7 @@ class OverlayRenderer(LoggerMixin):
 
         return (x, y)
 
-    def _sanitize_centroid(
-        self, centroid: Any, h: int, w: int
-    ) -> tuple[int | None, int | None]:
+    def _sanitize_centroid(self, centroid: Any, h: int, w: int) -> tuple[int | None, int | None]:
         """Valida y sanitiza un centroide, asegurando que está dentro de los límites del frame.
 
         Args:
@@ -362,7 +343,7 @@ class OverlayRenderer(LoggerMixin):
         """
         status_lower = status.lower() if isinstance(status, str) else ""
 
-        for key, (color, icon, text) in self.STATUS_COLORS.items():
+        for key, (color, icon, text) in STATUS_COLORS.items():
             if key in status_lower:
                 return color, icon, text
 
@@ -377,7 +358,7 @@ class OverlayRenderer(LoggerMixin):
         Returns:
             Tuple[int, int, int]: Color en formato BGR
         """
-        return self.PREDICTION_STATE_COLORS.get(state, (255, 255, 0))
+        return PREDICTION_STATE_COLORS.get(state, (255, 255, 0))
 
     def _blend_colors(
         self, color1: tuple[int, int, int], color2: tuple[int, int, int], weight: float = 0.3

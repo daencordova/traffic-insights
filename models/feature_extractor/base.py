@@ -12,15 +12,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from core.constants.values import MIN_REGION_QUALITY
 from models.feature_extractor.cache import FeatureCache
 from models.feature_extractor.validator import FeatureValidator
 from utils.logger import LoggerMixin
 
 if TYPE_CHECKING:
     from models.feature_extractor.backends.base import FeatureBackend
-
-MIN_REGION_QUALITY: float = 0.3
-"""Calidad mínima requerida para una región de imagen."""
 
 
 class FeatureExtractor(LoggerMixin):
@@ -35,6 +33,14 @@ class FeatureExtractor(LoggerMixin):
         validator: Validador de calidad
         feature_dim: Dimensión del vector de features
     """
+
+    __slots__ = (
+        "backend",
+        "feature_dim",
+        "cache",
+        "validator",
+        "_metrics",
+    )
 
     def __init__(
         self,
@@ -148,10 +154,7 @@ class FeatureExtractor(LoggerMixin):
         if image is None or image.size == 0:
             return False
 
-        if not self.validator.validate_bbox(bbox, image.shape):
-            return False
-
-        return True
+        return self.validator.validate_bbox(bbox, image.shape)
 
     def _check_cache(
         self,
