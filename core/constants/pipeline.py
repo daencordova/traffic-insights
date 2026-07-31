@@ -99,7 +99,7 @@ CAPTURE_BUFFER_DEFAULT_SIZE: Final[int] = 1
 CAPTURE_CV2_BUFFER_SIZE: Final[int] = 1
 """Tamaño de buffer de OpenCV (CV_CAP_PROP_BUFFERSIZE)."""
 
-CAPTURE_FOURCC_MJPG: Final[int] = 0x47504A4D  # 'MJPG' en hexadecimal
+CAPTURE_FOURCC_MJPG: Final[int] = 0x47504A4D
 """Código FOURCC para formato MJPG."""
 
 CAPTURE_RECONNECT_DELAY: Final[float] = 1.0
@@ -229,15 +229,23 @@ MAX_RENDER_TIMES: Final[int] = 100
 # RENDIMIENTO
 MAX_INFERENCE_TIMES: Final[int] = 100
 """Número máximo de tiempos de inferencia almacenados."""
+
 MAX_BATCH_TIMES: Final[int] = 50
 """Número máximo de tiempos de batch almacenados."""
+
 MAX_PROCESSING_TIMES: Final[int] = 100
 """Número máximo de tiempos de procesamiento almacenados."""
 
 # PROCESAMIENTO POR LOTES
 BATCH_DEFAULT_SIZE: Final[int] = 4
 """Tamaño de lote por defecto."""
+
 BATCH_MAX_SIZE: Final[int] = 8
 """Tamaño máximo de lote."""
+
 BATCH_MIN_SIZE: Final[int] = 2
 """Tamaño mínimo de lote."""
+
+# LIMPIEZA Y MANTENIMIENTO
+CLEANUP_INTERVAL_SECONDS: Final[float] = 5.0
+"""Intervalo de limpieza automática para recursos."""

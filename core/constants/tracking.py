@@ -261,3 +261,20 @@ DETECTION_BBOX_DIMENSION: Final[int] = 4
 # VALIDACIÓN
 SPATIAL_THRESHOLD_NORMALIZED: Final[float] = 100.0
 """Umbral de distancia espacial normalizado para matching."""
+
+# ESTADOS Y HISTORIAL
+STATE_HISTORY_MAX: Final[int] = 50
+"""Tamaño máximo del historial de estados por track."""
+
+CLEANUP_INTERVAL_FEATURES: Final[float] = 10.0
+"""Intervalo de limpieza para caché de features en segundos."""
+
+# MATCHING
+MAX_UNMATCHED_TRACKS: Final[int] = 100
+"""Número máximo de tracks no asociados permitidos."""
+
+MAX_UNMATCHED_DETECTIONS: Final[int] = 100
+"""Número máximo de detecciones no asociadas permitidas."""
+
+REID_MATCH_TIMEOUT: Final[float] = 2.0
+"""Timeout para matching de re-identificación en segundos."""

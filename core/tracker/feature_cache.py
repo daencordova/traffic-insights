@@ -5,6 +5,11 @@ from typing import Any
 
 import numpy as np
 
+from core.constants.tracking import (
+    CLEANUP_INTERVAL_FEATURES,
+    FEATURE_CACHE_MAX_AGE,
+    REID_CACHE_SIZE,
+)
 from utils.geometry import euclidean_distance
 from utils.logger import LoggerMixin
 
@@ -51,9 +56,9 @@ class FeatureCacheManager(LoggerMixin):
 
     def __init__(
         self,
-        max_size: int = 1000,
-        max_age_seconds: float = 30.0,
-        cleanup_interval: float = 10.0,
+        max_size: int = REID_CACHE_SIZE,
+        max_age_seconds: float = FEATURE_CACHE_MAX_AGE,
+        cleanup_interval: float = CLEANUP_INTERVAL_FEATURES,
     ):
         self.max_size = max_size
         self.max_age_seconds = max_age_seconds

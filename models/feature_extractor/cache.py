@@ -12,10 +12,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from core.constants.values import MIN_CACHE_QUALITY
 from utils.logger import LoggerMixin
-
-MIN_CACHE_QUALITY: float = 0.3
-"""Calidad mínima requerida para almacenar en caché."""
 
 
 class FeatureCacheEntry:

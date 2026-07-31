@@ -77,3 +77,22 @@ CONTROL_KEY_RESET: Final[int] = ord("r")
 
 CONTROL_KEY_HELP: Final[int] = ord("h")
 """Tecla H para ayuda."""
+
+# COLORES Y VISUALIZACIÓN
+HUE_SEGMENTS: Final[int] = 6
+"""Número de segmentos para la rueda de colores HSV."""
+
+HUE_CYCLE: Final[int] = 360
+"""Ciclo completo de la rueda de colores HSV."""
+
+SATURATION: Final[int] = 200
+"""Saturación por defecto para colores generados (0-255)."""
+
+VALUE: Final[int] = 200
+"""Valor/brillo por defecto para colores generados (0-255)."""
+
+MAX_COLOR_INDEX: Final[int] = 255
+"""Valor máximo para índices de color."""
+
+COLOR_CHANNEL_MAX: Final[int] = 255
+"""Valor máximo para un canal de color."""

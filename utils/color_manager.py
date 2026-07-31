@@ -8,14 +8,15 @@ import logging
 import threading
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from core.constants.visualization import (
+    COLOR_CHANNEL_MAX,
+    HUE_CYCLE,
+    HUE_SEGMENTS,
+    SATURATION,
+    VALUE,
+)
 
-HUE_SEGMENTS = 6
-HUE_CYCLE = 360
-SATURATION = 200
-VALUE = 200
-MAX_COLOR_INDEX = 255
-COLOR_CHANNEL_MAX = 255
+logger = logging.getLogger(__name__)
 
 DEFAULT_COLORS = [
     (0, 255, 0),

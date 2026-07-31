@@ -9,17 +9,13 @@ from typing import Any
 import cv2
 import numpy as np
 
+from core.constants.values import MIN_VALID_SCORE
+from core.constants.vision import (
+    MAX_BBOX_DIMENSION,
+    MAX_BRIGHTNESS,
+    MIN_BBOX_SIZE,
+)
 from utils.logger import LoggerMixin
-
-MIN_BBOX_SIZE: int = 10
-"""Tamaño mínimo de un bounding box en píxeles."""
-MAX_BBOX_DIMENSION: int = 4
-"""Número de elementos en un bounding box."""
-MAX_BRIGHTNESS: int = 240
-"""Brillo máximo permitido antes de considerar sobreexpuesto."""
-
-MIN_VALID_SCORE: float = 0.3
-"""Puntuación mínima para considerar una región válida."""
 
 
 class FeatureValidator(LoggerMixin):
@@ -122,10 +118,7 @@ class FeatureValidator(LoggerMixin):
         if x1 < 0 or y1 < 0 or x2 < 0 or y2 < 0:
             return False
 
-        if x1 >= w or y1 >= h or x2 > w or y2 > h:
-            return False
-
-        return True
+        return not (x1 >= w or y1 >= h or x2 > w or y2 > h)
 
     def _are_dimensions_valid(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         """Verifica que las dimensiones del bbox sean válidas."""

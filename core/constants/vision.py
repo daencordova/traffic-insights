@@ -138,3 +138,13 @@ DEFAULT_WINDOW_WIDTH: Final[int] = 1280
 
 DEFAULT_WINDOW_HEIGHT: Final[int] = 720
 """Alto de ventana por defecto."""
+
+# VALIDACIÓN DE BBOX
+MAX_BBOX_DIMENSION: Final[int] = 4
+"""Número máximo de elementos en un bounding box."""
+
+MAX_BRIGHTNESS: Final[int] = 240
+"""Brillo máximo permitido antes de considerar sobreexpuesto."""
+
+MIN_BBOX_SIZE: Final[int] = 10
+"""Tamaño mínimo de un bounding box en píxeles."""
