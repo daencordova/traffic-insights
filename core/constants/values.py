@@ -66,17 +66,6 @@ DEFAULT_WINDOW_HEIGHT: Final[int] = 720
 """Alto de ventana por defecto."""
 
 # Bounding boxes
-MIN_BOX_SIZE: Final[int] = 10
-"""Tamaño mínimo de un bounding box en píxeles."""
-
-MAX_BOX_SIZE: Final[int] = 10000
-"""Tamaño máximo de un bounding box en píxeles."""
-
-MIN_DETECTION_AREA: Final[int] = 500
-"""Área mínima de una detección en píxeles cuadrados."""
-
-MAX_DETECTION_AREA: Final[int] = 100000
-"""Área máxima de una detección en píxeles cuadrados."""
 
 HEALTH_ISSUES_MAX: Final[int] = 100
 """Número máximo de issues de salud almacenados."""
@@ -85,18 +74,6 @@ HEALTH_ISSUES_TRIM: Final[int] = 50
 """Número de issues a mantener después de poda."""
 
 # CONFIANZA Y CALIDAD
-
-MIN_DETECTION_CONFIDENCE: Final[float] = 0.0
-"""Confianza mínima permitida para una detección."""
-
-MAX_DETECTION_CONFIDENCE: Final[float] = 1.0
-"""Confianza máxima permitida para una detección."""
-
-DEFAULT_CONFIDENCE_THRESHOLD: Final[float] = 0.35
-"""Umbral de confianza por defecto para detecciones."""
-
-DEFAULT_IOU_THRESHOLD: Final[float] = 0.45
-"""Umbral de IoU por defecto para NMS."""
 
 CONFIDENCE_HIGH: Final[float] = 0.7
 """Confianza considerada alta (> 70%)."""
@@ -159,15 +136,6 @@ PREDICTION_SAMPLES: Final[int] = 100
 
 # TIEMPO Y FPS
 
-TARGET_FPS: Final[int] = 30
-"""FPS objetivo del sistema."""
-
-MIN_ACCEPTABLE_FPS: Final[int] = 15
-"""FPS mínimo aceptable para rendimiento aceptable."""
-
-CRITICAL_FPS: Final[int] = 5
-"""FPS crítico por debajo del cual el sistema es inestable."""
-
 FPS_CRITICAL: Final[float] = 5.0
 """FPS considerado crítico (alias de CRITICAL_FPS)."""
 
@@ -223,18 +191,6 @@ MEMORY_SAFE_PERCENT: Final[int] = 70
 
 # BUFFER Y COLA
 
-BUFFER_DROP_THRESHOLD: Final[float] = 0.8
-"""Umbral de ocupación para comenzar a descartar frames (0-1)."""
-
-BUFFER_RECOVERY_THRESHOLD: Final[float] = 0.3
-"""Umbral de ocupación para recuperar frames (0-1)."""
-
-BUFFER_SKIP_MAX: Final[int] = 2
-"""Máximo de frames a saltar."""
-
-BUFFER_SKIP_CONSECUTIVE_LIMIT: Final[int] = 5
-"""Límite de saltos consecutivos."""
-
 BUFFER_USAGE_FULL: Final[float] = 0.7
 """Uso de buffer considerado como FULL (0-1)."""
 
@@ -270,15 +226,6 @@ MAX_BUFFER_SIZE_GPU: Final[int] = 30
 """Tamaño máximo del buffer en modo GPU."""
 
 # WORKERS Y PARALELISMO
-
-MAX_WORKERS_CPU: Final[int] = 4
-"""Máximo de workers en modo CPU."""
-
-MAX_WORKERS_GPU: Final[int] = 8
-"""Máximo de workers en modo GPU."""
-
-MIN_WORKERS_CPU: Final[int] = 2
-"""Mínimo de workers en modo CPU."""
 
 THREAD_POOL_MIN_WORKERS: Final[int] = 2
 """Mínimo de workers en thread pool."""
@@ -785,15 +732,7 @@ __all__ = [
     "MAX_WINDOW_HEIGHT",
     "DEFAULT_WINDOW_WIDTH",
     "DEFAULT_WINDOW_HEIGHT",
-    "MIN_BOX_SIZE",
-    "MAX_BOX_SIZE",
-    "MIN_DETECTION_AREA",
-    "MAX_DETECTION_AREA",
     # Confianza y calidad
-    "MIN_DETECTION_CONFIDENCE",
-    "MAX_DETECTION_CONFIDENCE",
-    "DEFAULT_CONFIDENCE_THRESHOLD",
-    "DEFAULT_IOU_THRESHOLD",
     "CONFIDENCE_HIGH",
     "CONFIDENCE_MEDIUM",
     "CONFIDENCE_LOW",
@@ -815,9 +754,6 @@ __all__ = [
     "PREDICTION_HORIZON_SECONDS",
     "PREDICTION_SAMPLES",
     # Tiempo y FPS
-    "TARGET_FPS",
-    "MIN_ACCEPTABLE_FPS",
-    "CRITICAL_FPS",
     "FPS_CRITICAL",
     "FPS_MINIMUM",
     "FPS_LOW",
@@ -837,10 +773,6 @@ __all__ = [
     "MEMORY_HIGH_PERCENT",
     "MEMORY_SAFE_PERCENT",
     # Buffer
-    "BUFFER_DROP_THRESHOLD",
-    "BUFFER_RECOVERY_THRESHOLD",
-    "BUFFER_SKIP_MAX",
-    "BUFFER_SKIP_CONSECUTIVE_LIMIT",
     "BUFFER_USAGE_FULL",
     "BUFFER_USAGE_OVERFLOW",
     "BUFFER_USAGE_RECOVERY",
@@ -853,9 +785,6 @@ __all__ = [
     "MAX_BUFFER_SIZE_CPU",
     "MAX_BUFFER_SIZE_GPU",
     # Workers
-    "MAX_WORKERS_CPU",
-    "MAX_WORKERS_GPU",
-    "MIN_WORKERS_CPU",
     "THREAD_POOL_MIN_WORKERS",
     "THREAD_POOL_MAX_WORKERS",
     # Batch
