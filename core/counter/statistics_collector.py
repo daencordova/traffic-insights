@@ -7,10 +7,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.constants.system import SECONDS_PER_MINUTE
 from core.constants.values import HISTORY_MAX_SIZE, VELOCITY_DIMENSION
+
+if TYPE_CHECKING:
+    from core.types import Point, Velocity
 
 
 class VehicleEvent:
@@ -37,8 +40,8 @@ class VehicleEvent:
         line_name: str,
         label: str,
         class_id: int,
-        centroid: tuple,
-        velocity: tuple,
+        centroid: Point,
+        velocity: Velocity,
         confidence: float = 0.0,
         metadata: dict[str, Any] | None = None,
     ):

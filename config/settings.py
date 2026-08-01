@@ -318,9 +318,6 @@ class OutputConfig(BaseModel):
     auto_save_interval: int = 300
 
 
-ConfigDictType = dict[str, Any]
-
-
 class Config(BaseModel):
     """Configuración principal del sistema."""
 

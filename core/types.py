@@ -51,7 +51,7 @@ class DetectionDict(TypedDict, total=False):
     label: str
     area: int
     features: FloatNDArray | None
-    metadata: dict[str, Any]
+    metadata: MetadataDict
 
 
 class TrackDataDict(TypedDict, total=False):
@@ -89,7 +89,7 @@ class TrackDataDict(TypedDict, total=False):
     history: list[Point]
     predicted_centroid: Point
     features: FloatNDArray | None
-    metadata: dict[str, Any]
+    metadata: MetadataDict
 
 
 class StatsDict(TypedDict, total=False):
@@ -147,7 +147,7 @@ class CountingLineDict(TypedDict, total=False):
     direction: Literal["up", "down"]
     y_position: int
     enabled: bool
-    metadata: dict[str, Any]
+    metadata: MetadataDict
 
 
 class PipelineStatsDict(TypedDict, total=False):
@@ -304,6 +304,11 @@ class TrackData:
     @classmethod
     def from_track_state(cls, track_state: TrackState) -> TrackData:
         """Crea TrackData desde un TrackState."""
+        from models.track_state import TrackState
+
+        if not isinstance(track_state, TrackState):
+            raise TypeError(f"Se esperaba TrackState, got {type(track_state)}")
+
         return cls(
             centroid=track_state.centroid,
             bbox=track_state.bbox,
@@ -319,6 +324,14 @@ class TrackData:
             predicted_centroid=track_state.predicted_centroid,
             metadata=track_state.metadata.copy(),
         )
+
+
+@dataclass(slots=True)
+class DetectorResult:
+    """Resultado de una operación de detección."""
+    detections: DetectionList
+    inference_time_ms: float
+    frame_shape: tuple[int, int]
 
 
 @runtime_checkable
@@ -510,8 +523,16 @@ EventsList: TypeAlias = list[dict[str, Any]]
 """Lista de eventos de conteo."""
 
 BBoxHistory: TypeAlias = list[BoundingBox]
+"""Historial de bounding boxes."""
 
 Centroid: TypeAlias = tuple[int, int]
+"""Alias para Point (mantiene compatibilidad)."""
+
+ConfigDict: TypeAlias = dict[str, Any]
+"""Diccionario de configuración genérico."""
+
+MetadataDict: TypeAlias = dict[str, Any]
+"""Diccionario de metadatos genérico."""
 
 
 def is_valid_detection(detection: DetectionDict) -> bool:

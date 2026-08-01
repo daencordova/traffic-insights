@@ -15,6 +15,7 @@ from core.counter import VehicleCounter
 from core.detector import OptimizedYOLODetector, YOLODetector
 from core.frame_buffer import FrameMetadata
 from core.tracker import MultiObjectTracker
+from core.types import DetectionList, MetadataDict, StatsDict, TracksDict
 from utils.logger import LoggerMixin
 
 
@@ -48,13 +49,14 @@ class ProcessingResult:
     def __init__(
         self,
         frame_number: int,
-        detections: list[dict],
-        tracks: dict,
-        stats: dict,
+        detections: DetectionList,
+        tracks: TracksDict,
+        stats: StatsDict,
         processed_frame: np.ndarray,
         processing_time_ms: float,
         capture_time_ms: float,
         timestamp: float,
+        metadata: MetadataDict | None = None
     ):
         self.frame_number = frame_number
         self.detections = detections

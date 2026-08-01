@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from ultralytics import YOLO
@@ -51,9 +51,8 @@ from utils.geometry import calculate_centroid
 from utils.helpers import get_memory_usage
 from utils.logger import LoggerMixin
 
-Detection = dict[str, Any]
-DetectionList = list[Detection]
-BoundingBox = tuple[int, int, int, int]
+if TYPE_CHECKING:
+    from core.types import DetectionList
 
 
 class YOLODetector(IDetector, LoggerMixin):
@@ -382,7 +381,7 @@ class YOLODetector(IDetector, LoggerMixin):
             Convierte los resultados de YOLO a un formato diccionario
             consistente con el resto del sistema.
         """
-        detections = []
+        detections: DetectionList = []
 
         if result is None or result.boxes is None:
             return detections
