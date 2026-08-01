@@ -10,11 +10,7 @@ import time
 import numpy as np
 
 from core.capture.reconnector import Reconnector
-from core.constants import (
-    BUFFER_DROP_THRESHOLD,
-    BUFFER_RECOVERY_THRESHOLD,
-    BUFFER_SKIP_CONSECUTIVE_LIMIT,
-    BUFFER_SKIP_MAX,
+from core.constants.pipeline import (
     CAPTURE_DEFAULT_INTERVAL_CPU,
     CAPTURE_DEFAULT_INTERVAL_GPU,
     CAPTURE_MAX_CONSECUTIVE_ERRORS,
@@ -22,7 +18,11 @@ from core.constants import (
     CAPTURE_MIN_FPS_CPU,
     CAPTURE_TARGET_FPS_CPU,
     CAPTURE_TARGET_FPS_GPU,
+)
+from core.constants.system import (
     DEFAULT_SLEEP_SHORT,
+)
+from core.constants.vision import (
     MIN_FRAME_DIMENSION,
 )
 from core.frame_buffer import FrameBuffer, FrameMetadata
