@@ -25,6 +25,7 @@ from core.detector.model_exporter import ModelExporter
 from core.detector.model_manager import ModelLoadError, ModelManager
 from core.detector.post_processor import PostProcessor
 from core.detector.preprocessor import ImagePreprocessor
+from core.types import DetectionList
 from utils.helpers import get_memory_usage
 
 
@@ -245,7 +246,7 @@ class OptimizedYOLODetector(YOLODetector):
         except Exception as e:
             self.logger.warning(f"Error en warmup: {e}")
 
-    def detect(self, frame: np.ndarray) -> list[dict[str, Any]]:
+    def detect(self, frame: np.ndarray) -> DetectionList:
         """Detecta objetos en un frame usando el motor optimizado.
 
         Args:
@@ -285,7 +286,7 @@ class OptimizedYOLODetector(YOLODetector):
 
         return detections
 
-    def _check_cache(self, frame: np.ndarray) -> list[dict[str, Any]] | None:
+    def _check_cache(self, frame: np.ndarray) -> DetectionList | None:
         """Verifica el caché de detecciones.
 
         Args:
@@ -304,7 +305,7 @@ class OptimizedYOLODetector(YOLODetector):
             self.logger.debug(f"Error en caché: {e}")
         return None
 
-    def _cache_detections(self, frame: np.ndarray, detections: list[dict[str, Any]]) -> None:
+    def _cache_detections(self, frame: np.ndarray, detections: DetectionList) -> None:
         """Almacena detecciones en caché.
 
         Args:

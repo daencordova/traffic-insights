@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import numpy as np
 
+    from core.types import DetectionList, TrackDataDict, TracksDict
+
 from core.constants.pipeline import (
     CLEANUP_INTERVAL,
     MEMORY_CHECK_INTERVAL,
@@ -387,9 +389,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         except ImportError:
             return False
 
-    def update(
-        self, detections: list[dict[str, Any]], frame: np.ndarray
-    ) -> dict[int, dict[str, Any]]:
+    def update(self, detections: DetectionList, frame: np.ndarray) -> TracksDict:
         """Actualiza el tracker con nuevas detecciones.
 
         Args:
@@ -450,7 +450,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         return self.get_tracking_info()
 
-    def _validate_detections(self, detections: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _validate_detections(self, detections: DetectionList) -> DetectionList:
         """Valida y filtra detecciones.
 
         Args:
@@ -472,7 +472,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
 
         return valid[:MAX_DETECTIONS_PER_FRAME]
 
-    def _extract_features(self, detections: list[dict[str, Any]], frame: np.ndarray) -> None:
+    def _extract_features(self, detections: DetectionList, frame: np.ndarray) -> None:
         """Extrae features para todas las detecciones.
 
         Args:
@@ -997,7 +997,7 @@ class MultiObjectTracker(ITracker, LoggerMixin):
         )
         self._stats["lost_tracks"] = self.track_manager.get_lost_count()
 
-    def get_tracking_info(self) -> dict[int, dict[str, Any]]:
+    def get_tracking_info(self) -> dict[int, TrackDataDict]:
         """Retorna información de tracking actual.
 
         Returns:
