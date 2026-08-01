@@ -5,10 +5,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-MIN_MHT_DEPTH = 2
-MIN_PARTICLE_COUNT = 100
-MIN_PREDICTION_HORIZON = 0.5
-MIN_REID_CACHE_SIZE = 100
+from core.constants.tracking import (
+    MIN_MHT_DEPTH,
+    MIN_PARTICLE_COUNT,
+    MIN_PREDICTION_HORIZON,
+    MIN_REID_CACHE_SIZE,
+)
 
 
 class DeviceType(str, Enum):
@@ -26,15 +28,6 @@ class TrackerType(str, Enum):
     CENTROID = "centroid"
     DEEPSORT = "deepsort"
     HYBRID = "hybrid"
-
-
-Point = tuple[int, int]
-BoundingBox = tuple[int, int, int, int]
-Color = tuple[int, int, int]
-LinePoints = list[Point]
-DetectionDict = dict[str, Any]
-TrackDict = dict[int, dict[str, Any]]
-StatsDict = dict[str, Any]
 
 
 class ModelConfig(BaseModel):

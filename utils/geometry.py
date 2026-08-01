@@ -2,9 +2,11 @@
 
 import numpy as np
 
-Point = tuple[int, int]
-BoundingBox = tuple[int, int, int, int]
-FloatPoint = tuple[float, float]
+from core.types import BoundingBox, FloatPoint, Point
+
+# Point = tuple[int, int]
+# BoundingBox = tuple[int, int, int, int]
+# FloatPoint = tuple[float, float]
 
 
 def calculate_centroid(x1: int, y1: int, x2: int, y2: int) -> Point:

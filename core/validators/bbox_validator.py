@@ -6,14 +6,14 @@ asegurando que cumplan con los requisitos del sistema.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from core.constants.vision import MAX_BOX_SIZE, MIN_BOX_SIZE
 
-BoundingBox = tuple[int, int, int, int]
-Centroid = tuple[int, int]
+if TYPE_CHECKING:
+    from core.types import BoundingBox
 
 
 def validate_bbox(

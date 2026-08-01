@@ -21,18 +21,18 @@ from core.constants.tracking import (
     MIN_HISTORY_FOR_VELOCITY,
     MIN_HITS_TO_CONFIRM,
 )
+from core.types import (
+    Acceleration,
+    BBoxHistory,
+    BoundingBox,
+    Point,
+    Velocity,
+)
 from core.validators import validate_bbox, validate_centroid
 from models.enums import TrackStatus
 
 if TYPE_CHECKING:
     from models.kalman import EnhancedKalmanFilter
-
-Point = tuple[int, int]
-BoundingBox = tuple[int, int, int, int]
-Velocity = tuple[float, float]
-Acceleration = tuple[float, float]
-TrackHistory = deque[Point]
-BBoxHistory = list[BoundingBox]
 
 
 class TrackState:
@@ -600,8 +600,6 @@ __all__ = [
     "BoundingBox",
     "Velocity",
     "Acceleration",
-    "TrackHistory",
-    "BBoxHistory",
     "create_track_from_detection",
     "merge_tracks",
 ]
