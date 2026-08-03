@@ -35,6 +35,7 @@ from core.constants.tracking import (
     MIN_HITS_TO_CONFIRM,
 )
 from core.constants.values import MEMORY_WARNING_PERCENT
+from core.exceptions import TrackingError
 from core.interfaces import ITracker
 from core.tracker.managers.feature_manager import FeatureManager
 from core.tracker.managers.track_manager import TrackManager
@@ -586,14 +587,23 @@ class MultiObjectTracker(ITracker, LoggerMixin):
             detections: Lista de detecciones.
             match_result: Resultado del matching.
         """
-        if self.online_learner:
-            self._update_online_learning(detections, match_result)
+        try:
+            if self.online_learner:
+                self._update_online_learning(detections, match_result)
 
-        if self.sensor_fusion:
-            self._update_sensor_fusion(detections, match_result)
+            if self.sensor_fusion:
+                self._update_sensor_fusion(detections, match_result)
 
-        if self.path_predictor:
-            self._update_path_prediction()
+            if self.path_predictor:
+                self._update_path_prediction()
+        except (ValueError, RuntimeError, KeyError) as e:
+            self.logger.warning(f"Error en subsistema avanzado de tracking: {e}", exc_info=True)
+        except Exception as e:
+            self.logger.error(f"Error crítico en actualización de tracking: {e}", exc_info=True)
+            raise TrackingError(
+                f"Error en actualización de tracking: {e}",
+                details={"frame": self._frame_counter, "tracks": len(self.track_manager)}
+            ) from e
 
     def _update_online_learning(
         self, detections: list[dict[str, Any]], match_result: MatchResult

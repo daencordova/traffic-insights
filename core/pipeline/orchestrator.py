@@ -1,10 +1,9 @@
-"""Orquestador principal del pipeline.
-Responsable de coordinar los servicios y gestionar el estado global.
-"""
+"""Orquestador principal del pipeline. Responsable de coordinar los servicios y gestionar el estado global."""
 
 import time
 from typing import Any
 
+from core.exceptions import CaptureError, FrameProcessingError, PipelineError
 from core.pipeline.services.capture_service import CaptureService
 from core.pipeline.services.control_service import ControlService
 from core.pipeline.services.monitoring_service import MonitoringService
@@ -90,14 +89,30 @@ class PipelineOrchestrator(LoggerMixin):
             self._services["processing"].start()
             self._services["render"].start()
             self._services["monitoring"].start()
-
             self.logger.info("Pipeline iniciado exitosamente")
             self._run_main_loop()
+        except CaptureError as e:
+            self.logger.error(f"Error en captura: {e}", exc_info=True)
+            self._state.set_status(PipelineStatus.ERROR)
 
+            if self._state.can_recover():
+                self.logger.info("Intentando recuperación de captura...")
+                self._services["capture"].reconnect()
+                self._state.set_status(PipelineStatus.RUNNING)
+            else:
+                self.stop()
+
+                raise PipelineError("Fallo crítico en captura") from e
+        except FrameProcessingError as e:
+            self.logger.error(f"Error en procesamiento: {e}", exc_info=True)
+            self._state.set_status(PipelineStatus.ERROR)
+            self._services["processing"].reset()
+            self._state.set_status(PipelineStatus.RUNNING)
         except Exception as e:
-            self.logger.error(f"Error iniciando pipeline: {e}")
+            self.logger.error(f"Error crítico en pipeline: {e}", exc_info=True)
             self.stop()
-            raise
+
+            raise PipelineError("Fallo crítico en pipeline", details={"error": str(e)}) from e
 
     def _run_main_loop(self) -> None:
         """Bucle principal de monitoreo.

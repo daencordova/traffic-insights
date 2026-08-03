@@ -14,7 +14,7 @@ import numpy as np
 
 from core.capture.reconnector import Reconnector
 from core.circuit_breaker import CircuitBreaker, circuit_breaker_registry
-from core.exceptions import CameraError
+from core.exceptions import CameraError, ConnectionError
 from core.frame_buffer import FrameBuffer, FrameMetadata
 from core.validators import validate_frame
 from utils.decorators import RetryConfig, retry_on_failure
@@ -262,7 +262,6 @@ class CaptureService(LoggerMixin):
         """
         try:
             self._cap = self._reconnector.connect(self._source, self.config.camera)
-
             if self._cap and self._cap.isOpened():
                 self._stats["reconnections"] += 1
                 self._stats["errors"] = 0
@@ -270,12 +269,18 @@ class CaptureService(LoggerMixin):
                 self.logger.info("Conexión exitosa a la fuente")
                 return True
 
-            raise CameraError(f"No se pudo conectar a la fuente: {self._source}")
-
+            self._circuit_breaker.record_failure(
+                CameraError(f"No se pudo conectar a la fuente: {self._source}")
+            )
+            return False
+        except (ConnectionError, TimeoutError, OSError) as e:
+            self._circuit_breaker.record_failure(e)
+            self.logger.error(f"Error de conexión: {e}")
+            raise ConnectionError(f"Fallo en conexión a {self._source}") from e
         except Exception as e:
             self._circuit_breaker.record_failure(e)
-            self.logger.error(f"Error conectando: {e}")
-            raise CameraError(f"Fallo en conexión: {e}") from e
+            self.logger.error(f"Error inesperado en conexión: {e}", exc_info=True)
+            raise CameraError(f"Error crítico al conectar a {self._source}") from e
 
     def _read_frame(self) -> tuple:
         """Lee un frame con manejo de errores.

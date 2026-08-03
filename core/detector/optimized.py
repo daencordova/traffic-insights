@@ -25,6 +25,7 @@ from core.detector.model_exporter import ModelExporter
 from core.detector.model_manager import ModelLoadError, ModelManager
 from core.detector.post_processor import PostProcessor
 from core.detector.preprocessor import ImagePreprocessor
+from core.exceptions import InferenceError
 from core.types import DetectionList
 from utils.helpers import get_memory_usage
 
@@ -348,8 +349,14 @@ class OptimizedYOLODetector(YOLODetector):
                 output = self._onnx_engine.infer(frame)
                 if output is not None and len(output) > 0:
                     return self.post_processor.process_onnx_output(output, original_shape[:2])
+            except (RuntimeError, ValueError, AttributeError) as e:
+                self.logger.warning(f"Error en ONNX: {e}, usando PyTorch", exc_info=True)
             except Exception as e:
-                self.logger.warning(f"Error en ONNX: {e}, usando PyTorch")
+                self.logger.error(f"Error crítico en inferencia ONNX: {e}", exc_info=True)
+                raise InferenceError(
+                    "Error crítico en el motor de inferencia ONNX",
+                    details={"error": str(e), "frame_shape": original_shape}
+                ) from e
 
         if self._pytorch_engine and self._pytorch_engine.is_available:
             try:
