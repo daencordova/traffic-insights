@@ -1,6 +1,5 @@
 """Configuración centralizada con Pydantic para validación robusta."""
 
-from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -11,23 +10,7 @@ from core.constants.tracking import (
     MIN_PREDICTION_HORIZON,
     MIN_REID_CACHE_SIZE,
 )
-
-
-class DeviceType(str, Enum):
-    """Tipos de dispositivos soportados."""
-
-    CPU = "cpu"
-    CUDA = "cuda"
-    MPS = "mps"
-    AUTO = "auto"
-
-
-class TrackerType(str, Enum):
-    """Tipos de tracker disponibles."""
-
-    CENTROID = "centroid"
-    DEEPSORT = "deepsort"
-    HYBRID = "hybrid"
+from models.enums import DeviceType, TrackerType
 
 
 class ModelConfig(BaseModel):
