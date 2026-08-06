@@ -20,6 +20,7 @@ from core.tracker.managers.track_manager import TrackManager
 from core.tracker.matcher import MatchLevel, MatchResult, TrackMatcher
 from core.tracker.mht_integration import MHTIntegration
 from core.tracker.online_learner import OnlineLearner
+from core.tracker.orchestrator import TrackOrchestrator
 from core.tracker.path_predictor import PathPredictor, TrajectoryPrediction
 from core.tracker.prediction import (
     AdaptiveModel,
@@ -40,10 +41,16 @@ from core.tracker.reidentifier import ReIdentificationCandidate, ReIDSystem
 from core.tracker.sensor_fusion import SensorFusion, SensorObservation, SensorType
 from core.tracker.state.state_machine import TrackStateMachine
 from core.tracker.state.track_updater import TrackUpdater
+from core.tracker.state_manager import TrackStateManager
 from core.tracker.validator import TrackValidator, ValidationRule
 
 __all__ = [
     "MultiObjectTracker",
+    "TrackOrchestrator",
+    "TrackStateManager",
+    "TrackManager",
+    "TrackStateMachine",
+    "TrackUpdater",
     "TrackMatcher",
     "MatchResult",
     "MatchLevel",
@@ -60,9 +67,6 @@ __all__ = [
     "SensorType",
     "PathPredictor",
     "TrajectoryPrediction",
-    "TrackManager",
-    "TrackStateMachine",
-    "TrackUpdater",
     "FeatureManager",
     "TrajectoryHistory",
     "TrajectorySample",
