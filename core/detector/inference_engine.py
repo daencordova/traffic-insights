@@ -56,6 +56,12 @@ class PyTorchInferenceEngine(InferenceEngine, LoggerMixin):
         device: str = "cpu",
         max_det: int = 100,
     ):
+        if hasattr(device, "value"):
+            device = device.value
+
+        if device not in ["cpu", "cuda", "mps"]:
+            device = "cpu"
+
         self.model = model
         self.imgsz = imgsz
         self.vehicle_classes = vehicle_classes or [2, 3, 5, 7]

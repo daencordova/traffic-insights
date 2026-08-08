@@ -50,6 +50,12 @@ class ModelManager(LoggerMixin):
         imgsz: int = 320,
         vehicle_classes: list = None,
     ):
+        if hasattr(device, "value"):
+            device = device.value
+
+        if device not in ["cpu", "cuda", "mps"]:
+            device = "cpu"
+
         self.model_path = model_path
         self.device = device
         self.use_half_precision = use_half_precision
