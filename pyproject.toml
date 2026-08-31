@@ -1,0 +1,219 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "traffic-insights"
+version = "0.1.0"
+description = "Advanced real-time vehicle tracking and counting system"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Daniel Cordova", email = "daencordova@gmail.com"},
+]
+license = {text = "MIT"}
+keywords = ["computer-vision", "tracking", "yolo", "traffic", "opencv"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.16.0",
+    "pre-commit>=4.6.1",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "mypy>=2.3.0",
+]
+
+[tool.ruff]
+# Maximum line length: 100
+line-length = 100
+# Target Python version
+target-version = "py310"
+
+# Exclude directories from analysis
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    "data",
+]
+
+[tool.ruff.format]
+# Use double quotes
+quote-style = "double"
+# Spaces for indentation
+indent-style = "space"
+# Docstring quotes
+docstring-code-format = true
+# Line ending
+line-ending = "auto"
+# Exclude files from formatting
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Selection of rules
+select = [
+    # Style errors and warnings
+    "E", "W",
+    # Pyflakes errors
+    "F",
+    # Import order
+    "I",
+    # PEP 8 naming
+    "N",
+    # Documentation (pydocstyle)
+    "D",
+    # Python updates
+    "UP",
+    # Bugbear (common errors)
+    "B",
+    # Simplifications
+    "SIM",
+    # Comprehension ordering
+    "C4",
+    # Tidiness
+    "TID",
+    # Type errors (some)
+    "TCH",
+    # Flake8-2020 (compatibility)
+    "YTT",
+    # Flake8-print
+    "T20",
+    # Flake8-boolean-trap
+    "FBT",
+    # Flake8-comprehensions
+    "COM",
+    # Flake8-debugger
+    "T10",
+    # Flake8-fixme
+    "FIX",
+    # Flake8-implicit-str-concat
+    "ISC",
+    # Flake8-logging
+    "LOG",
+    # Flake8-no-pep420
+    "INP",
+    # Flake8-pie
+    "PIE",
+    # Flake8-pytest-style
+    "PT",
+    # Flake8-raise
+    "RSE",
+    # Flake8-return
+    "RET",
+    # Flake8-self
+    "SLF",
+    # Flake8-simplify
+    "SIM",
+    # Flake8-type-checking
+    "TCH",
+    # Flake8-unused-arguments
+    "ARG",
+    # Pylint
+    "PL",
+    # Pyupgrade
+    "UP",
+]
+
+# Ignore specific rules
+ignore = [
+    # Missing docstring in public modules
+    "D100",
+    # Missing docstring in public packages
+    "D104",
+    # Missing docstring in __init__
+    "D107",
+    # Line too long (already handled by formatter)
+    "E501",
+    # Variable name too short (in some cases)
+    "N801",
+    # Use f-strings instead of format
+    "UP032",
+    # Docstring in private methods
+    "D102",
+    # Unused argument in method
+    "ARG002",
+    # Conflict with formatter (missing commas)
+    "COM812",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore docstring in tests
+"tests/**/*.py" = ["D"]
+# Ignore unused imports in __init__
+"*/__init__.py" = ["F401", "D"]
+
+[tool.ruff.lint.pydocstyle]
+# Use Google convention
+convention = "google"
+
+[tool.ruff.lint.isort]
+# Recognize own modules
+known-first-party = ["config", "core", "models", "utils"]
+# Separation between groups
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+# Combine imports from the same module
+combine-as-imports = true
+# Force alphabetical order
+force-sort-within-sections = true
+
+# ===== MYPY CONFIGURATION =====
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_unimported = true
+ignore_missing_imports = true
+exclude = [
+    "tests/",
+    "data/",
+]
+
+# ===== PYTEST CONFIGURATION =====
+[tool.pytest.ini_options]
+addopts = "-v --cov=. --cov-report=html --cov-report=term"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# ===== COVERAGE CONFIGURATION =====
+[tool.coverage.run]
+source = ["config", "core", "models", "utils"]
+omit = [
+    "tests/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
